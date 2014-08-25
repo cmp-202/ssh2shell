@@ -1,0 +1,14 @@
+{ "name": "serverAdmin",
+  "version": "0.0.1",
+  "author": "cmp-202",
+  "description": "A set of wrapper classes for node.js SSH2 writen by Brian White https://github.com/mscdex/ssh2",
+  "main": "./SSH2Shell.coffee",
+  "engines": { "node": ">=0.8.7" },
+  "dependencies": {
+    "ssh2": "0.3.5"
+  },
+  "scripts": {
+  },
+  "keywords": [ "ssh", "ssh2", "secure", "shell", "server", "remote", "client", "admin" ],
+  "repository" : { "type": "git", "url": "http://github.com/cmp-202/node-server-admin-SSH2.git" }
+}
