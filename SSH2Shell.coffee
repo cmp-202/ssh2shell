@@ -1,6 +1,7 @@
 class SSHShell
   sshObj:        {}
   sessionText:   ""
+  response:      ""
   _data:         ""
   _buffer:       ""
   _command:      ""
@@ -29,7 +30,7 @@ class SSHShell
         @_sudosu = true        
       #set the pwsent flag and send the password for sudo
       @_pwSent = true
-      @_stream.write "#{@sshObj.connect.server.password}\n"
+      @_stream.write "#{@sshObj.server.password}\n"
 
   _processCommandPrompt: ->    
     #detect the command prompt waiting for the next command
@@ -41,8 +42,9 @@ class SSHShell
 
   _processBuffer: ->
     @sessionText += "#{@_buffer}" 
+    @response = @_buffer
     #run the command complete callback function
-    @sshObj.onCommandComplete @_buffer, @_stream 
+    @sshObj.onCommandComplete @ 
     @sshObj.msg.send @_buffer if @sshObj.verbose and !@_exit
     @_buffer = ""
 
@@ -98,7 +100,7 @@ class SSHShell
       try
         @connection = new @sshObj.Connection()
         @connection.on "connect", ->
-          @sshObj.msg.send "Connected"
+          @sshObj.msg.send @sshObj.connectedMessage
 
         @connection.on "ready", ->
           @sshObj.msg.send @sshObj.readyMessage      
