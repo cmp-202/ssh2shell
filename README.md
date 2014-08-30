@@ -18,7 +18,7 @@ This is a class that wraps the node.js ssh2 package shell command enabling the f
 
 Code:
 -----
-The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code than the `./lib/ssh2shell.js` file is just the coffee script output.
+The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code than the `./lib/ssh2shell.js` file which is just the coffee script output.
  
 Installation:
 ------------
