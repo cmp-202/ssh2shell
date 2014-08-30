@@ -3,7 +3,6 @@ ssh-shell
 
 [node.js](http://nodejs.org/) wrapper for [SSH2](https://github.com/mscdex/ssh2) 
 
-`PLease note this code has not yet been tested!`
 
 This is a class that wraps the node.js SSH2 shell command enabling the following actions:
 
@@ -19,7 +18,7 @@ This is a class that wraps the node.js SSH2 shell command enabling the following
 
 Version:
 -------
-v0.0.1
+v1.0.1
 
 Installation:
 ------------
@@ -118,7 +117,7 @@ var sshObj = {
   }
 };
 
-var SSHShell = require ('SSH2Shell');
+var SSHShell = require ('ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSHShell(sshObj);
