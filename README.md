@@ -16,7 +16,10 @@ This is a class that wraps the node.js ssh2 package shell command enabling the f
 * A couple of message formats run from within the commands array that output to the message handle or to the session response text.
 * Use of ssh key for authentication.
 
-
+Code:
+-----
+The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code than the `./lib/ssh2shell.js` file is just the coffee script output.
+ 
 Installation:
 ------------
 ```
@@ -130,13 +133,12 @@ Verbose:
 --------
 When verbose is set to true each command response is passed to the msg.send function. 
 There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get and so you will never see the final full session text. 
-Rerunning the process with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandComplete callback.
-In the example above onEnd function could be left empty and verbose be set to true to see the result of each command in the console(any session text notifications would not be seen).
+Rerunning the process with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback.
 
 Responding to prompts:
 ----------------------
-When running commands there are cases that you might need to respond to specific prompts.
-The command response check method is the same as in the example but the method to send the reply is different.
+When running commands there are cases that you might need to respond to specific prompts that result from the command being run.
+The command response check method is the same as in the example for the onCommandComplete callback but in this case we use the onCommandProcessing callback and the method to send the reply is different.
 The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
 
 ```
