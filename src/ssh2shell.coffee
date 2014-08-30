@@ -6,28 +6,30 @@
 # The following object is required by the SSH2Shell class:
 #
 # sshObj = {
-#   server:             {       
+#   server:              {       
 #     host:       "[IP Address]",
 #     port:       "[external port number]",
 #     userName:   "[user name]",
 #     password:   "[user password]",
 #     privateKey: "[optional private key for user to match public key in authorized_keys file]"
 #   },
-#   Connection:         require ('SSH2'),
-#   commands:           [Array of command strings],
-#   msg:                {
-#     send: ( message ) {
+#   commands:            [Array of command strings],
+#   msg:                 {
+#     send: function( message ) {
 #       [message handler code]
 #     }
 #   }, 
-#   verbose:            true/false, #determines if all command output is processed by message handler as it runs]
-#   connectedMessage:   "[on Connected message]",
-#   readyMessage:       "[on Ready message]",
+#   verbose:             true/false, #determines if all command output is processed by message handler as it runs]
+#   connectedMessage:    "[on Connected message]",
+#   readyMessage:        "[on Ready message]",
 #   closedMessage:         "[on End message]",
-#   onCommandComplete:  ( sshShellInst ) {
-#     [callback function, optional code to run on the completion of a command before th enext command is run]
+#   onCommandProcessing: function( command, response, sshObj, stream ) {
+#     [callback function, optional code to run during the procesing of a command]
 #   },
-#   onEnd:              ( sshShellInst ) {
+#   onCommandComplete:   function( command, response, sshObj ) {
+#     [callback function, optional code to run on the completion of a command before the next command is run]
+#   },
+#   onEnd:               function( sessionText, sshObj ) {
 #     [callback function, optional code to run at the end of the session]
 #   }
 # }
@@ -35,6 +37,7 @@
 
 class SSH2Shell
   sshObj:        {}
+  stream:       {}
   sessionText:   ""
   command:       ""
   response:      ""
@@ -43,7 +46,6 @@ class SSH2Shell
   _pwSent:       false
   _sudosu:       false
   _exit:         false
-  _stream:       {}
   
   _processData: ->
     #remove non-standard ascii from terminal responses
@@ -65,7 +67,7 @@ class SSH2Shell
         @_sudosu = true
       #set the pwsent flag and send the password for sudo
       @_pwSent = true
-      @_stream.write "#{@sshObj.server.password}\n"
+      @stream.write "#{@sshObj.server.password}\n"
       @_buffer = ""
 
   _processCommandPrompt: =>
@@ -76,12 +78,14 @@ class SSH2Shell
         @_processBuffer()
       #process the next command
       @_processNextCommand()
+    else
+      @sshObj.onCommandProcessing @command, @_buffer, @sshObj, @stream
 
   _processBuffer: =>
     @sessionText += "#{@_buffer}"
     @response = @_buffer
     #run the command complete callback function
-    @sshObj.onCommandComplete @
+    @sshObj.onCommandComplete @command, @response, @sshObj
     @sshObj.msg.send @_buffer if @sshObj.verbose
     @_buffer = ""
 
@@ -111,7 +115,7 @@ class SSH2Shell
       #if there is still a command to run then run it or exit
       if @command
         #@sshObj.msg.send "next command: #{@command}"
-        @_stream.write "#{@command}\n"
+        @stream.write "#{@command}\n"
       else
         #no more commands so exit
         @_runExit()
@@ -125,10 +129,10 @@ class SSH2Shell
     
     #sudo su needs exit sent twice to terminate the session
     if @_sudosu
-      @_stream.write "exit\n"
+      @stream.write "exit\n"
       @_sudosu = false
     else
-      @_stream.end "exit\n"
+      @stream.end "exit\n"
   
   constructor: (@sshObj) ->
   
@@ -143,35 +147,35 @@ class SSH2Shell
           @sshObj.msg.send @sshObj.readyMessage
 
           #open a shell
-          @connection.shell (err, @_stream) =>
+          @connection.shell (err, @stream) =>
             if err then @sshObj.msg.send "#{err}"
             
-            @_stream.on "error", (error) =>
+            @stream.on "error", (error) =>
               @sshObj.msg.send "Stream Error: #{error}"
 
-            @_stream.stderr.on 'data', (data) =>
+            @stream.stderr.on 'data', (data) =>
               @sshObj.msg.send "Stream STDERR: #{data}"
               
-            @_stream.on "readable", =>
+            @stream.on "readable", =>
               try
-                while (data = @_stream.read())
+                while (data = @stream.read())
                   @_data = "#{data}"
                   @_processData()
               catch e
                 @sshObj.msg.send "#{e} #{e.stack}"
                 
-            @_stream.on "end", =>
+            @stream.on "end", =>
               #run the on end callback function
-              @sshObj.onEnd @
+              @sshObj.onEnd @sessionText, @sshObj
             
-            @_stream.on "close", (code, signal) =>
+            @stream.on "close", (code, signal) =>
               @connection.end()
             
             #Run the first command to start the process
             #all other commands are run from within on readable event
             @command = @sshObj.commands.shift()
             @_processNotifications()
-            @_stream.write "#{@command}\n"
+            @stream.write "#{@command}\n"
 
         @connection.on "error", (err) =>
           @sshObj.msg.send "Connection :: error :: " + err

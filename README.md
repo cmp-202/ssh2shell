@@ -1,10 +1,10 @@
-ssh-shell
+ssh2shell
 ======================
 
 [node.js](http://nodejs.org/) wrapper for [SSH2](https://github.com/mscdex/ssh2) 
 
 
-This is a class that wraps the node.js SSH2 shell command enabling the following actions:
+This is a class that wraps the node.js ssh2 package shell command enabling the following actions:
 
 * Sudo and sudo su password prompt detection and response.
 * Run multiple commands sequentially.
@@ -25,15 +25,14 @@ npm install ssh2shell
 
 Requirements:
 ------------
-* The nodejs [SSH2](https://github.com/mscdex/ssh2) package
-* The following object to be passed to the class on creation or through static function:
+The class expects an object with following structure to be passed to its constructor:
 ```
 sshObj = {
   server:             {       
     host:       "[IP Address]",
     port:       "[external port number]",
     userName:   "[user name]",
-    password:   "[user password]",
+    password:   "[user password. Even if key authentication is used this is required for sudo password prompt]",
     privateKey: [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""],
     passPhrase: "[private key passphrase or empty string]"
   },
@@ -43,15 +42,18 @@ sshObj = {
       [message handler code]
     }
   }, 
-  verbose:            true/false, [determines if all command output is processed by message handler as it runs]
+  verbose:            true/false, [if true all command output is processed by message handler as it runs]
   connectedMessage:   "[on Connected message]",
   readyMessage:       "[on Ready message]",
   closedMessage:      "[on Close message]",
-  onCommandComplete:  function( sshShellInst ) {
-    [callback function, optional code to run on the completion of a command. sshShellInst is the instance object]
+  onCommandProcessing: function( command, response, sshObj, stream ) {
+    [callback function, optional code to run during the procesing of a command]
   },
-  onEnd:              function( sshShellInst ) {
-    [callback function, optional code to run at the end of the session. sshShellInst is the instance object]
+  onCommandComplete:   function( command, response, sshObj ) {
+    [callback function, optional code to run on the completion of a command before the next command is run]
+  },
+  onEnd:               function( sessionText, sshObj ) {
+    [callback function, optional code to run at the end of the session]
   }
 };
 ```    
@@ -59,11 +61,12 @@ sshObj = {
 Usage:
 -------
 This example shows:
+* Use sudo su with user password
 * How to setup commands
 * How to test the response of a command and add more commands and notifications in the onCommandComplete callback function
 * Use the two notification types in the commands array: "\`full session text notification\`" and "msg:notification processed by the msg.send function". Neither of these command formats are run as commands in the shell.
 * Connect using a key pair with pass phrase
-* use sudo su with user password 
+ 
 
 ```
 
@@ -95,20 +98,23 @@ var sshObj = {
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed",
-  onCommandComplete:  function( ssh2shellInst ) {
-    //confirm it is the root home dir and change to roots .ssh folder
-    if (ssh2shellInst.command == "echo $(pwd)" && ssh2shellInst.response.indexOf("/root") != -1 ) {
-      ssh2shellInst.sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
-      ssh2shellInst.sshObj.commands.unshift("cd .ssh");
+  onCommandProcessing: function( command, response, sshObj, stream ) {
+    //nothing to do here
+  },
+  onCommandComplete:  function( command, response, sshObj ) {
+    //confirm it is the root home dir and change to root's .ssh folder
+    if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
+      sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
+      sshObj.commands.unshift("cd .ssh");
     }
     //we are listing the dir so output it to the msg handler
-    else if (ssh2shellInst.command == "ll"){      
-      ssh2shellInst.sshObj.msg.send(ssh2shellInst.response);
+    else if (command == "ll"){      
+      sshObj.msg.send(response);
     }
   },
-  onEnd:              function( ssh2shellInst ) {
+  onEnd:              function( sessionText, sshObj ) {
     //show the full session output. This could be emailed or saved to a log file.
-    ssh2shellInst.sshObj.msg.send("\nThis is the full session responses:\n" + ssh2shellInst.sessionText);
+    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
   }
 };
 
@@ -122,5 +128,23 @@ SSH.connect();
 
 Verbose:
 --------
-when verbose is set to true each command response is passed to the msg.send function.
+When verbose is set to true each command response is passed to the msg.send function. 
+There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get and so you will never see the final full session text. 
+Rerunning the process with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandComplete callback.
 In the example above onEnd function could be left empty and verbose be set to true to see the result of each command in the console(any session text notifications would not be seen).
+
+Responding to prompts:
+----------------------
+When running commands there are cases that you might need to respond to specific prompts.
+The command response check method is the same as in the example but the method to send the reply is different.
+The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
+
+```
+  onCommandProcessing:  function( command, response, sshObj, stream ) {
+    //Check the command and prompt exits and respond with a 'y'
+    if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
+      sshObj.msg.send('Sending install nano response');
+      stream.write('y\n');
+    }
+  }
+```
