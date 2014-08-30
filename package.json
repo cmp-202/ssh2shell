@@ -25,12 +25,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "http://github.com/cmp-202/ssh-shell"
+    "url": "http://github.com/cmp-202/ssh2shell"
   },
   "bugs": {
-    "url": "https://github.com/cmp-202/ssh-shell/issues"
+    "url": "https://github.com/cmp-202/ssh2shell/issues"
   },
-  "homepage": "https://github.com/cmp-202/ssh-shell",
+  "homepage": "https://github.com/cmp-202/ssh2shell",
   "directories": {
     "test": "test"
   },
