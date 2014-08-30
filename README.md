@@ -38,89 +38,95 @@ sshObj = {
     port:       "[external port number]",
     userName:   "[user name]",
     password:   "[user password]",
-    privateKey: "[optional private key for user to match public key in authorized_keys file]"
+    privateKey: [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""],
+    passPhrase: "[private key passphrase or empty string]"
   },
-  Connection:         require ('SSH2'),
-  commands:           [Array of command strings],
+  Connection:         require ('ssh2'),
+  commands:           ["Array", "of", "command", "strings", "or", "`Session Text notifications`", "or", "msg:output message handler notifications"],
   msg:                {
-    send: ( message ) {
+    send: function( message ) {
       [message handler code]
     }
   }, 
   verbose:            true/false, [determines if all command output is processed by message handler as it runs]
   connectedMessage:   "[on Connected message]",
   readyMessage:       "[on Ready message]",
-  endMessage:         "[on End message]",
-  onCommandComplete:  ( sshShellInst ) {
-    [callback function, optional code to run on the completion of a command before the next command is run]
+  closedMessage:      "[on Close message]",
+  onCommandComplete:  function( sshShellInst ) {
+    [callback function, optional code to run on the completion of a command. sshShellInst is the instance object]
   },
-  onEnd:              ( sessionText ) {
-    [callback function, optional code to run at the end of the session]
+  onEnd:              function( sshShellInst ) {
+    [callback function, optional code to run at the end of the session. sshShellInst is the instance object]
   }
-}
+};
 ```    
 
 Usage:
 -------
-This example would add the public keys from a git user to the authorized keys of a server login to give that user ssh access. 
-Authentication is using the password in this case but adding the private key for a matching public key in the autherized_keys file on the server you are connecting to would work.
-
 This example shows:
 * How to setup commands
-* How to test the response of a command and add more commands if needed
-* Use the two notification types in the commands array: "\`sessionText notification\`" and "msg notifications" that output using the msg.send function
+* How to test the response of a command and add more commands and notifications in the onCommandComplete callback function
+* Use the two notification types in the commands array: "\`full session text notification\`" and "msg:notification processed by the msg.send function". Neither of these command formats are run as commands in the shell.
+* Connect using a key pair with pass phrase
+* use sudo su with user password 
 
 ```
-sshObj = {
+
+var sshObj = {
   server:             {     
-    host:       "10.0.0.1",
+    host:       "192.168.0.1",
     port:       "22",
-    userName:   "myusername",
-    password:   "somepassword",
-    privateKey: ""
+    userName:   "myuser",
+    password:   "mypassword",
+    privateKey: require('fs').readFileSync('../id_rsa'),
+    passPhrase: "myPassPhrase"
   },
-  Connection:         require ('SSH'),
+  Connection:         require ('ssh2'),
   commands:           [
-    "`Giving a git user ssh access to server [this is text that will be shown in the final summary text]`",
-    "cd ~/.ssh",
-    "cp authorized_keys authorized_keys_bk",
-    "if [ -f authorized_keys ]; then echo wget https://github.com/git-user.keys >> authorized_keys; else touch authorized_keys && echo wget https://github.com/git-user.keys' >> authorized_keys && chmod 600 authorized_keys;",
-    "msg Added keys. [this is a message that will be outputted through the message.send function]",
-    "sudo service ssh restart"
+    "`Test session text message: passed`",
+    "msg:console test notification: passed",
+    "echo $(pwd)",
+    "sudo su",
+    "cd ~/",
+    "ll",
+    "echo $(pwd)",
+    "ll"
   ],
   msg: {
-    send: ( message ) {
+    send: function( message ) {
       console.log(message);
     }
   },
   verbose:            false,
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
-  endMessage:         "Completed",
-  onCommandComplete:  ( sshShellInst ) {
-    if (sshShellInst.command == "sudo service ssh restart" && sshShellInst.response.indexOf "ssh start/running" != -1 && sshShellInst.triedRestart != true) {
-      sshShellInst.msg.send("service restarted");
-    } else {
-      sshShellInst.commands.push("mv authorized_keys_bk authorized_keys");
-      sshShellInst.commands.push("sudo service ssh restart");
-      sshShellInst.triedRestart = true;
+  closedMessage:      "Completed",
+  onCommandComplete:  function( ssh2shellInst ) {
+    //confirm it is the root home dir and change to roots .ssh folder
+    if (ssh2shellInst.command == "echo $(pwd)" && ssh2shellInst.response.indexOf("/root") != -1 ) {
+      ssh2shellInst.sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
+      ssh2shellInst.sshObj.commands.unshift("cd .ssh");
+    }
+    //we are listing the dir so output it to the msg handler
+    else if (ssh2shellInst.command == "ll"){      
+      ssh2shellInst.sshObj.msg.send(ssh2shellInst.response);
     }
   },
-  onEnd:              ( sessionText ) {
-    #show the full session output. This could be emailed or saved to a log file.
-    sshShellInst.msg.send(sessionText);
+  onEnd:              function( ssh2shellInst ) {
+    //show the full session output. This could be emailed or saved to a log file.
+    ssh2shellInst.sshObj.msg.send("\nThis is the full session responses:\n" + ssh2shellInst.sessionText);
   }
-}
-#until npm published use the cloned dir path.
-SSHShell = require ('./ssh-shell/lib/SSH2Shell');
+};
 
-#there are two methods to run the shell. One as an instance of the object and the other as a static method
+var SSHShell = require ('SSH2Shell');
 
-#Instance:
-SSH = new SSHShell(sshObj);
+//run the commands in the shell session
+var SSH = new SSHShell(sshObj);
 SSH.connect();
 
-#Static:
-SSHShell.runShell(sshObj);
-
 ```
+
+Verbose:
+--------
+when verbose is set to true each command response is passed to the msg.send function.
+In the example above onEnd function could be left empty and verbose be set to true to see the result of each command in the console(any session text notifications would not be seen).
