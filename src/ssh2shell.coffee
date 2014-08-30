@@ -135,7 +135,7 @@ class SSH2Shell
   connect: =>
     if @sshObj.server and @sshObj.commands
       try
-        @connection = new @sshObj.Connection()
+        @connection = new require('ssh2')()
         @connection.on "connect", =>
           @sshObj.msg.send @sshObj.connectedMessage
 
