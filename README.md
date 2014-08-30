@@ -37,7 +37,6 @@ sshObj = {
     privateKey: [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""],
     passPhrase: "[private key passphrase or empty string]"
   },
-  Connection:         require ('ssh2'),
   commands:           ["Array", "of", "command", "strings", "or", "`Session Text notifications`", "or", "msg:output message handler notifications"],
   msg:                {
     send: function( message ) {
@@ -77,7 +76,6 @@ var sshObj = {
     privateKey: require('fs').readFileSync('../id_rsa'),
     passPhrase: "myPassPhrase"
   },
-  Connection:         require ('ssh2'),
   commands:           [
     "`Test session text message: passed`",
     "msg:console test notification: passed",
