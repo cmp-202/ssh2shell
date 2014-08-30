@@ -23,7 +23,7 @@ v1.0.1
 Installation:
 ------------
 ```
-git clone https://github.com/cmp-202/ssh-shell.git
+npm install ssh2shell
 ```
 
 Requirements:
