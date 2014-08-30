@@ -24,7 +24,7 @@ v0.0.1
 Installation:
 ------------
 ```
-npm install SSH2Shell
+git clone https://github.com/cmp-202/ssh-shell.git
 ```
 
 Requirements:
@@ -71,8 +71,6 @@ This example shows:
 * Use the two notification types in the commands array: "\`sessionText notification\`" and "msg notifications" that output using the msg.send function
 
 ```
-SSHShell = require ('SSH2Shell')
-
 sshObj = {
   server:             {     
     host:       "10.0.0.1",
@@ -113,12 +111,16 @@ sshObj = {
     sshShellInst.msg.send(sessionText);
   }
 }
+#until npm published use the cloned dir path.
+SSHShell = require ('./ssh-shell/lib/SSH2Shell');
+
 #there are two methods to run the shell. One as an instance of the object and the other as a static method
+
 #Instance:
-SSH = new SSHShell(sshObj)
-SSH.connect
+SSH = new SSHShell(sshObj);
+SSH.connect();
 
 #Static:
-SSHShell.runShell(sshObj)
+SSHShell.runShell(sshObj);
 
 ```
