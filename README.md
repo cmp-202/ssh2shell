@@ -16,9 +16,6 @@ This is a class that wraps the node.js SSH2 shell command enabling the following
 * A couple of message formats run from within the commands array that output to the message handle or to the session response text.
 * Use of ssh key for authentication.
 
-Version:
--------
-v1.0.1
 
 Installation:
 ------------
