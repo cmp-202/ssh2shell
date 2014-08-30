@@ -1,14 +1,15 @@
-{ "name": "serverAdmin",
+{ "name": "SSH2Shell",
   "version": "0.0.1",
-  "author": "cmp-202",
-  "description": "A set of wrapper classes for node.js SSH2 writen by Brian White https://github.com/mscdex/ssh2",
-  "main": "./SSH2Shell.coffee",
+  "author": "A McMurtrie",
+  "description": "A wrapper class for node.js SSH2 to run multiple sequential commands in an SSH shell session",
+  "main": "./lib/SSH2Shell.js",
   "engines": { "node": ">=0.8.7" },
-  "dependencies": {
-    "ssh2": "0.3.5"
-  },
-  "scripts": {
-  },
+  "dependencies": { "ssh2": ">=0.3.5" },
+  "devDependencies": { "coffee-script": ">=1.8.0" },
+  "scripts": { "prepublish": "coffee -o lib/ src/" },
   "keywords": [ "ssh", "ssh2", "secure", "shell", "server", "remote", "client", "admin" ],
-  "repository" : { "type": "git", "url": "http://github.com/cmp-202/node-server-admin-SSH2.git" }
+  "repository" : { 
+    "type": "git", 
+    "url": "http://github.com/cmp-202/ssh-shell" 
+  }
 }

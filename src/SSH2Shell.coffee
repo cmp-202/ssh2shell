@@ -1,4 +1,39 @@
-class SSHShell
+#================================
+#  SSH2Shel
+#================================
+# Description
+# SSH2 wrapper for creating a SSH shell connection and running multiple commands sequentially.
+# The following object is required by the SSH2Shell class:
+#
+# sshObj = {
+#   server:             {       
+#     host:       "[IP Address]",
+#     port:       "[external port number]",
+#     userName:   "[user name]",
+#     password:   "[user password]",
+#     privateKey: "[optional private key for user to match public key in authorized_keys file]"
+#   },
+#   Connection:         require ('SSH2'),
+#   commands:           [Array of command strings],
+#   msg:                {
+#     send: ( message ) {
+#       [message handler code]
+#     }
+#   }, 
+#   verbose:            true/false, #determines if all command output is processed by message handler as it runs]
+#   connectedMessage:   "[on Connected message]",
+#   readyMessage:       "[on Ready message]",
+#   endMessage:         "[on End message]",
+#   onCommandComplete:  ( sshShellInst ) {
+#     [callback function, optional code to run on the completion of a command before th enext command is run]
+#   },
+#   onEnd:              ( sessionText ) {
+#     [callback function, optional code to run at the end of the session]
+#   }
+# }
+#================================
+
+class SSH2Shell
   sshObj:        {}
   sessionText:   ""
   response:      ""
@@ -27,12 +62,12 @@ class SSHShell
     if @_buffer.trim().match(/[:]$/)
       #check sudo su has been used and not just sudo for adding an extra exit command later
       if @_command.indexOf("sudo su") isnt -1
-        @_sudosu = true        
+        @_sudosu = true
       #set the pwsent flag and send the password for sudo
       @_pwSent = true
       @_stream.write "#{@sshObj.server.password}\n"
 
-  _processCommandPrompt: ->    
+  _processCommandPrompt: ->
     #detect the command prompt waiting for the next command
     if @_buffer.trim().match(/[#$]$/)
       #Buffer complete so process the buffer before the next command
@@ -41,24 +76,23 @@ class SSHShell
       @_processNextCommand()
 
   _processBuffer: ->
-    @sessionText += "#{@_buffer}" 
+    @sessionText += "#{@_buffer}"
     @response = @_buffer
     #run the command complete callback function
-    @sshObj.onCommandComplete @ 
+    @sshObj.onCommandComplete @
     @sshObj.msg.send @_buffer if @sshObj.verbose and !@_exit
     @_buffer = ""
 
   _processNotifications: ->
     #check for notifications or response output in command
     while @_command and (@_command.match(/^`(.*)`$/) or @_command.match(/^msg\s/))
-      
       #this is a message for the sessionText like an echo command in bash
-      if @_command.match(/^`(.*)`$/)  
+      if @_command.match(/^`(.*)`$/)
         @sessionText += "#{@_command}\n".replace(/`/g, "")
         @sshObj.msg.send( @_command.replace(/`/g, "") ) if @sshObj.verbose
-        
+
       #this is a response to output like to log or chat
-      else if @_command.match(/^msg\s/) 
+      else if @_command.match(/^msg\s/)
         @sshObj.msg.send @_command.replace(/^msg\s/, "") unless @sshObj.verbose #don't send if in verbose mode
       
       #load the next command and repeat the checks
@@ -103,7 +137,7 @@ class SSHShell
           @sshObj.msg.send @sshObj.connectedMessage
 
         @connection.on "ready", ->
-          @sshObj.msg.send @sshObj.readyMessage      
+          @sshObj.msg.send @sshObj.readyMessage
 
           #open a shell
           @connection.shell (err, @_stream) ->
@@ -120,7 +154,7 @@ class SSHShell
                 while (@_data = @_stream.read())
                   @_processData()
               catch e
-                @sshObj.msg.send "#{e} #{e.stack}" 
+                @sshObj.msg.send "#{e} #{e.stack}"
                 
             @_stream.on "end", ->
               #run the on end callback function
@@ -140,12 +174,19 @@ class SSHShell
         @connection.on "close", (had_error) ->
           @sshObj.msg.send @sshObj.closedMessage
         
-        #set connection details        
-        @connection.connect
-          host:       @sshObj.server.host
-          port:       @sshObj.server.port
-          username:   @sshObj.server.userName
-          privateKey: @sshObj.server.privateKey
+        #set connection details   
+        if @sshObj.server.privateKey
+          @connection.connect
+            host:       @sshObj.server.host
+            port:       @sshObj.server.port
+            username:   @sshObj.server.userName
+            privateKey: @sshObj.server.privateKey
+        else
+          @connection.connect
+            host:       @sshObj.server.host
+            port:       @sshObj.server.port
+            username:   @sshObj.server.userName
+            password:   @sshObj.server.password
       catch e
         @sshObj.msg.send "#{e} #{e.stack}"
     else
@@ -154,4 +195,4 @@ class SSHShell
   @runShell: ( @sshObj ) ->
     connect()
 
-module.exports = SSHShell
+module.exports = SSH2Shell
