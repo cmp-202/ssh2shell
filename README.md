@@ -121,10 +121,10 @@ var sshObj = {
   }
 };
 
-var SSHShell = require ('ssh2shell');
+var SSH2Shell = require ('ssh2shell');
 
 //run the commands in the shell session
-var SSH = new SSHShell(sshObj);
+var SSH = new SSH2Shell(sshObj);
 SSH.connect();
 
 ```
