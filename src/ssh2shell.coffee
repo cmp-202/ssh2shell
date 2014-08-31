@@ -183,14 +183,14 @@ class SSH2Shell
         @connection.on "close", (had_error) =>
           @sshObj.msg.send @sshObj.closedMessage
         
-        #set connection details   
+        #set connection details  
         if @sshObj.server.privateKey
           @connection.connect
             host:       @sshObj.server.host
             port:       @sshObj.server.port
             username:   @sshObj.server.userName
             privateKey: @sshObj.server.privateKey
-            passphrase:  @sshObj.server.passPhrase
+            passphrase: @sshObj.server.passPhrase
         else
           @connection.connect
             host:       @sshObj.server.host
