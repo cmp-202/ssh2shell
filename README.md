@@ -6,15 +6,15 @@ ssh2shell
 
 This is a class that wraps the node.js ssh2 package shell command enabling the following actions:
 
-* Sudo and sudo su password prompt detection and response.
-* Run multiple commands sequentially.
-* Ability to check the current command and conditions within the response text from it before the next command is run.
+* Sudo and sudo su password prompt detection and response using the users password.
+* Run multiple commands sequentially within the context of the previous commands result.
+* Ability to respond to prompts from a command.
+* Ability to check the current command and conditions within the response text from it when it completes.
 * Adding or removing command/s to be run based on the result of command/response tests.
-* Identify progress by messages to outputted at different stages of the process. (connected, ready, command complete, all complete, connection closed)
-* Current command and response text available to callback on command completion.
+* Progress messages.
 * Full session response text available to callback on connection close.
-* A couple of message formats run from within the commands array that output to the message handle or to the session response text.
-* Use of ssh key for authentication.
+* Notification messages to either the full session text or a message handler function.
+* Create bash scripts on the fly, run them and then remove them.
 
 Code:
 -----
@@ -149,4 +149,29 @@ The stream object is available in the onCommandProcessing function to output the
       stream.write('y\n');
     }
   }
+```
+
+Bash scripts on the fly:
+------------------------
+If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate or get the script on the fly. 
+You can echo/printf the script content into a file as a command, ensure it is executible, run it and then delete it.
+The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
+
+```
+ commands: [ "some commands here",
+  "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
+ #\n
+ current=$(pwd);\n
+ cd ..;\n
+ if [ -f myfile ]; then
+  sed \"/^[ \\t]*$/d\" ${current}/myfile | while read line; do\n
+    printf \"Doing some stuff\";\n
+    printf $line;\n
+  done\n
+ fi\n' > myscript.sh; 
+fi",
+"sudo chmod 700 myscript.sh",
+"./myscript.sh",
+"rm myscript.sh"
+]
 ```
