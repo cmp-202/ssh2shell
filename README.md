@@ -1,24 +1,23 @@
 ssh2shell
 ======================
 
-[node.js](http://nodejs.org/) wrapper for [SSH2](https://github.com/mscdex/ssh2) 
+[node.js](http://nodejs.org/) wrapper for [ssh2](https://github.com/mscdex/ssh2) 
 
-
-This is a class that wraps the node.js ssh2 package shell command enabling the following actions:
-
+*This class enables the following functionality:*
 * Sudo and sudo su password prompt detection and response using the users password.
 * Run multiple commands sequentially within the context of the previous commands result.
 * Ability to respond to prompts from a command.
-* Ability to check the current command and conditions within the response text from it when it completes.
+* Ability to check the current command and conditions within the response text from it before the next command is run.
 * Adding or removing command/s to be run based on the result of command/response tests.
-* Progress messages.
-* Full session response text available to callback on connection close.
-* Notification messages to either the full session text or a message handler function.
+* Progress messages: either static (on events) or dynamic in the callback functions.
+* Full session response text available for processing in the onEnd callback function triggered when the connection is closed.
+* Commands that are processed as notification messages to either the full session text or a message handler function and not processed in the shell.
 * Create bash scripts on the fly, run them and then remove them.
+* SSH tunneling to another server.
 
 Code:
 -----
-The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code than the `./lib/ssh2shell.js` file which is just the coffee script output.
+The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code instead of coffee script output javascript file `./lib/ssh2shell.js`.
  
 Installation:
 ------------
@@ -32,12 +31,13 @@ The class expects an object with following structure to be passed to its constru
 ```
 sshObj = {
   server:             {       
-    host:       "[IP Address]",
-    port:       "[external port number]",
-    userName:   "[user name]",
-    password:   "[user password. Even if key authentication is used this is required for sudo password prompt]",
-    privateKey: [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""],
-    passPhrase: "[private key passphrase or empty string]"
+    host:         "[IP Address]",
+    port:         "[external port number]",
+    userName:     "[user name]",
+    password:     "[user password. Even if key authentication is used this is required for sudo password prompt]",
+    sudoPassword: "[used if the sudo password is different from the server password (used in tunneling) or ""]",
+    passPhrase:   "[private key passphrase or empty string]",
+    privateKey:   [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]
   },
   commands:           ["Array", "of", "command", "strings", "or", "`Session Text notifications`", "or", "msg:output message handler notifications"],
   msg:                {
@@ -63,7 +63,7 @@ sshObj = {
 
 Usage:
 -------
-This example shows:
+*This example shows:*
 * Use sudo su with user password
 * How to setup commands
 * How to test the response of a command and add more commands and notifications in the onCommandComplete callback function
@@ -79,8 +79,9 @@ var sshObj = {
     port:       "22",
     userName:   "myuser",
     password:   "mypassword",
-    privateKey: require('fs').readFileSync('../id_rsa'),
-    passPhrase: "myPassPhrase"
+    sudoPassword: "",
+    passPhrase: "myPassPhrase",
+    privateKey: require('fs').readFileSync('../id_rsa')
   },
   commands:           [
     "`Test session text message: passed`",
@@ -128,6 +129,16 @@ var SSH = new SSH2Shell(sshObj);
 SSH.connect();
 
 ```
+Authentication:
+---------------
+To use password authentication pass an empty string for the private key in the sshObj, otherwise pass a valid private key and passphrase if your private key requires one. 
+
+
+**Trouble shooting:**
+
+* If the passphrase is incorrect you will get an error saying it was unable able to process the public key from the private key or something similar. This confused me because it doesn't indicate the passphrase was the problem. Recheck your passphrase and try connecting manually to confirm it works.
+* I did read of people having problems with the case of the passphrase or password is being used from an external file  and an \n being added causing it to fail. This produced the same result as the first issue. They had to trim the value when setting it.
+* If your user password is incorrect the process will stall on sudo due to it presenting the password prompt a second time which the code doesn't currently handle (on my todo list). Using verbose set to true may show this is happening or it will show that no commands were run after a sudo or sudo su which should indicate it is the likely problem. 
 
 Verbose:
 --------
@@ -135,10 +146,10 @@ When verbose is set to true each command response is passed to the msg.send func
 There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get and so you will never see the final full session text. 
 Rerunning the process with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback.
 
-Responding to prompts:
+Responding to command prompts:
 ----------------------
-When running commands there are cases that you might need to respond to specific prompts that result from the command being run.
-The command response check method is the same as in the example for the onCommandComplete callback but in this case we use the onCommandProcessing callback and the method to send the reply is different.
+When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
+The command response check method is the same as in the example for the onCommandComplete callback but in this case we use the onCommandProcessing callback and stream.write to send the response.
 The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
 
 ```
@@ -175,3 +186,36 @@ fi",
 "rm myscript.sh"
 ]
 ```
+
+Tunneling through another server:
+---------------------------------
+One thing this functionality provides is another method to SSH tunnel through another server. 
+
+*There are some conditions that need to be handled:* 
+
+1. When you ssh to a new host through a primary host you are likely to encounter a prompt to add the key for the new host to continue which will stall the process. 
+*Options:*
+  * Tell ssh to not even ask in the first place by adding -oStrictHostKeyChecking=no to the shh command. (see: [auto accept host keys](http://xmodulo.com/2013/05/how-to-accept-ssh-host-keys-automatically-on-linux.html)).
+  * Detect the ssh command and prompt then respond. See **Responding to command prompts** method outlined above.
+2. If the primary host and secondary host user passwords are not the same then the sshObj.server.sudoPassword needs to be set. This enables the primary host to be authenticated using the sshObj.server.password but the secondary host to use a different password for sudo. In this case sudo commands can only be used on the secondary host because it will never use sshObj.server.password which is the password for the primary host.
+3. Password authentication would work on the first server but won't be handled correctly on the second host automatically.
+*Options:*
+  * Using key authentication would resolve this by registering the primary server user public key in the autherized\_users file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub user@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
+  * It would be possible to use the onCommandProcessing callback to detect the ssh command and password prompt then respond with the required password if key authentication is not an option. `if ( command.indexOf('ssh') != -1 && response.match(/[:]\s$/)) {stream.write(sshObj.server.password+'\n');}` or use the sudoPassword if the passwords differ `{stream.write(sshObj.server.sudoPassword+'\n');}`
+
+**Note:** Remember to send an exit command as your last command to close the session correctly.
+
+**Example:**
+
+```
+
+//tell SSH not not even ask about adding new keys
+//remember to add an exit command for the remote connection
+commands = [ 
+ "ssh -oStrictHostKeyChecking=no myuser@192.168.0.1",
+ "the rest of your commands go here"
+ "exit"
+ ]
+ 
+```
+
