@@ -84,8 +84,8 @@ var sshObj = {
     privateKey: require('fs').readFileSync('../id_rsa')
   },
   commands:           [
-    "`Test session text message: passed`",
-    "msg:console test notification: passed",
+    "`This is a message that will be added to the full sessionText`",
+    "msg:This is a message that will be handled by the msg.send handler",
     "echo $(pwd)",
     "sudo su",
     "cd ~/",
@@ -205,17 +205,71 @@ One thing this functionality provides is another method to SSH tunnel through an
 
 **Note:** Remember to send an exit command as your last command to close the session correctly.
 
-**Example:**
+**Tunnelling Example:**
 
 ```
+var sshObj = {
+  server:             {     
+    host:       "192.168.0.100",
+    port:       "22",
+    userName:   "firstuser",
+    password:   "primaryPassword",
+    sudoPassword: "secondaryPassword",
+    passPhrase: "",
+    privateKey: ""
+  },
+  commands:           [
+    "echo $(pwd)",
+    "msg:Connecting to second host",
+    "ssh -oStrictHostKeyChecking=no seconduser@10.0.0.20",
+    "`Connected to second host`",
+    "echo $(pwd)",
+    "sudo su",
+    "cd ~/",
+    "ll",
+    "echo $(pwd)",
+    "ll",
+    "`Add an exit command to close the session on both hosts correctly`",
+    "exit"
+  ],
+  msg: {
+    send: function( message ) {
+      console.log(message);
+    }
+  },
+  verbose:            false,
+  connectedMessage:   "Connected",
+  readyMessage:       "Running commands Now",
+  closedMessage:      "Completed",
+  onCommandProcessing: function( command, response, sshObj, stream ) {
+   //secondary host password authentication
+   if ( command.indexOf('ssh') != -1 && response.match(/[:]\s$/)) {
+    stream.write(sshObj.server.sudoPassword+'\n');
+   }
+  },
+  onCommandComplete:  function( command, response, sshObj ) {
+   //confirm it is the root home dir and change to root's .ssh folder
+   if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
+     sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
+     sshObj.commands.unshift("cd .ssh");
+   }
+   //we are listing the dir so output it to the msg handler
+   else if (command == "ll"){      
+     sshObj.msg.send(response);
+   }
+  },
+  onEnd:              function( sessionText, sshObj ) {
+   //show the full session output. This could be emailed or saved to a log file.
+   sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
+  }
+};
 
-//tell SSH not not even ask about adding new keys
-//remember to add an exit command for the remote connection
-commands = [ 
- "ssh -oStrictHostKeyChecking=no myuser@192.168.0.1",
- "the rest of your commands go here"
- "exit"
- ]
+var SSH2Shell = require ('ssh2shell');
+
+//run the commands in the shell session
+var SSH = new SSH2Shell(sshObj);
+SSH.connect();
+
  
 ```
 
