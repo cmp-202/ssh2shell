@@ -67,7 +67,8 @@ class SSH2Shell
         @_sudosu = true
       #set the pwsent flag and send the password for sudo
       @_pwSent = true
-      @stream.write "#{@sshObj.server.password}\n"
+      password = @sshObj.server.sudoPassword ? @sshObj.server.password
+      @stream.write "#{password}\n"
       @_buffer = ""
 
   _processCommandPrompt: =>
