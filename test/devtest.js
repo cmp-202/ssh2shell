@@ -3,12 +3,13 @@ dotenv.load();
 
 var sshObj = {
   server:             {     
-    host:       process.env.HOST,
-    port:       process.env.PORT,
-    userName:   process.env.USER_NAME,
-    password:   process.env.PASSWORD,
-    passPhrase: process.env.PASS_PHRASE,
-    privateKey: require('fs').readFileSync(process.env.PRIV_KEY_PATH)
+    host:         process.env.HOST,
+    port:         process.env.PORT,
+    userName:     process.env.USER_NAME,
+    password:     process.env.PASSWORD,
+    sudoPassword: process.env.SUDO_PASSWORD,
+    passPhrase:   process.env.PASS_PHRASE,
+    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
   },
   commands:           [
     "`Test session text message: passed`",

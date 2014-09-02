@@ -4,20 +4,21 @@ ssh2shell
 [node.js](http://nodejs.org/) wrapper for [ssh2](https://github.com/mscdex/ssh2) 
 
 *This class enables the following functionality:*
-* Sudo and sudo su password prompt detection and response using the users password.
 * Run multiple commands sequentially within the context of the previous commands result.
-* Ability to respond to prompts from a command.
-* Ability to check the current command and conditions within the response text from it before the next command is run.
-* Adding or removing command/s to be run based on the result of command/response tests.
-* Progress messages: either static (on events) or dynamic in the callback functions.
-* Full session response text available for processing in the onEnd callback function triggered when the connection is closed.
-* Commands that are processed as notification messages to either the full session text or a message handler function and not processed in the shell.
+* Sudo and sudo su handling.
+* Ability to respond to prompts resulting from a command as it is being run.
+* Ability to check the current command and conditions within the response text before the next command is run.
+* Performing actions based on command/response tests like adding or removing commands, sending notifications or processing of command response text.
+* See progress messages: either static (on events) or dynamic in the callback functions.
+* Use full session response text in the onEnd callback function triggered when the connection is closed.
+* Run commands that are processed as notification messages to either the full session text or a message handler function and not run in the shell.
 * Create bash scripts on the fly, run them and then remove them.
-* SSH tunneling to another server.
+* SSH tunnelling to another host using key or password authentication on either host.
+* Use different passwords for primary and secondary hosts when authenticating.
 
 Code:
 -----
-The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It is much easier reading the coffee script code instead of coffee script output javascript file `./lib/ssh2shell.js`.
+The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It has comments not found in the build output javascript file `./lib/ssh2shell.js`.
  
 Installation:
 ------------
@@ -30,22 +31,22 @@ Requirements:
 The class expects an object with following structure to be passed to its constructor:
 ```
 sshObj = {
-  server:             {       
+  host:             {       
     host:         "[IP Address]",
     port:         "[external port number]",
     userName:     "[user name]",
-    password:     "[user password. Even if key authentication is used this is required for sudo password prompt]",
-    sudoPassword: "[used if the sudo password is different from the server password (used in tunneling) or ""]",
+    password:     "[user password]",
+    sudoPassword: "[optional: different sudo password or blank if the same as password]",
     passPhrase:   "[private key passphrase or empty string]",
     privateKey:   [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]
   },
-  commands:           ["Array", "of", "command", "strings", "or", "`Session Text notifications`", "or", "msg:output message handler notifications"],
+  commands:           ["Array", "of", "command", "strings"],
   msg:                {
     send: function( message ) {
       [message handler code]
     }
   }, 
-  verbose:            true/false, [if true all command output is processed by message handler as it runs]
+  verbose:            true/false, 
   connectedMessage:   "[on Connected message]",
   readyMessage:       "[on Ready message]",
   closedMessage:      "[on Close message]",
@@ -53,7 +54,7 @@ sshObj = {
     [callback function, optional code to run during the procesing of a command]
   },
   onCommandComplete:   function( command, response, sshObj ) {
-    [callback function, optional code to run on the completion of a command before the next command is run]
+    [callback function, optional code to run on the completion of a command]
   },
   onEnd:               function( sessionText, sshObj ) {
     [callback function, optional code to run at the end of the session]
@@ -69,23 +70,37 @@ Usage:
 * How to test the response of a command and add more commands and notifications in the onCommandComplete callback function
 * Use the two notification types in the commands array: "\`full session text notification\`" and "msg:notification processed by the msg.send function". Neither of these command formats are run as commands in the shell.
 * Connect using a key pair with pass phrase
+* Use an .env file for server values
  
-
+ *.env file*
 ```
+HOST=192.168.0.1
+PORT=22
+USER_NAME=myuser
+PASSWORD=mypassword
+SUDO_PASSWORD=
+PRIV_KEY_PATH=~/.ssh/id_rsa
+PASS_PHRASE=myPassPhrase
+```
+
+*app.js*
+```
+var dotenv = require('dotenv');
+dotenv.load();
 
 var sshObj = {
   server:             {     
-    host:       "192.168.0.1",
-    port:       "22",
-    userName:   "myuser",
-    password:   "mypassword",
-    sudoPassword: "",
-    passPhrase: "myPassPhrase",
-    privateKey: require('fs').readFileSync('../id_rsa')
+    host:         process.env.HOST,
+    port:         process.env.PORT,
+    userName:     process.env.USER_NAME,
+    password:     process.env.PASSWORD,
+    sudoPassword: process.env.SUDO_PASSWORD,
+    passPhrase:   process.env.PASS_PHRASE,
+    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
   },
   commands:           [
     "`This is a message that will be added to the full sessionText`",
-    "msg:This is a message that will be handled by the msg.send handler",
+    "msg:This is a message that will be handled by the msg.send code",
     "echo $(pwd)",
     "sudo su",
     "cd ~/",
@@ -108,6 +123,7 @@ var sshObj = {
   onCommandComplete:  function( command, response, sshObj ) {
     //confirm it is the root home dir and change to root's .ssh folder
     if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
+      //unshift will add the command as the next command, use push to add command as the last command
       sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
       sshObj.commands.unshift("cd .ssh");
     }
@@ -142,14 +158,16 @@ To use password authentication pass an empty string for the private key in the s
 
 Verbose:
 --------
-When verbose is set to true each command response is passed to the msg.send function. 
-There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get and so you will never see the final full session text. 
-Rerunning the process with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback.
+When verbose is set to true each command response is passed to the msg.send function when the command completes.
+
+**Note:**
+There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get if it is not handled and so you will never see the final full session text because the session will not close. 
+Rerunning the commands with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback to resolve the problem.
 
 Responding to command prompts:
 ----------------------
 When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
-The command response check method is the same as in the example for the onCommandComplete callback but in this case we use the onCommandProcessing callback and stream.write to send the response.
+The command response check method is the same as in the example for the onCommandComplete callback but in this case we use it in the onCommandProcessing callback and stream.write to send the response.
 The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
 
 ```
@@ -181,33 +199,35 @@ The other option is to curl or wget the script from a remote location and do the
   done\n
  fi\n' > myscript.sh; 
 fi",
-"sudo chmod 700 myscript.sh",
-"./myscript.sh",
-"rm myscript.sh"
+  "sudo chmod 700 myscript.sh",
+  "./myscript.sh",
+  "rm myscript.sh"
 ]
 ```
 
-Tunneling through another server:
+Tunnelling through another host:
 ---------------------------------
-One thing this functionality provides is another method to SSH tunnel through another server. 
+One thing this functionality provides is another method to SSH tunnel through one host to another host.
+It might be that a production server doesn't have SSH access exposed on a public interface but a staging server on the same network does.
+In this case you can SSH into the staging server and then SSH to the production server to say run deployment commands or restart services.
 
 *There are some conditions that need to be handled:* 
 
-1. When you ssh to a new host through a primary host you are likely to encounter a prompt to add the key for the new host to continue which will stall the process. 
+1. When you ssh to a new host through a primary host you are likely to encounter a prompt to add the key for the new host which will stall the process without extra handling. 
 *Options:*
-  * Tell ssh to not even ask in the first place by adding -oStrictHostKeyChecking=no to the shh command. (see: [auto accept host keys](http://xmodulo.com/2013/05/how-to-accept-ssh-host-keys-automatically-on-linux.html)).
-  * Detect the ssh command and prompt then respond. See **Responding to command prompts** method outlined above.
+  * Set ssh to not even ask in the first place by adding -oStrictHostKeyChecking=no to the ssh command. (see: [auto accept host keys](http://xmodulo.com/2013/05/how-to-accept-ssh-host-keys-automatically-on-linux.html)).
+  * Detect the ssh command and prompt then respond. See **Responding to command prompts** method outlined above and customise your own solution.
 2. If the primary host and secondary host user passwords are not the same then the sshObj.server.sudoPassword needs to be set. This enables the primary host to be authenticated using the sshObj.server.password but the secondary host to use a different password for sudo. In this case sudo commands can only be used on the secondary host because it will never use sshObj.server.password which is the password for the primary host.
-3. Password authentication would work on the first server but won't be handled correctly on the second host automatically.
+3. Password authentication would work on the first host but won't be handled correctly on the second host automatically.
 *Options:*
-  * Using key authentication would resolve this by registering the primary server user public key in the autherized\_users file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub user@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
+  * Using key authentication would resolve this by registering the primary host user public key in the .ssh/autherized\_keys file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub username@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
   * It would be possible to use the onCommandProcessing callback to detect the ssh command and password prompt then respond with the required password if key authentication is not an option. `if ( command.indexOf('ssh') != -1 && response.match(/[:]\s$/)) {stream.write(sshObj.server.password+'\n');}` or use the sudoPassword if the passwords differ `{stream.write(sshObj.server.sudoPassword+'\n');}`
-
-**Note:** Remember to send an exit command as your last command to close the session correctly.
+4.An exit command needs to be added as your last command to close both ssh sessions correctly. 
 
 **Tunnelling Example:**
 
 ```
+
 var sshObj = {
   server:             {     
     host:       "192.168.0.100",
