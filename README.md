@@ -31,13 +31,13 @@ Requirements:
 The class expects an object with following structure to be passed to its constructor:
 ```
 sshObj = {
-  host:             {       
+  server:             {       
     host:         "[IP Address]",
     port:         "[external port number]",
     userName:     "[user name]",
     password:     "[user password]",
     sudoPassword: "[optional: different sudo password or blank if the same as password]",
-    passPhrase:   "[private key passphrase or empty string]",
+    passPhrase:   "[private key passphrase or ""]",
     privateKey:   [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]
   },
   commands:           ["Array", "of", "command", "strings"],
@@ -72,7 +72,7 @@ Usage:
 * Connect using a key pair with pass phrase
 * Use an .env file for server values
  
- *.env file*
+*.env file*
 ```
 HOST=192.168.0.1
 PORT=22
