@@ -1,7 +1,7 @@
 ssh2shell
 ======================
 
-[node.js](http://nodejs.org/) wrapper for [ssh2](https://github.com/mscdex/ssh2) 
+Wrapper class for [ssh2](https://github.com/mscdex/ssh2) shell command.
 
 *This class enables the following functionality:*
 * Run multiple commands sequentially within the context of the previous commands result.
@@ -60,19 +60,29 @@ sshObj = {
     [callback function, optional code to run at the end of the session]
   }
 };
-```    
+``` 
+
+Test:
+-----
+```
+cp .env-example .env
+
+//change .env values to valid host settings then run
+node test/devtest.js
+```
 
 Usage:
--------
-*This example shows:*
-* Use sudo su with user password
-* How to setup commands
-* How to test the response of a command and add more commands and notifications in the onCommandComplete callback function
-* Use the two notification types in the commands array: "\`full session text notification\`" and "msg:notification processed by the msg.send function". Neither of these command formats are run as commands in the shell.
-* Connect using a key pair with pass phrase
-* Use an .env file for server values
- 
-*.env file*
+------
+
+*How to:*
+* Use sudo su with user password.
+* Set commands.
+* Test the response of a command and add more commands and notifications in the onCommandComplete callback function.
+* Use the two notification types in the commands array.
+* Connect using a key pair with passphrase.
+* Use an .env file for server values loaded by dotenv from the root of the project.
+
+*.env*
 ```
 HOST=192.168.0.1
 PORT=22
@@ -145,23 +155,39 @@ var SSH = new SSH2Shell(sshObj);
 SSH.connect();
 
 ```
+
 Authentication:
 ---------------
-To use password authentication pass an empty string for the private key in the sshObj, otherwise pass a valid private key and passphrase if your private key requires one. 
-
+* To use password authentication set sshObj.server.privateKey to "".
+* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ""
+* If you are tunnelling to a second host but the usernames and passwords between the two are different you will need to set sshObj.server.password to the password of the first host and sshObj.server.sudoPassword for the second. (See **Tunnelling through another host:** below for password authentication and other requirements.)
 
 **Trouble shooting:**
 
-* If the passphrase is incorrect you will get an error saying it was unable to process the public key from the private key or something similar. This confused me because it doesn't indicate the passphrase was the problem. Recheck your passphrase and try connecting manually to confirm it works.
-* I did read of people having problems with the case of the passphrase or password is being used from an external file  and an \n being added causing it to fail. This produced the same result as the first issue. They had to trim the value when setting it.
+* `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate that it could not decrypt the private key. 
+ * Recheck your passphrase for typos or missing chars.
+ * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
+ * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
 * If your user password is incorrect the process will stall on sudo due to it presenting the password prompt a second time which the code doesn't currently handle (on my todo list). Using verbose set to true may show this is happening or it will show that no commands were run after a sudo or sudo su which should indicate it is the likely problem. 
+
+Sudo Commands:
+--------------
+The code detects if a sudo command is used and will look for a password prompt if it has not already responsed with a password previously. If sshObj.server.sudoPassword is set then it will use that value in all cases or will drop back to use sshObj.server.password if it isn't. (see *Tunnelling through another host*, especially the detail on which host you can run sudo commands on if passwords differ.) 
+If sudo su is deteccted an extra exit command will be added to close the session correctly once all commands are complete.
+
+Notification commands:
+----------------------
+There are two notification commands that can be added to the command array but are not processed in the shell.
+
+1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted throught whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
+2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the onEnd callback function. The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
 
 Verbose:
 --------
 When verbose is set to true each command response is passed to the msg.send function when the command completes.
 
 **Note:**
-There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get if it is not handled and so you will never see the final full session text because the session will not close. 
+There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get if it is not handled and so you will never see the final full sessionText because the onEnd callback will never be called. 
 Rerunning the commands with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback to resolve the problem.
 
 Responding to command prompts:
