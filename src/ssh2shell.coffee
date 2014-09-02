@@ -7,11 +7,13 @@
 #
 # sshObj = {
 #   server:              {       
-#     host:       "[IP Address]",
-#     port:       "[external port number]",
-#     userName:   "[user name]",
-#     password:   "[user password]",
-#     privateKey: "[optional private key for user to match public key in authorized_keys file]"
+#     host:        "[IP Address]",
+#     port:        "[external port number]",
+#     userName:    "[user name]",
+#     password:    "[user password]",
+#     sudoPassword "[optional: different sudo password or blank if the same as password]",
+#     passPhrase:  "[private key passphrase or ""]",
+#     privateKey:  "[require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]"
 #   },
 #   commands:            [Array of command strings],
 #   msg:                 {
@@ -27,7 +29,7 @@
 #     [callback function, optional code to run during the procesing of a command]
 #   },
 #   onCommandComplete:   function( command, response, sshObj ) {
-#     [callback function, optional code to run on the completion of a command before the next command is run]
+#     [callback function, optional code to run on the completion of a command]
 #   },
 #   onEnd:               function( sessionText, sshObj ) {
 #     [callback function, optional code to run at the end of the session]
@@ -37,7 +39,7 @@
 
 class SSH2Shell
   sshObj:        {}
-  stream:       {}
+  stream:        {}
   sessionText:   ""
   command:       ""
   response:      ""
