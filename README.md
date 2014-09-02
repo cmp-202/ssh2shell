@@ -28,7 +28,7 @@ npm install ssh2shell
 
 Requirements:
 ------------
-The class expects an object with following structure to be passed to its constructor:
+The class expects an object with the following structure to be passed to its constructor:
 ```
 sshObj = {
   server:             {       
@@ -222,12 +222,12 @@ In this case you can SSH into the staging server and then SSH to the production 
 *Options:*
   * Using key authentication would resolve this by registering the primary host user public key in the .ssh/autherized\_keys file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub username@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
   * It would be possible to use the onCommandProcessing callback to detect the ssh command and password prompt then respond with the required password if key authentication is not an option. `if ( command.indexOf('ssh') != -1 && response.match(/[:]\s$/)) {stream.write(sshObj.server.password+'\n');}` or use the sudoPassword if the passwords differ `{stream.write(sshObj.server.sudoPassword+'\n');}`
-4.An exit command needs to be added as your last command to close both ssh sessions correctly. 
+4. An exit command needs to be added as your last command to close both ssh sessions correctly. 
+5. It might be worth checking if the second connection failed, empty the commands array so the session closes and send a message with the failure response.
 
 **Tunnelling Example:**
 
 ```
-
 var sshObj = {
   server:             {     
     host:       "192.168.0.100",
@@ -288,8 +288,6 @@ var SSH2Shell = require ('ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(sshObj);
-SSH.connect();
-
- 
+SSH.connect(); 
 ```
 
