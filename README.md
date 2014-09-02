@@ -152,7 +152,7 @@ To use password authentication pass an empty string for the private key in the s
 
 **Trouble shooting:**
 
-* If the passphrase is incorrect you will get an error saying it was unable able to process the public key from the private key or something similar. This confused me because it doesn't indicate the passphrase was the problem. Recheck your passphrase and try connecting manually to confirm it works.
+* If the passphrase is incorrect you will get an error saying it was unable to process the public key from the private key or something similar. This confused me because it doesn't indicate the passphrase was the problem. Recheck your passphrase and try connecting manually to confirm it works.
 * I did read of people having problems with the case of the passphrase or password is being used from an external file  and an \n being added causing it to fail. This produced the same result as the first issue. They had to trim the value when setting it.
 * If your user password is incorrect the process will stall on sudo due to it presenting the password prompt a second time which the code doesn't currently handle (on my todo list). Using verbose set to true may show this is happening or it will show that no commands were run after a sudo or sudo su which should indicate it is the likely problem. 
 
