@@ -1,4 +1,4 @@
-#================================
+﻿#================================
 #  SSH2Shel
 #================================
 # Description
@@ -55,19 +55,19 @@ class SSH2Shell
     #remove other weird nonstandard char representation from responses like [32m[31m
     @_data = @_data.replace(/(\[[0-9]?[0-9]m)/g, "")
     @_buffer += "#{@_data}"
+    
     #check if password is needed
     if @command.indexOf("sudo") isnt -1 
       @_processPasswordPrompt()
     #Command prompt so run the next command
     else if @_buffer.match(/[#$]\s$/)
-      @_processNextCommand
+      @_processNextCommand()
     else
-      @_processBuffer
       @sshObj.onCommandProcessing @command, @_buffer, @sshObj, @stream
 
   _processPasswordPrompt: =>
     #First test for password
-    if @_pwSent is false
+    unless @_pwSent
       #when the buffer is fully loaded the prompt can be detected
       if @_buffer.match(/password.*:\s$/i)
         #check sudo su has been used and not just sudo for adding an extra exit command later
@@ -76,7 +76,7 @@ class SSH2Shell
         #set the pwsent flag and send the password for sudo
         @_pwSent = true
         password = if @sshObj.server.sudoPassword isnt '' then @sshObj.server.sudoPassword else @sshObj.server.password
-        @stream.write "#{password}\n"
+        @stream.write "#{password}\n"        
     #password sent so either check for failure or run next command  
     else
       #reprompted for password again so failed password 
@@ -91,25 +91,25 @@ class SSH2Shell
         @connection.end()
       #normal prompt so continue with next command
       else if @_buffer.match(/[#$]\s$/)
-        @_processNextCommand
+        @_processNextCommand()
 
   _processBuffer: =>
     @sessionText += "#{@_buffer}"
     @response = @_buffer
     #run the command complete callback function
     @sshObj.onCommandComplete @command, @response, @sshObj
-    @sshObj.msg.send @_buffer if @sshObj.verbose
+    @sshObj.msg.send @_buffer if @sshObj.verbose 
     @_buffer = ""
 
   _processNotifications: =>
-    #check for notifications or response output in command
+    #check for notifications in commands
     while @command and ((sessionNote = @command.match(/^`(.*)`$/)) or (msgNote = @command.match(/^msg:(.*)$/)))
       #this is a message for the sessionText like an echo command in bash
       if sessionNote
         @sessionText += "#{sessionNote[1]}\n"
-        @sshObj.msg.send( @command.replace(/`/g, "") ) if @sshObj.verbose
+        @sshObj.msg.send sessionNote[1] if @sshObj.verbose
 
-      #this is a response to output like to log or chat
+      #this is a message to output in process
       else if msgNote
         @sshObj.msg.send msgNote[1] unless @sshObj.verbose #don't send if in verbose mode
       
