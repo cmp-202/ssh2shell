@@ -168,12 +168,14 @@ Authentication:
  * Recheck your passphrase for typos or missing chars.
  * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
  * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
-* If your user password is incorrect the process will stall on sudo due to it presenting the password prompt a second time which the code doesn't currently handle (on my todo list). Using verbose set to true may show this is happening or it will show that no commands were run after a sudo or sudo su which should indicate it is the likely problem. 
+* If your password is incorrect the connection will return an error.
 
 Sudo Commands:
 --------------
 The code detects if a sudo command is used and will look for a password prompt if it has not already responsed with a password previously. If sshObj.server.sudoPassword is set then it will use that value in all cases or will drop back to use sshObj.server.password if it isn't. (see *Tunnelling through another host*, especially the detail on which host you can run sudo commands on if passwords differ.) 
 If sudo su is deteccted an extra exit command will be added to close the session correctly once all commands are complete.
+
+If your sudo password is incorrect an error message will be returned and the session closed. If verbose is set to true the password that was used will also be returned with the error message.
 
 Notification commands:
 ----------------------
