@@ -160,7 +160,7 @@ Authentication:
 ---------------
 * To use password authentication set sshObj.server.privateKey to "".
 * When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ""
-* If you are tunnelling to a second host but the usernames and passwords between the two are different you will need to set sshObj.server.password to the password of the first host and sshObj.server.sudoPassword for the second. (See **Tunnelling through another host:** below for password authentication and other requirements.)
+* If you are tunnelling to a second host but the username and passwords between the two are different you will need to set sshObj.server.password to the password of the first host and sshObj.server.sudoPassword for the second. (See **Tunnelling through another host:** below for password authentication and other requirements.)
 
 **Trouble shooting:**
 
@@ -172,16 +172,19 @@ Authentication:
 
 Sudo Commands:
 --------------
-The code detects if a sudo command is used and will look for a password prompt if it has not already responsed with a password previously. If sshObj.server.sudoPassword is set then it will use that value in all cases or will drop back to use sshObj.server.password if it isn't. (see *Tunnelling through another host*, especially the detail on which host you can run sudo commands on if passwords differ.) 
-If sudo su is deteccted an extra exit command will be added to close the session correctly once all commands are complete.
+The code detects if a sudo command is used and will look for a password prompt if it has not already responded with a password previously. If sshObj.server.sudoPassword is set then it will use that value in all cases or will drop back to use sshObj.server.password if it isn't. (see *Tunnelling through another host*, especially the detail on which host you can run sudo commands on if passwords differ.) 
+If sudo su is detected an extra exit command will be added to close the session correctly once all commands are complete.
 
 If your sudo password is incorrect an error message will be returned and the session closed. If verbose is set to true the password that was used will also be returned with the error message.
+
+**Using su**
+Using su is also possible. Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password using stream.write.
 
 Notification commands:
 ----------------------
 There are two notification commands that can be added to the command array but are not processed in the shell.
 
-1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted throught whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
+1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
 2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the onEnd callback function. The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
 
 Verbose:
@@ -211,7 +214,7 @@ The stream object is available in the onCommandProcessing function to output the
 Bash scripts on the fly:
 ------------------------
 If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate or get the script on the fly. 
-You can echo/printf the script content into a file as a command, ensure it is executible, run it and then delete it.
+You can echo/printf the script content into a file as a command, ensure it is executable, run it and then delete it.
 The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
 
 ```
@@ -248,7 +251,7 @@ In this case you can SSH into the staging server and then SSH to the production 
 2. If the primary host and secondary host user passwords are not the same then the sshObj.server.sudoPassword needs to be set. This enables the primary host to be authenticated using the sshObj.server.password but the secondary host to use a different password for sudo. In this case sudo commands can only be used on the secondary host because it will never use sshObj.server.password which is the password for the primary host.
 3. Password authentication would work on the first host but won't be handled correctly on the second host automatically.
 *Options:*
-  * Using key authentication would resolve this by registering the primary host user public key in the .ssh/autherized\_keys file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub username@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
+  * Using key authentication would resolve this by registering the primary host user public key in the .ssh/authorized\_keys file of the secondary host so no password is ever requested. Manually run `ssh-copy-id -i ~/.ssh/id_rsa.pub username@remote-host` and enter the password for the remote-host when prompted. [Keys tutorial](http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/)
   * It would be possible to use the onCommandProcessing callback to detect the ssh command and password prompt then respond with the required password if key authentication is not an option. `if ( command.indexOf('ssh') != -1 && response.match(/[:]\s$/)) {stream.write(sshObj.server.password+'\n');}` or use the sudoPassword if the passwords differ `{stream.write(sshObj.server.sudoPassword+'\n');}`
 4. An exit command needs to be added as your last command to close both ssh sessions correctly. 
 5. It might be worth checking if the second connection failed, empty the commands array so the session closes and send a message with the failure response.
