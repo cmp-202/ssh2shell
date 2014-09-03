@@ -58,12 +58,27 @@ class SSH2Shell
     #check if password is needed
     if @_pwSent is false and @command.indexOf("sudo") isnt -1
       @_processPasswordPrompt()
+    #detect failed sudo password
+    else if @_buffer.match(/[password:]\s$/i) and @command.indexOf("sudo") isnt -1
+      @sshObj.msg.send "Sudo password was incorrect session is closing"
+      if @sshObj.verbose
+        password = @sshObj.server.sudoPassword ? @sshObj.server.password
+        @sshObj.msg.send "password: #{password}"
+      #add buffer to sessionText so the sudo response can be seen
+      @sessionText += "#{@_buffer}"
+      #empty commands to close the session
+      @sshObj.commands = []
+      #if sudo su then don't add an extra exit as password failed
+      if @command.indexOf("sudo su") isnt -1
+        @_sudosu = false
+      #exit the session
+      @_runExit()
     else
       @_processCommandPrompt()
 
   _processPasswordPrompt: =>
     #when the buffer is fully loaded the prompt can be detected
-    if @_buffer.match(/[:]\s$/)
+    if @_buffer.match(/[password:]\s$/i)
       #check sudo su has been used and not just sudo for adding an extra exit command later
       if @command.indexOf("sudo su") isnt -1
         @_sudosu = true
