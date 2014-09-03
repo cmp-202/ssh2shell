@@ -156,19 +156,34 @@ SSH.connect();
 
 ```
 
-Authentication:
----------------
-* To use password authentication set sshObj.server.privateKey to "".
-* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ""
-* If you are tunnelling to a second host but the username and passwords between the two are different you will need to set sshObj.server.password to the password of the first host and sshObj.server.sudoPassword for the second. (See **Tunnelling through another host:** below for password authentication and other requirements.)
-
-**Trouble shooting:**
+Trouble shooting:
+-----------------
 
 * `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate that it could not decrypt the private key. 
  * Recheck your passphrase for typos or missing chars.
  * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
  * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
+* There are case when the session hangs waiting for a response it will never get as the result of a command. The callback functions conCommandComplete and onEnd will never trigger and verbose will only output the previous command response.
+  * Use the onCommandProcessing command to output debug that will enable you identify the problem and handle it as outlined in **Responding to command prompts**
+  ```
+    //output all commands buffer responses as it builds
+    onCommandProcessing:  function( command, response, sshObj, stream ) {
+      sshObj.msg.send( command + ": " + response);
+    }
+    //or
+    //output a specific commands buffer response as it builds
+    onCommandProcessing:  function( command, response, sshObj, stream ) {
+      if ( command.indexOf('npm install') != -1) {
+        sshObj.msg.send( response );
+      }
+    }
+  ```
+Authentication:
+---------------
+* To use password authentication set sshObj.server.privateKey to "".
+* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ""
+* If you are tunnelling to a second host but the username and passwords between the two are different you will need to set sshObj.server.password to the password of the first host and sshObj.server.sudoPassword for the second. (See **Tunnelling through another host:** below for password authentication and other requirements.)
 
 Sudo Commands:
 --------------
@@ -177,8 +192,7 @@ If sudo su is detected an extra exit command will be added to close the session 
 
 If your sudo password is incorrect an error message will be returned and the session closed. If verbose is set to true the password that was used will also be returned with the error message.
 
-**Using su**
-Using su is also possible. Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password using stream.write.
+**Su as another user:** Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password via stream.write.
 
 Notification commands:
 ----------------------
@@ -191,9 +205,6 @@ Verbose:
 --------
 When verbose is set to true each command response is passed to the msg.send function when the command completes.
 
-**Note:**
-There are times when an unexpected prompt occurs leaving the session waiting for a response it will never get if it is not handled and so you will never see the final full sessionText because the onEnd callback will never be called. 
-Rerunning the commands with verbose set to true will show you where the process failed and enable you to add extra handling in the onCommandProcessing callback to resolve the problem.
 
 Responding to command prompts:
 ----------------------
