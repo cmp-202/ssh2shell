@@ -1,6 +1,6 @@
 {
   "name": "ssh2shell",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "author": "A McMurtrie",
   "description": "A wrapper class for node.js ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, add new commands, and tunnel through to a second host",
   "main": "./lib/ssh2shell.js",
