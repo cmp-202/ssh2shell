@@ -62,37 +62,33 @@ class SSH2Shell
     else if @_buffer.match(/[#$]\s$/)
       @_processNextCommand
     else
+      @_processBuffer
       @sshObj.onCommandProcessing @command, @_buffer, @sshObj, @stream
 
   _processPasswordPrompt: =>
-    #when the buffer is fully loaded the prompt can be detected
+    #First test for password
     if @_pwSent is false
+      #when the buffer is fully loaded the prompt can be detected
       if @_buffer.match(/password.*:\s$/i)
-        @_buffer = ""
         #check sudo su has been used and not just sudo for adding an extra exit command later
         if @command.indexOf("sudo su") isnt -1
           @_sudosu = true
         #set the pwsent flag and send the password for sudo
         @_pwSent = true
-        password = @sshObj.server.sudoPassword ? @sshObj.server.password
+        password = if @sshObj.server.sudoPassword isnt '' then @sshObj.server.sudoPassword else @sshObj.server.password
         @stream.write "#{password}\n"
-    #handle if password sent    
+    #password sent so either check for failure or run next command  
     else
-      #reprompted for password indicating failed password 
+      #reprompted for password again so failed password 
       if @_buffer.match(/password.*:\s$/i)
         @sshObj.msg.send "Error: Sudo password was incorrect session is closing"
         if @sshObj.verbose
-          password = @sshObj.server.sudoPassword ? @sshObj.server.password
+          password = if @sshObj.server.sudoPassword isnt '' then @sshObj.server.sudoPassword else @sshObj.server.password
           @sshObj.msg.send "password: #{password}"
         #add buffer to sessionText so the sudo response can be seen
         @sessionText += "#{@_buffer}"
-        #empty commands to stop any more being run
-        @sshObj.commands = []
-        #if sudo su then reverse the sudosu flag as no extra exit command required
-        if @command.indexOf("sudo su") isnt -1
-          @_sudosu = false
         #exit the session
-        @_runExit()
+        @connection.end()
       #normal prompt so continue with next command
       else if @_buffer.match(/[#$]\s$/)
         @_processNextCommand
@@ -122,8 +118,8 @@ class SSH2Shell
 
   _processNextCommand: =>
     if !@_exit
-        #Buffer complete so process the buffer before the next command
-        @_processBuffer()
+      #Not running an exit command and buffer complete so process it before next command
+      @_processBuffer()
     #process the next command if there are any
     if @sshObj.commands.length > 0
       @command = @sshObj.commands.shift()
