@@ -25,7 +25,7 @@ var sshObj = {
       console.log(message);
     }
   },
-  verbose:            process.env.VERBOSE,
+  verbose:            false,
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed",
