@@ -9,11 +9,12 @@ var sshObj = {
     password:     process.env.PASSWORD,
     sudoPassword: process.env.SUDO_PASSWORD,
     passPhrase:   process.env.PASS_PHRASE,
-    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
+    privateKey:   ""
   },
   commands:           [
     "`Test session text message: passed`",
     "msg:console test notification: passed",
+    "ll",
     "sudo su",
     "cd ~/",
     "ll",
