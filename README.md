@@ -264,20 +264,17 @@ This a very robust and simple multi host configuration method.
 
 **Tunnelling Example:**
 This example shows two hosts (server2, server3) that are connected to through server1 by defining them first then adding them to the hosts array in server 1.
-
+```
 server1.hosts = [server2, server3] 
-
 server2.hosts = []
-
 server3.hosts = []
-
+```
 *The following would also be valid:*
-
+```
 server1.hosts = [server2]
- 
 server2.hosts = [server3]
-
 server3.hosts = []
+```
 
 *The process:*
 
