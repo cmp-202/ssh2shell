@@ -130,6 +130,7 @@ var host = {
     }
   },
   verbose:             false,
+  debug:               false,
   connectedMessage:    "Connected",
   readyMessage:        "Running commands Now",
   closedMessage:       "Completed",
