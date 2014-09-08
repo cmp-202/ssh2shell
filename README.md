@@ -175,20 +175,20 @@ Trouble shooting:
  * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
  * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
-* There is a debug option in the host config object that will output progress information when set to true.
-* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. This time can be changed by setting the host.idleTimeOut value to a value in milliseconds.
+* There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
+* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds.
 
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
-* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ''
+* When using key authentication you may require a valid passphrase if your key was created with one. If not set host.server.passPhrase to ''
 
 Sudo Commands:
 --------------
 If sudo su is detected an extra exit command will be added to close the session correctly once all commands are complete.
 
 If your sudo password is incorrect an error message will be returned and the session closed. 
-If debug is set to true the password that was used will also be returned with the error message when sudo authentication fails.
+If debug is set to true the password that was used will also be returned.
 
 **Su as another user:** Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password via stream.write.
 

@@ -2,7 +2,7 @@
   "name": "ssh2shell",
   "version": "1.2.4",
   "author": "cmp-202",
-  "description": "A wrapper class for node.js ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, add new commands, and tunnel through to a second host",
+  "description": "A wrapper class for node.js ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
   "engines": {
     "node": ">=0.8.7"
@@ -26,9 +26,12 @@
     "multiple",
     "commands",
     "tunnel",
+    "tunnelling",
     "deploy",
     "host",
-    "automation"
+    "automation",
+    "nested",
+    "hosts"
   ],
   "repository": {
     "type": "git",
