@@ -7,18 +7,12 @@ var sshObj = {
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD,
-    passPhrase:   process.env.PASS_PHRASE,
-    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
+    passPhrase:   "",
+    privateKey:   ""
   },
   commands:           [
-    "`Test session text message: passed`",
-    "msg:console test notification: passed",
-    "ll",
-    "sudo su",
-    "cd ~/",
-    "ll",
-    "echo $(pwd)",
-    "ll"
+    "msg:Testing idle time out",
+    "read -n 1 -p \"Creating a prompt to trigger time out (y,n): \" test;"
   ],
   msg: {
     send: function( message ) {
@@ -27,6 +21,7 @@ var sshObj = {
   },
   verbose:            false,
   debug:              false,
+  idleTimeOut:        10000,
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed",
@@ -34,15 +29,6 @@ var sshObj = {
     //nothing to do here
   },
   onCommandComplete:  function( command, response, sshObj ) {
-    //confirm it is the root home dir and change to root's .ssh folder
-    if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
-      sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
-      sshObj.commands.unshift("cd .ssh");
-    }
-    //we are listing the dir so output it to the msg handler
-    else if (command == "ll"){      
-      sshObj.msg.send(response);
-    }
   },
   onEnd:              function( sessionText, sshObj ) {
     //show the full session output. This could be emailed or saved to a log file.

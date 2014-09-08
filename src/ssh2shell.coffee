@@ -47,7 +47,12 @@ class SSH2Shell
   _buffer:       ""
   _connections:  []
   
-  _processData: ->
+  _timedout: =>
+    @sshObj.msg.send "#{@sshObj.server.host}: Error: Command timed out after #{@_idleTime/1000} seconds"
+    @sshObj.sessionText += @_buffer
+    @connection.end()
+    
+  _processData: =>
     #remove non-standard ascii from terminal responses
     @_data = @_data.replace(/[^\r\n\x20-\x7e]/g, "")
     #remove other weird nonstandard char representation from responses like [32m[31m
@@ -68,6 +73,8 @@ class SSH2Shell
     #command still processing
     else
       @sshObj.onCommandProcessing @command, @_buffer, @sshObj, @_stream
+      clearTimeout @_idleTimer if @_idleTimer
+      @_idleTimer = setTimeout(@_timedout, @_idleTime)
 
   _processPasswordPrompt: =>
     #First test for password prompt
@@ -235,11 +242,12 @@ class SSH2Shell
 
           #open a shell
           @connection.shell { pty: true }, (err, @_stream) =>
-            if err then @sshObj.msg.send "#{err}"
+            if err then @sshObj.msg.send "Shell Error: #{err}"
             @sshObj.exitCommands = []
             @sshObj.pwSent = false
             @sshObj.sshAuth = false
             @sshObj.sessionText = ""
+            @_idleTime = @sshObj.idleTimeOut ? 5000
             
             @_stream.on "error", (error) =>
               @sshObj.msg.send "Stream Error: #{error}"
@@ -260,6 +268,7 @@ class SSH2Shell
               @sshObj.onEnd @sshObj.sessionText, @sshObj
             
             @_stream.on "close", (code, signal) =>
+              clearTimeout @_idleTimer if @_idleTimer
               @connection.end()
           
         @connection.on "error", (err) =>
