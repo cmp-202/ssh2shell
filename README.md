@@ -268,7 +268,7 @@ This example shows a primary host (server1) that has two hosts the will be conne
 *The process:*
 
 1. The primary host (server1) is connected and all its commands completed. 
-2. Once complete a connection to server2 is made using its server parameters, its commands are completed and handled by its command callback functions, then connection to server2 closed running its onEnd callback.
+2. Once complete a connection to server2 is made using its server parameters, its commands are completed and handled by its command callback functions, then connection to server2 closed triggering its onEnd callback.
 3. Server3 is connected to and it completes its process and the connection is closed.
 4. Control is returned to server1 and its connection is closed triggering its onEnd callback.
 5. As all sessions are closed the process ends.
