@@ -14,6 +14,7 @@ var sshObj = {
   commands:           [
     "`Test session text message: passed`",
     "msg:console test notification: passed",
+    "ll",
     "sudo su",
     "cd ~/",
     "ll",
