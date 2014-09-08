@@ -31,27 +31,26 @@ Requirements:
 The class expects an object with the following structure to be passed to its constructor:
 ```
 host = {
-  server:             {       
+  server:              {       
     host:         "[IP Address]",
     port:         "[external port number]",
     userName:     "[user name]",
     password:     "[user password]",
-    sudoPassword: "[optional: different sudo password or blank if the same as password]",
     passPhrase:   "[private key passphrase or ""]",
     privateKey:   [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]
   },
-  hosts:               [Array of host configs to connect to from this host],
-  commands:           ["Array", "of", "command", "strings"],
-  msg:                {
+  hosts:               [Array of nested host configs to connect to from this host],
+  commands:            [Array of command strings],
+  msg:                 {
     send: function( message ) {
       [message handler code]
     }
   }, 
-  verbose:            true/false,
-  debug:              true/false,
-  connectedMessage:   "[on Connected message]",
-  readyMessage:       "[on Ready message]",
-  closedMessage:      "[on Close message]",
+  verbose:             true/false,
+  debug:               true/false,
+  connectedMessage:    "[on Connected message]",
+  readyMessage:        "[on Ready message]",
+  closedMessage:       "[on Close message]",
   onCommandProcessing: function( command, response, sshObj, stream ) {
     [callback function, optional code to run during the procesing of a command]
   },
@@ -106,7 +105,7 @@ var dotenv = require('dotenv');
 dotenv.load();
 
 var host = {
-  server:             {     
+  server:              {     
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
@@ -114,8 +113,8 @@ var host = {
     passPhrase:   process.env.PASS_PHRASE,
     privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
   },
-  hosts:              [],
-  commands:           [
+  hosts:               [],
+  commands:            [
     "`This is a message that will be added to the full sessionText`",
     "msg:This is a message that will be handled by the msg.send code",
     "echo $(pwd)",
@@ -130,14 +129,14 @@ var host = {
       console.log(message);
     }
   },
-  verbose:            false,
-  connectedMessage:   "Connected",
-  readyMessage:       "Running commands Now",
-  closedMessage:      "Completed",
+  verbose:             false,
+  connectedMessage:    "Connected",
+  readyMessage:        "Running commands Now",
+  closedMessage:       "Completed",
   onCommandProcessing: function( command, response, sshObj, stream ) {
     //nothing to do here
   },
-  onCommandComplete:  function( command, response, sshObj ) {
+  onCommandComplete:   function( command, response, sshObj ) {
     //confirm it is the root home dir and change to root's .ssh folder
     if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
       //unshift will add the command as the next command, use push to add command as the last command
@@ -149,7 +148,7 @@ var host = {
       sshObj.msg.send(response);
     }
   },
-  onEnd:              function( sessionText, sshObj ) {
+  onEnd:               function( sessionText, sshObj ) {
     //show the full session output. This could be emailed or saved to a log file.
     sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
   }
@@ -191,7 +190,7 @@ Trouble shooting:
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
-* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ""
+* When using key authentication you may require a valid passphrase if your key was created with one. If not set sshObj.server.passPhrase to ''
 
 Sudo Commands:
 --------------
@@ -259,7 +258,7 @@ fi",
 Tunnelling nested host objects:
 ---------------------------------
 SSH tunnelling has been incorporated into core of the class process enabling nested host objects.
-The the new `hosts: [ host1, host2]` setting can make multiple sequential host connections possible and each host object can also contain nested hosts.
+The new `hosts: [ host1, host2]` setting can make multiple sequential host connections possible and each host object can also contain nested hosts.
 Each host config object has its own server settings, commands, command handlers and event handlers. The msg handler can be shared between all objects.
 This a very robust and simple multi host configuration method.
 
@@ -267,6 +266,7 @@ This a very robust and simple multi host configuration method.
 This example shows a primary host (server1) that has two hosts the will be connected to through it (server2, server3).
 
 *The process:*
+
 1. The primary host (server1) is connected and all its commands completed. 
 2. Once complete a connection to server2 is made using its server parameters, its commands are completed and handled by its command callback functions, then connection to server2 closed running its onEnd callback.
 3. Server3 is connected to and it completes its process and the connection is closed.
