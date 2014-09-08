@@ -14,6 +14,7 @@
 #     passPhrase:  "[private key passphrase or ""]",
 #     privateKey:  "[require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]"
 #   },
+#   hosts:               [Array of sshObj host configs to connect to from this host],
 #   commands:            [Array of command strings],
 #   msg:                 {
 #     send: function( message ) {
@@ -21,9 +22,10 @@
 #     }
 #   }, 
 #   verbose:             true/false, #determines if all command output is processed by message handler as it runs]
+#   debug:               true/false, #outputs process messages
 #   connectedMessage:    "[on Connected message]",
 #   readyMessage:        "[on Ready message]",
-#   closedMessage:         "[on End message]",
+#   closedMessage:       "[on End message]",
 #   onCommandProcessing: function( command, response, sshObj, stream ) {
 #     [callback function, optional code to run during the procesing of a command]
 #   },
@@ -31,59 +33,61 @@
 #     [callback function, optional code to run on the completion of a command]
 #   },
 #   onEnd:               function( sessionText, sshObj ) {
-#     [callback function, optional code to run at the end of the session]
+#     [callback function, optional code to run at the end of a host session]
 #   }
 # }
 #================================
 
 class SSH2Shell
   sshObj:        {}
-  sessionText:   ""
   command:       ""
   response:      ""
   _stream:       {}
   _data:         ""
   _buffer:       ""
-  _pwSent:       false
-  _sshAuth:      false
+  _connections:  []
   
   _processData: ->
     #remove non-standard ascii from terminal responses
     @_data = @_data.replace(/[^\r\n\x20-\x7e]/g, "")
     #remove other weird nonstandard char representation from responses like [32m[31m
     @_data = @_data.replace(/(\[[0-9]?[0-9]m)/g, "")
-    @_buffer += "#{@_data}"
-    
+    @_buffer += @_data
+    #@sshObj.msg.send "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
+
     #check if sudo password is needed
-    if @command.indexOf("sudo ") isnt -1 
+    if @command.indexOf("sudo ") isnt -1    
       @_processPasswordPrompt()
     #check if ssh authentication needs to be handled
     else if @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #Command prompt so run the next command
     else if @_buffer.match(/[#$]\s$/)
+      @sshObj.msg.send "#{@sshObj.server.host}: normal prompt" if @sshObj.debug
       @_processNextCommand()
     #command still processing
     else
       @sshObj.onCommandProcessing @command, @_buffer, @sshObj, @_stream
 
   _processPasswordPrompt: =>
-    #First test for password
-    unless @_pwSent
+    #First test for password prompt
+    unless @sshObj.pwSent
       #when the buffer is fully loaded the prompt can be detected
       if @_buffer.match(/password.*:\s$/i)
-        @_pwSent = true
+        @sshObj.msg.send "#{@sshObj.server.host}: Send password [#{@sshObj.server.password}]" if @sshObj.debug
+        @sshObj.pwSent = true
         @_stream.write "#{@sshObj.server.password}\n"        
     #password sent so either check for failure or run next command  
     else
       #reprompted for password again so failed password 
-      if @_buffer.match(/password.*:\s$/i)
+      if @_buffer.match(/password.*:\s$/i)  
         @sshObj.msg.send "#{@sshObj.server.host}: Error: Sudo password was incorrect for #{@sshObj.server.userName}, leaving host."
-        @sshObj.msg.send "#{@sshObj.server.host}: password: #{@sshObj.server.password}" if @sshObj.verbose
+        @sshObj.msg.send "#{@sshObj.server.host}: password: [#{@sshObj.server.password}]" if @sshObj.debug
         #add buffer to sessionText so the sudo response can be seen
-        @sessionText += "#{@_buffer}"
+        @sshObj.sessionText += "#{@_buffer}"
+        @_buffer = ""
         @sshObj.commands = []
-        @_runExit()
+        @_stream.write '\x03'
         
       #normal prompt so continue with next command
       else if @_buffer.match(/[#$]\s$/)
@@ -91,66 +95,68 @@ class SSH2Shell
         
   _processSSHPrompt: =>
     #not authenticated yet so detect prompts
-    unless @_sshAuth
-      #provide password if prompted
-      if @_buffer.match(/password.*:\s$/i)        
-        @_sshAuth = true
+    unless @sshObj.sshAuth
+      #provide password
+      if @_buffer.match(/password.*:\s$/i)
+        @sshObj.msg.send "#{@sshObj.server.host}: ssh password prompt" if @sshObj.debug
+        @sshObj.sshAuth = true
         @_stream.write "#{@sshObj.server.password}\n"
-        
-      #provide passphrase if prompted
+      #provide passphrase
       else if @_buffer.match(/passphrase.*:\s$/i)
-        @_sshAuth = true
+        @sshObj.msg.send "#{@sshObj.server.host}: ssh passphrase prompt" if @sshObj.debug
+        @sshObj.sshAuth = "true"
         @_stream.write "#{@sshObj.server.passPhrase}\n"
-        
       #normal prompt so continue with next command
       else if @_buffer.match(/[#$]\s$/)
-        @_sshAuth = true
+        @sshObj.msg.send "ssh auth normal prompt" if @sshObj.debug
+        @sshObj.sshAuth = true
         @_processNextCommand()
     else 
       #detect failed authentication
       if (password = @_buffer.match(/password.*:\s$/i)) or @_buffer.match(/passphrase.*:\s$/i)
-        @_sshAuth = false
+        @sshObj.sshAuth = false      
         @sshObj.msg.send "Error: SSH authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}"
-        if @sshObj.verbose
-          @sshObj.msg.send "Using " + (if password then "password: #{@sshObj.server.password}" else "passphrase: #{@sshObj.server.passPhrase}")
+        if @sshObj.debug
+          @sshObj.msg.send "Using " + (if password then "password: [#{@sshObj.server.password}]" else "passphrase: [#{@sshObj.server.passPhrase}]")
         #no connection so drop back to first host settings if there was one
         if @_connections.length > 0
           @sshObj = @_connections.pop()
-        @_runExit()
-        
+        #@_stream.signal 'INT'
+        @_stream.write '\x03'
+ 
       #normal prompt so continue with next command
       else if @_buffer.match(/[#$]\s$/)
+        @sshObj.msg.send "ssh normal prompt" if @sshObj.debug
         @_processNextCommand()
         
-  _processBuffer: =>
-    @sessionText += "#{@_buffer}"
-    @response = @_buffer
-    #run the command complete callback function
-    @sshObj.onCommandComplete @command, @response, @sshObj
-    @sshObj.msg.send @_buffer if @sshObj.verbose 
-    @_buffer = ""
-
   _processNotifications: =>
     #check for notifications in commands
     while @command and ((sessionNote = @command.match(/^`(.*)`$/)) or (msgNote = @command.match(/^msg:(.*)$/)))
       #this is a message for the sessionText like an echo command in bash
       if sessionNote
-        @sessionText += "#{@sshObj.server.host}: #{sessionNote[1]}\n"
+        @sshObj.sessionText += "#{@sshObj.server.host}: #{sessionNote[1]}\n"
         @sshObj.msg.send sessionNote[1] if @sshObj.verbose
 
       #this is a message to output in process
       else if msgNote
-        @sshObj.msg.send "#{@sshObj.server.host}: #{msgNote[1]}" unless @sshObj.verbose #don't send if in verbose mode
+        @sshObj.msg.send "#{@sshObj.server.host}: #{msgNote[1]}"
       
       #load the next command and repeat the checks
       @command = @sshObj.commands.shift()
 
+  _processBuffer: =>
+    @sshObj.sessionText += "#{@_buffer}"
+    @response = @_buffer
+    @sshObj.onCommandComplete @command, @response, @sshObj
+    @sshObj.msg.send "#{@sshObj.server.host} verbose:#{@_buffer}" if @sshObj.verbose 
+    @_buffer = ""
+
   _processNextCommand: =>
     #check sudo su or ssh has been authenticated and add an extra exit command
-    if @command.indexOf("sudo su") isnt -1 or @command.indexOf("ssh ") isnt -1
+    if @command.indexOf("sudo su") isnt -1
       @sshObj.exitCommands.push "exit" 
       
-    if @command isnt "exit" and @command.indexOf("sudo su") is -1
+    if @command isnt "exit"
       #Not running an exit or sudo su command and buffer complete so process it before next command
       @_processBuffer()
       
@@ -169,32 +175,49 @@ class SSH2Shell
     else
       #no more commands so exit
       @_runExit()
-      
-  _nextHost: =>
-    @_connections.push @sshObj 
-    @sshObj = @sshObj.hosts.pop()
-    @sshObj.exitCommands = []
-    @command = "ssh #{@sshObj.server.userName}@#{@sshObj.server.host}"
-    @_sshAuth = false
-    @_runCommand()
-    
+         
   _runCommand: =>
-    #@sshObj.msg.send "next command: #{@command}"
+    @sshObj.msg.send "#{@sshObj.server.host}: next command: #{@command}" if @sshObj.debug
     @_stream.write "#{@command}\n"
     
+  _nextHost: =>
+    @_processBuffer()
+    @nextHost = @sshObj.hosts.shift()
+    @sshObj.msg.send "#{@sshObj.server.host}: ssh to #{@nextHost.server.host}" if @sshObj.debug  
+    @_connections.push @sshObj
+    if @sshObj.hosts.length is 0
+      @sshObj.exitCommands.push "exit"  
+    @sshObj = @nextHost
+    @sshObj.exitCommands = []
+    @sshObj.pwSent = false
+    @sshObj.sessionText = ""
+    @sshObj.sshAuth = false
+    @command = "ssh -oStrictHostKeyChecking=no #{@sshObj.server.userName}@#{@sshObj.server.host}"    
+    @_runCommand()
+ 
   _runExit: =>
     #run the exit commands loaded by ssh and sudo su commands
-    if @sshObj.exitCommands.length > 0
-      @command = @sshObj.exitCommands.pop
+    if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
+      @sshObj.msg.send "#{@sshObj.server.host}: Queued exit commands: #{@sshObj.exitCommands}" if @sshObj.debug
+      @command = @sshObj.exitCommands.pop()
       @_runCommand()
     #more hosts to connect to so process the next one
-    else if @sshObj.hosts.length > 0
-        @_nextHost()
+    else if @sshObj.hosts and @sshObj.hosts.length > 0
+      @sshObj.msg.send "\n#{@sshObj.server.host}: Queued hosts for this host:" if @sshObj.debug
+      @sshObj.msg.send @sshObj.hosts if @sshObj.debug
+      @_nextHost()
     #Leaving last host so load previous host 
-    else if @_connections.length > 0
+    else if @_connections and @_connections.length > 0
+      @sshObj.msg.send "\nParked hosts:" if @sshObj.debug
+      @sshObj.msg.send @_connections if @sshObj.debug
+      @sshObj.onEnd( @sshObj.sessionText, @sshObj )
       @sshObj = @_connections.pop()
+      @sshObj.msg.send "loaded previous host object for: #{@sshObj.server.host}" if @sshObj.debug
+      if @_connections.length > 0
+        @sshObj.exitCommands.push "exit"
       @_processNextCommand()
     else
+      @sshObj.msg.send "Exit and close connection on: #{@sshObj.server.host}" if @sshObj.debug
       @_stream.end "exit\n"
   
   constructor: (@sshObj) ->
@@ -211,9 +234,12 @@ class SSH2Shell
           @sshObj.msg.send @sshObj.readyMessage
 
           #open a shell
-          @connection.shell (err, @_stream) =>
+          @connection.shell { pty: true }, (err, @_stream) =>
             if err then @sshObj.msg.send "#{err}"
             @sshObj.exitCommands = []
+            @sshObj.pwSent = false
+            @sshObj.sshAuth = false
+            @sshObj.sessionText = ""
             
             @_stream.on "error", (error) =>
               @sshObj.msg.send "Stream Error: #{error}"
@@ -223,7 +249,7 @@ class SSH2Shell
               
             @_stream.on "readable", =>
               try
-                while (data = @stream.read())
+                while (data = @_stream.read())
                   @_data = "#{data}"
                   @_processData()
               catch e
@@ -231,31 +257,25 @@ class SSH2Shell
                 
             @_stream.on "end", =>
               #run the on end callback function
-              @sshObj.onEnd @sessionText, @sshObj
+              @sshObj.onEnd @sshObj.sessionText, @sshObj
             
             @_stream.on "close", (code, signal) =>
               @connection.end()
-            
+          
         @connection.on "error", (err) =>
           @sshObj.msg.send "Connection :: error :: " + err
 
         @connection.on "close", (had_error) =>
           @sshObj.msg.send @sshObj.closedMessage
-        
-        #Handle different primary host connection types  
-        if @sshObj.server.privateKey
-          @connection.connect
-            host:       @sshObj.server.host
-            port:       @sshObj.server.port
-            username:   @sshObj.server.userName
-            privateKey: @sshObj.server.privateKey
-            passphrase: @sshObj.server.passPhrase
-        else
-          @connection.connect
-            host:       @sshObj.server.host
-            port:       @sshObj.server.port
-            username:   @sshObj.server.userName
-            password:   @sshObj.server.password
+
+        @connection.connect
+          host:       @sshObj.server.host
+          port:       @sshObj.server.port
+          username:   @sshObj.server.userName
+          password:   @sshObj.server.password
+          privateKey: @sshObj.server.privateKey
+          passphrase: @sshObj.server.passPhrase
+
       catch e
         @sshObj.msg.send "#{e} #{e.stack}"
     else
