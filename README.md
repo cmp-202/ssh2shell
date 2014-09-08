@@ -46,8 +46,9 @@ host = {
       [message handler code]
     }
   }, 
-  verbose:             true/false,
-  debug:               true/false,
+  verbose:             [optional: true/false],
+  debug:               [optional: true/false],
+  idleTimeOut:         [optional: value in milliseconds (default:5000)]
   connectedMessage:    "[on Connected message]",
   readyMessage:        "[on Ready message]",
   closedMessage:       "[on Close message]",
@@ -71,6 +72,9 @@ cp .env-example .env
 
 //change .env values to valid host settings then run
 node test/devtest.js
+
+//test the idle time out timer
+node test/timeouttest.js
 
 //multiple nested hosts
 //requires the additional details added to .env file for each server
@@ -171,22 +175,8 @@ Trouble shooting:
  * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
  * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
-* There is now a debug option in the host config that will output progress information.
-* There are case when the session hangs waiting for a response it will never get as the result of a command. The callback functions conCommandComplete and onEnd will never trigger and verbose will only output the previous command response.
-  * Use the onCommandProcessing command to output debug that will enable you identify the problem and handle it as outlined in **Responding to command prompts**
-  ```
-    //output all commands buffer responses as it builds
-    onCommandProcessing:  function( command, response, sshObj, stream ) {
-      sshObj.msg.send( command + ": " + response);
-    }
-    //or
-    //output a specific commands buffer response as it builds
-    onCommandProcessing:  function( command, response, sshObj, stream ) {
-      if ( command.indexOf('npm install') != -1) {
-        sshObj.msg.send( response );
-      }
-    }
-  ```
+* There is a debug option in the host config object that will output progress information when set to true.
+* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. This time can be changed by setting the host.idleTimeOut value to a value in milliseconds.
 
 Authentication:
 ---------------
