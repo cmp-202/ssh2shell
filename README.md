@@ -5,7 +5,7 @@ Wrapper class for [ssh2](https://github.com/mscdex/ssh2) shell command.
 
 *This class enables the following functionality:*
 * Run multiple commands sequentially within the context of the previous commands result.
-* SSH tunnelling to any number of nested hosts.
+* SSH tunnelling using nested host objects.
 * When tunnelling each host has its own connection parameters, commands, command handlers, event handlers and debug or verbose settings.
 * Supports `sudo`, `sudo su` and `su user` commands.
 * Ability to respond to prompts resulting from a command as it is being run.
