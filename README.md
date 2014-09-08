@@ -263,7 +263,15 @@ Each host config object has its own server settings, commands, command handlers 
 This a very robust and simple multi host configuration method.
 
 **Tunnelling Example:**
-This example shows a primary host (server1) that has two hosts the will be connected to through it (server2, server3).
+This example shows two hosts (server2, server3) that are connected to through server1 by defining them first then adding them to the hosts array in server 1.
+server1.hosts = [server2, server3] 
+server2.hosts = []
+server3.hosts = []
+
+*The following would also be valid:*
+server1.hosts = [server2] 
+server2.hosts = [server3]
+server3.hosts = []
 
 *The process:*
 
@@ -274,6 +282,12 @@ This example shows a primary host (server1) that has two hosts the will be conne
 5. As all sessions are closed the process ends.
 
 *Note:* A host object needs to be defined before it is added to another host.hosts array.
+
+*How to:*
+* How to set up nested hosts
+* Use unique host connection settings for each host
+* Defining different commands and command handlers for each host
+* Sharing msg object between host objects
 
 ```
 var msg = {
@@ -300,7 +314,8 @@ var server3 = {
     "ll"
   ],
   msg:                 msg,
-  verbose:             true,
+  verbose:             false,
+  debug:               false,
   connectedMessage:    "",
   readyMessage:        "",
   closedMessage:       "",
@@ -338,7 +353,8 @@ var server2 = {
     "ll"
   ],
   msg:                 msg,
-  verbose:             true,
+  verbose:             false,
+  debug:               false,
   connectedMessage:    "",
   readyMessage:        "",
   closedMessage:       "",
@@ -374,7 +390,8 @@ var server1 = {
     "ll"
   ],
   msg:                 msg,
-  verbose:             true,
+  verbose:             false,
+  debug:               false,
   connectedMessage:    "Connected to Staging",
   readyMessage:        "Running commands Now",
   closedMessage:       "Completed",
