@@ -1,5 +1,6 @@
 ssh2shell
 ======================
+[![NPM](https://nodei.co/npm/ssh2shell.png?downloads=true&&downloadRank=true&stars=true)](https://nodei.co/npm/ssh2shell/)
 
 Wrapper class for [ssh2](https://github.com/mscdex/ssh2) shell command.
 
