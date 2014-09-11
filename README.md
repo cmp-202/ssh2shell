@@ -2,7 +2,7 @@ ssh2shell
 ======================
 [![NPM](https://nodei.co/npm/ssh2shell.png?downloads=true&&downloadRank=true&stars=true)](https://nodei.co/npm/ssh2shell/)
 
-Wrapper class for [ssh2](https://github.com/mscdex/ssh2) shell command.
+Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 
 *This class enables the following functionality:*
 * Run multiple commands sequentially within the context of the previous commands result.
@@ -276,102 +276,21 @@ server3.hosts = []
 4. Control is returned to server1 and its connection is closed triggering its onEnd callback.
 5. As all sessions are closed the process ends.
 
-*Note:* A host object needs to be defined before it is added to another host.hosts array.
+*Note:* 
+
+* A host object needs to be defined before it is added to another host.hosts array.
+* Only the primary host objects connected,ready and closed messages will be used by ssh2shell.
 
 *How to:*
 * How to set up nested hosts
 * Use unique host connection settings for each host
 * Defining different commands and command handlers for each host
-* Sharing msg object between host objects
+* Sharing duplicate functions between host objects
+* What host object attributes you can leave out of primary and secondary host objects
 
 ```
-var msg = {
-  send: function( message ) {
-    console.log(message);
-  }
-}
-
-//Third host
-var server3 = {
-  server:              {
-    host:         process.env.SERVER3_HOST,
-    port:         process.env.SERVER3_PORT,
-    userName:     process.env.SERVER3_USER_NAME,
-    password:     process.env.SERVER3_PASSWORD,
-    passPhrase:   process.env.SERVER3_PASS_PHRASE,
-    privateKey:   ''
-  },
-  hosts:               [],
-  commands:            [
-    "msg:connected to host: passed",
-    "sudo su",
-    "cd ~/",
-    "ll"
-  ],
-  msg:                 msg,
-  verbose:             false,
-  debug:               false,
-  connectedMessage:    "",
-  readyMessage:        "",
-  closedMessage:       "",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
-  onCommandComplete:   function( command, response, sshObj ) {
-    //we are listing the dir so output it to the msg handler
-    if (command.indexOf("cd") != -1){  
-      sshObj.msg.send("Just ran a cd command:");    
-      sshObj.msg.send(response);
-    }
-  },
-  onEnd:               function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
-  }
-}
-
-//secondary host
-var server2 = {
-  server:              {
-    host:         process.env.SERVER2_HOST,
-    port:         process.env.SERVER2_PORT,
-    userName:     process.env.SERVER2_USER_NAME,
-    password:     process.env.SERVER2_PASSWORD,
-    passPhrase:   process.env.SERVER2_PASS_PHRASE,
-    privateKey:   ''
-  },
-  hosts:               [],
-  commands:            [
-    "msg:connected to host: passed",
-    "sudo su",
-    "cd ~/",
-    "ll"
-  ],
-  msg:                 msg,
-  verbose:             false,
-  debug:               false,
-  connectedMessage:    "",
-  readyMessage:        "",
-  closedMessage:       "",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
-  onCommandComplete:   function( command, response, sshObj ) {
-    //we are listing the dir so output it to the msg handler
-    if (command == "sudo su"){      
-      sshObj.msg.send("Just ran a sudo su command");
-    }
-  },
-  onEnd:               function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
-  }
-}
-
-
-//primary host
-var server1 = {
-  server:              {
+#Host connection and authentication parameters
+var conParamsHost1 = {
     host:         process.env.SERVER1_HOST,
     port:         process.env.SERVER1_PORT,
     userName:     process.env.SERVER1_USER_NAME,
@@ -379,37 +298,106 @@ var server1 = {
     passPhrase:   process.env.SERVER1_PASS_PHRASE,
     privateKey:   require('fs').readFileSync(process.env.SERVER1_PRIV_KEY_PATH)
   },
-  hosts:               [ server2, server3 ],
+ conParamsHost2 = {
+  host:         process.env.SERVER2_HOST,
+  port:         process.env.SERVER2_PORT,
+  userName:     process.env.SERVER2_USER_NAME,
+  password:     process.env.SERVER2_PASSWORD,
+  passPhrase:   process.env.SERVER2_PASS_PHRASE,
+  privateKey:   ''
+ },
+ conParamsHost3 = {
+  host:         process.env.SERVER3_HOST,
+  port:         process.env.SERVER3_PORT,
+  userName:     process.env.SERVER3_USER_NAME,
+  password:     process.env.SERVER3_PASSWORD,
+  passPhrase:   process.env.SERVER3_PASS_PHRASE,
+  privateKey:   ''
+ }
+ 
+//Callback functions used by all hosts
+var msg = {
+  send: function( message ) {
+    console.log(message);
+  }
+ },
+ onCommandProcessing = function( command, response, sshObj, stream ) { 
+  //nothing to do here 
+ },
+ onEnd = function( sessionText, sshObj ) {
+  //show the full session output. This could be emailed or saved to a log file.
+  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+ }
+
+//Third host
+var host3 = {
+  server:              conParamsHost3,
+  commands:            [
+    "msg:connected to host: passed",
+    "sudo su",
+    "cd ~/",
+    "ll"
+  ],
+  msg:                 msg,
+  onCommandProcessing: onCommandProcessing,
+  onCommandComplete:   function( command, response, sshObj ) {
+    //we are listing the dir so output it to the msg handler
+    if (command.indexOf("cd") != -1){  
+      sshObj.msg.send("Just ran a cd command:");    
+      sshObj.msg.send(response);
+    }
+  },
+  onEnd:               onEnd
+}
+
+//second host
+var host2 = {
+  server:              conParamsHost2,
+  commands:            [
+    "msg:connected to host: passed",
+    "sudo su",
+    "cd ~/",
+    "ll"
+  ],
+  msg:                 msg,
+  onCommandProcessing: onCommandProcessing,
+  onCommandComplete:   function( command, response, sshObj ) {
+    //we are listing the dir so output it to the msg handler
+    if (command == "sudo su"){      
+      sshObj.msg.send("Just ran a sudo su command");
+    }
+  },
+  onEnd:               onEnd
+}
+
+
+//primary host
+var host1 = {
+  server:              conParamsHost1,
+  hosts:               [ host2, host3 ],
   commands:            [
     "msg:connected to host: passed",
     "ll"
   ],
   msg:                 msg,
-  verbose:             false,
-  debug:               false,
-  connectedMessage:    "Connected to Staging",
+  connectedMessage:    "Connected to Primary host1",
   readyMessage:        "Running commands Now",
   closedMessage:       "Completed",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
+  onCommandProcessing: onCommandProcessing,
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if (command == "ll"){      
       sshObj.msg.send(response);
     }
   },
-  onEnd:               function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
-  }
+  onEnd:               onEnd
 }
 
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('ssh2shell');
 
 //run the commands in the shell session
-var SSH = new SSH2Shell(server1);
+var SSH = new SSH2Shell(host1);
 SSH.connect();
  
 ```
