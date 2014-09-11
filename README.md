@@ -289,15 +289,15 @@ server3.hosts = []
 * What host object attributes you can leave out of primary and secondary host objects
 
 ```
-#Host connection and authentication parameters
+//Host connection and authentication parameters
 var conParamsHost1 = {
-    host:         process.env.SERVER1_HOST,
-    port:         process.env.SERVER1_PORT,
-    userName:     process.env.SERVER1_USER_NAME,
-    password:     process.env.SERVER1_PASSWORD,
-    passPhrase:   process.env.SERVER1_PASS_PHRASE,
-    privateKey:   require('fs').readFileSync(process.env.SERVER1_PRIV_KEY_PATH)
-  },
+  host:         process.env.SERVER1_HOST,
+  port:         process.env.SERVER1_PORT,
+  userName:     process.env.SERVER1_USER_NAME,
+  password:     process.env.SERVER1_PASSWORD,
+  passPhrase:   process.env.SERVER1_PASS_PHRASE,
+  privateKey:   require('fs').readFileSync(process.env.SERVER1_PRIV_KEY_PATH)
+ },
  conParamsHost2 = {
   host:         process.env.SERVER2_HOST,
   port:         process.env.SERVER2_PORT,
@@ -329,8 +329,45 @@ var msg = {
   sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
  }
 
-//Third host
-var host3 = {
+//Host objects:
+var host1 = {
+  server:              conParamsHost1,
+  commands:            [
+    "msg:connected to host: passed",
+    "ll"
+  ],
+  msg:                 msg,
+  connectedMessage:    "Connected to Primary host1",
+  readyMessage:        "Running commands Now",
+  closedMessage:       "Completed",
+  onCommandProcessing: onCommandProcessing,
+  onCommandComplete:   function( command, response, sshObj ) {
+    //we are listing the dir so output it to the msg handler
+    if (command == "ll"){      
+      sshObj.msg.send(response);
+    }
+  },
+  onEnd:               onEnd
+},
+host2 = {
+  server:              conParamsHost2,
+  commands:            [
+    "msg:connected to host: passed",
+    "sudo su",
+    "cd ~/",
+    "ll"
+  ],
+  msg:                 msg,
+  onCommandProcessing: onCommandProcessing,
+  onCommandComplete:   function( command, response, sshObj ) {
+    //we are listing the dir so output it to the msg handler
+    if (command == "sudo su"){      
+      sshObj.msg.send("Just ran a sudo su command");
+    }
+  },
+  onEnd:               onEnd
+},
+host3 = {
   server:              conParamsHost3,
   commands:            [
     "msg:connected to host: passed",
@@ -350,48 +387,13 @@ var host3 = {
   onEnd:               onEnd
 }
 
-//second host
-var host2 = {
-  server:              conParamsHost2,
-  commands:            [
-    "msg:connected to host: passed",
-    "sudo su",
-    "cd ~/",
-    "ll"
-  ],
-  msg:                 msg,
-  onCommandProcessing: onCommandProcessing,
-  onCommandComplete:   function( command, response, sshObj ) {
-    //we are listing the dir so output it to the msg handler
-    if (command == "sudo su"){      
-      sshObj.msg.send("Just ran a sudo su command");
-    }
-  },
-  onEnd:               onEnd
-}
 
+//Set the two hosts you are tunnelling to through host1
+host1.hosts = [ host2, host3 ];
 
-//primary host
-var host1 = {
-  server:              conParamsHost1,
-  hosts:               [ host2, host3 ],
-  commands:            [
-    "msg:connected to host: passed",
-    "ll"
-  ],
-  msg:                 msg,
-  connectedMessage:    "Connected to Primary host1",
-  readyMessage:        "Running commands Now",
-  closedMessage:       "Completed",
-  onCommandProcessing: onCommandProcessing,
-  onCommandComplete:   function( command, response, sshObj ) {
-    //we are listing the dir so output it to the msg handler
-    if (command == "ll"){      
-      sshObj.msg.send(response);
-    }
-  },
-  onEnd:               onEnd
-}
+//or the alternative tunnelling method outlined above:
+//host2.hosts = [ host3 ];
+//host1.hosts = [ host2 ];
 
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('ssh2shell');
