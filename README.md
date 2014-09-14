@@ -459,7 +459,7 @@ ssh2shell.on ("ready", function onReady() {
  //default: outputs primaryHost.readyMessage
 });
 
-ssh2shell.on "msg", function onMsg( message ) {
+ssh2shell.on ("msg", function onMsg( message ) {
  //default: outputs the message to the host.msg.send function. If undefined output is to console.log
 });
 
