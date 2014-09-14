@@ -452,11 +452,11 @@ There are a number of event handlers that enable you to add your own code to be 
 *Default event definitions:*
 ```javascript
 ssh2shell.on ("connect", function onConnect() { 
- //default: outputs primaryHost.connectedMessage] 
+ //default: outputs primaryHost.connectedMessage
 });
 
 ssh2shell.on ("ready", function onReady() { 
- //default: outputs primaryHost.readyMessage] 
+ //default: outputs primaryHost.readyMessage
 });
 
 ssh2shell.on "msg", function onMsg( message ) {
