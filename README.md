@@ -453,29 +453,38 @@ There are a number of event handlers that enable you to add your own code to be 
 ```javascript
 ssh2shell.on ("connect", function onConnect() { 
  //default: outputs primaryHost.connectedMessage] 
-})
+});
 
 ssh2shell.on ("ready", function onReady() { 
  //default: outputs primaryHost.readyMessage] 
-})
-      
+});
+
+ssh2shell.on "msg", function onMsg( message ) {
+ //default: outputs the message to the host.msg.send function. If undefined output is to console.log
+});
+
 ssh2shell.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { 
  //default: runs host.onCommandProcessing function if defined 
-})
+});
     
 ssh2shell.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { 
  //default: runs host.onCommandComplete function if defined 
-})
+});
     
 ssh2shell.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { 
- //default: runs host.onCommandTimeout function if defined 
-})
+ //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
+ //the error is outputed to the msg event and the connection is closed
+});
 
 ssh2shell.on ('end', function onEnd( sessionText, sshObj ) { 
  //default: run host.onEnd function if defined 
-})
+});
 
 ssh2shell.on ("close", function onClose(had_error) { 
- //default: outputs primaryHost.closeMessage 
-})
+ //default: outputs primaryHost.closeMessage or error if one was received
+});
+
+ssh2shell.on ("error", function onError(err, type, close = false, callback) {
+ //default: Outputs the error, runs the callback if defined and closes the connection
+});
 ```
