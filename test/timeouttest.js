@@ -7,8 +7,8 @@ var sshObj = {
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD,
-    passPhrase:   "",
-    privateKey:   ""
+    passPhrase:   process.env.PASS_PHRASE,
+    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
   },
   commands:           [
     "msg:Testing idle time out",
@@ -25,11 +25,6 @@ var sshObj = {
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
-  onCommandComplete:  function( command, response, sshObj ) {
-  },
   onEnd:              function( sessionText, sshObj ) {
     //show the full session output. This could be emailed or saved to a log file.
     sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);

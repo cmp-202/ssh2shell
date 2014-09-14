@@ -13,45 +13,43 @@ var sshObj = {
   commands:           [
     "`Test session text message: passed`",
     "msg:console test notification: passed",
-    "ll",
+    "ls -la",
     "sudo su",
     "cd ~/",
-    "ll",
+    "ls -la",
     "echo $(pwd)",
-    "ll"
+    "ls -la"
   ],
   msg: {
     send: function( message ) {
       console.log(message);
     }
   },
-  verbose:            false,
-  debug:              false,
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
-  closedMessage:      "Completed",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
-  onCommandComplete:  function( command, response, sshObj ) {
-    //confirm it is the root home dir and change to root's .ssh folder
-    if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
-      sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
-      sshObj.commands.unshift("cd .ssh");
-    }
-    //we are listing the dir so output it to the msg handler
-    else if (command == "ll"){      
-      sshObj.msg.send(response);
-    }
-  },
-  onEnd:              function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  }
+  closedMessage:      "Completed"
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(sshObj);
+  
+SSH.on ('commandComplete', function onCommandComplete( command, response, sshObj ) {
+    //confirm it is the root home dir and change to root's .ssh folder
+    if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
+      sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ls command.");
+      sshObj.commands.unshift("cd .ssh");
+    }
+    //we are listing the dir so output it to the msg handler
+    else if (command == "ls -la"){      
+      sshObj.msg.send(response);
+    }
+  });
+
+SSH.on ('end', function onEnd( sessionText, sshObj ) {
+    //show the full session output. This could be emailed or saved to a log file.
+    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
+  });
+
 SSH.connect();
