@@ -403,7 +403,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 The other alternative is to use the onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout:  function( command, response, sshObj, stream, connection ) {
+host.onCommandTimeout = function( command, response, sshObj, stream, connection ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
    }
@@ -418,7 +418,7 @@ You can echo/printf the script content into a file as a command, ensure it is ex
 The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
 
 ```javascript
- commands: [ "some commands here",
+ host.commands = [ "some commands here",
   "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
  #\n
  current=$(pwd);\n
@@ -446,6 +446,7 @@ There are a number of event handlers that enable you to add your own code to be 
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
 **Note:** any event handlers you add to the class instance are run as well as any other event handlers defined.
+
 [node.js event emitter](http://nodejs.org/api/events.html#events_class_events_eventemitter)
 
 *Default event definitions:*
