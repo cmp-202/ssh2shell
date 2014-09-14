@@ -15,6 +15,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * See progress messages handled by msg.send: either static (on events) or dynamic (from callback functions) or verbose (each command response) and debug output (progress logic output).
 * Use full session response text in the onEnd callback function triggered when each host connection is closed.
 * Run commands that are processed as notification messages to either the full session text or the msg.send function and not run in the shell.
+* Added default event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 
 Code:
@@ -127,7 +128,6 @@ PASS_PHRASE=myPassPhrase
 
 *app.js*
 ```
-var SSH2Shell = require ('ssh2shell');
 var dotenv = require('dotenv');
 dotenv.load();
 
@@ -154,15 +154,14 @@ var host = {
     send: function( message ) {
       console.log(message);
     }
-  },
-  connectedMessage:    "Connected",
-  readyMessage:        "Running commands Now",
-  closedMessage:       "Completed"
+  }
 };
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(host);
+//Create a new instance
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host);
 
+//Add new default event handlers
 SSH.on('commandComplete',   function( command, response, sshObj ) {
   //confirm it is the root home dir and change to root's .ssh folder
   if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
@@ -181,6 +180,7 @@ SSH.on('end', function( sessionText, sshObj ) {
   sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
 }
 
+//Start the process
 SSH.connect();
 
 ```
@@ -313,24 +313,24 @@ host3 = {
   }
 }
 
-
 //Set the two hosts you are tunnelling to through host1
 host1.hosts = [ host2, host3 ];
 
-//or the alternative tunnelling method outlined above:
+//or the alternative nested tunnelling method outlined above:
 //host2.hosts = [ host3 ];
 //host1.hosts = [ host2 ];
 
-//run the commands in the shell session
+//Create the new instance
 var SSH2Shell = require ('ssh2shell'),
     SSH       = new SSH2Shell(host1);
 
-//default on end event handler used by all hosts as no objects define it
+//default on end event handler used by all hosts
 SSH.on ('end', function( sessionText, sshObj ) {
   //show the full session output. This could be emailed or saved to a log file.
   sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
  });
- 
+
+//Start the process
 SSH.connect();
  
 ```
@@ -374,30 +374,29 @@ Verbose and Debug:
 
 Event Handlers:
 ---------------
-There are a number of event handlers that can be defined and in two ways:
+There are a number of event handlers that can be defined and in two ways to override the default class definitions:
 
-1. Defined for the class as the default handler used by all hosts if no host event handler is defined.
-2. Or in a host object used when the connection to that host is made overriding the classes default handler.
+1. Replace the class default handler used by all hosts by binding a new on event function to the class.
+2. Or in a host object define a event handler function used when the connection to that host is made overriding the classes default event handler for that connection.
+ * Only some event handlers are available for definition in the hosts object. Connect, ready and close are not.
 
 **Event handler definitions:**
 
-For the class:
+Default Class on event functions:
 ```
-var SSH2Shell = require ('ssh2shell'),
-    ssh       = new SSH2Shell(host1);
-ssh.on ("connect", () { })
+.on ("connect", function onConnect() { [code hare] })
 
-ssh.on ("ready", () { })
+.on ("ready", function onReady() { [code hare] })
       
-ssh.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { })
+.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { [code hare] })
     
-ssh.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { })
+.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { [code hare] })
     
-ssh.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { })
+.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { [code hare] })
 
-ssh.on ('end', function onEnd( sessionText, sshObj ) { })
+.on ('end', function onEnd( sessionText, sshObj ) { [code hare] })
 
-ssh.on ("close", function onClose(had_error) { })
+.on ("close", function onClose(had_error) { [code hare] })
 ```
 In the host object:
 
@@ -412,24 +411,33 @@ The stream object is available in the onCommandProcessing function to output the
 
 ```
 //in the host object definition that will be used only for that host
-  onCommandProcessing:  function( command, response, sshObj, stream ) {
-    //Check the command and prompt exits and respond with a 'y'
-    if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
-      sshObj.msg.send('Sending install nano response');
-      stream.write('y\n');
-    }
+host.onCommandProcessing = function( command, response, sshObj, stream ) {
+   //Check the command and prompt exits and respond with a 'y'
+   if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
+     sshObj.msg.send('Sending install nano response');
+     stream.write('y\n');
+   }
+ };
+ 
+//or the default event for the class can be defined
+SSH.on ('commandProcessing',  function( command, response, sshObj, stream ) {
+  //Check the command and prompt exits and respond with a 'y'
+  if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
+    sshObj.msg.send('Sending install nano response');
+    stream.write('y\n');
   }
+});  
 
 ```
 The other alternative is to use the commandTimeout event handler
 
 ```
-//in the host object definition that will be used only for that host
-  onCommandTimeout:  function( command, response, sshObj, stream, connection ) {
-    if (response.indexOf("[y/N]?") != -1 ) {
-      stream.write('n\n');
-    }
-  }
+//The host object definition can be used or attach a new default handler to the class
+host.onCommandTimeout:  function( command, response, sshObj, stream, connection ) {
+   if (response.indexOf("[y/N]?") != -1 ) {
+     stream.write('n\n');
+   }
+ }
 ```
 To terminate the session on such a prompt use connection.end() within the timeout event handler.
 
