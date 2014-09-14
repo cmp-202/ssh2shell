@@ -451,25 +451,31 @@ There are a number of event handlers that enable you to add your own code to be 
 
 *Default event definitions:*
 ```javascript
-ssh2shell.on ("connect", function onConnect() { [default: outputs primaryHost.connectedMessage] })
+ssh2shell.on ("connect", function onConnect() { 
+ //default: outputs primaryHost.connectedMessage] 
+})
 
-ssh2shell.on ("ready", function onReady() { [default: outputs primaryHost.readyMessage] })
+ssh2shell.on ("ready", function onReady() { 
+ //default: outputs primaryHost.readyMessage] 
+})
       
 ssh2shell.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { 
- [default: runs host.onCommandProcessing function if defined] 
+ //default: runs host.onCommandProcessing function if defined 
 })
     
 ssh2shell.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { 
- [default: runs host.onCommandComplete function if defined] 
+ //default: runs host.onCommandComplete function if defined 
 })
     
 ssh2shell.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { 
- [default: runs host.onCommandTimeout function if defined] 
+ //default: runs host.onCommandTimeout function if defined 
 })
 
 ssh2shell.on ('end', function onEnd( sessionText, sshObj ) { 
- [default: run host.onEnd function if defined] 
+ //default: run host.onEnd function if defined 
 })
 
-ssh2shell.on ("close", function onClose(had_error) { [default: outputs primaryHost.closeMessage] })
+ssh2shell.on ("close", function onClose(had_error) { 
+ //default: outputs primaryHost.closeMessage 
+})
 ```
