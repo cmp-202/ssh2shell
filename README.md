@@ -1,5 +1,5 @@
 ssh2shell
-======================
+=========
 [![NPM](https://nodei.co/npm/ssh2shell.png?downloads=true&&downloadRank=true&stars=true)](https://nodei.co/npm/ssh2shell/)
 
 Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
@@ -31,40 +31,58 @@ Requirements:
 ------------
 The class expects an object with the following structure to be passed to its constructor:
 ```
+//Host object
 host = {
   server:              {       
-    host:         "[IP Address]",
-    port:         "[external port number]",
-    userName:     "[user name]",
-    password:     "[user password]",
-    passPhrase:   "[private key passphrase or ""]",
-    privateKey:   [require('fs').readFileSync('/path/to/private/key/id_rsa') or ""]
+    host:         "IP Address",
+    port:         "external port number",
+    userName:     "user name",
+    password:     "user password",
+    passPhrase:   "privateKeyPassphrase", //optional default:""
+    privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional default:""
   },
-  hosts:               [Array of nested host configs to connect to from this host],
-  commands:            [Array of command strings],
+  hosts:               [Array, of, nested, host, configs, objects], //optional default:[]
+  commands:            ["Array", "of", "command", "strings],
   msg:                 {
     send: function( message ) {
-      [message handler code]
+      //message handler code
     }
   }, 
-  verbose:             [optional: true/false],
-  debug:               [optional: true/false],
-  idleTimeOut:         [optional: value in milliseconds (default:5000)]
-  connectedMessage:    "[on Connected message]",
-  readyMessage:        "[on Ready message]",
-  closedMessage:       "[on Close message]",
+  verbose:             true/false,  //optional default:false
+  debug:               true/false,  //optional default:false
+  idleTimeOut:         5000,        //optional: value in milliseconds (default:5000)
+  connectedMessage:    "Connected", //optional: on Connected message
+  readyMessage:        "Ready",     //optional: on Ready message
+  closedMessage:       "Closed",    //optional: on Close message
+  
+  //optional event handlers defined for a host and will be used
+  //when connected to this host instead of the default event handlers for the class.
   onCommandProcessing: function( command, response, sshObj, stream ) {
-    [callback function, optional code to run during the procesing of a command]
+   //optional code to run during the procesing of a command 
+   //response is the text buffer that is being loaded with each data event
+   //sshObj is this object and gives access to the current set of commands
+   //stream object allows strea.write access if a command requires a response
   },
   onCommandComplete:   function( command, response, sshObj ) {
-    [callback function, optional code to run on the completion of a command]
+   //optional code to run on the completion of a command
+   //response is the final buffered result from the command being completed
+   //sshObj is this object and gives access to the current set of commands
+  },
+  onCommandTimeout:    function(command, response, sshObj, stream, connection) {
+   //optional code for responding to command timeouts
+   //command is the command being run
+   //response is the text buffer from the command up to it timing out
+   //stream object allows being able to respond to the timeout without having to close the connection
+   //connection object gives access to closed the shell using connection.end()
   },
   onEnd:               function( sessionText, sshObj ) {
-    [callback function, optional code to run at the end of the session]
+   //optional code to run at the end of the session
+   //sessionText is the full text for this hosts session
   }
 };
-``` 
 
+``` 
+ 
 Test:
 -----
 ```
@@ -84,7 +102,9 @@ node test/tunneltest.js
 ```
 
 Usage:
-------
+======
+Connecting to a single host:
+----------------------------
 
 *How to:*
 * Use sudo su with user password.
@@ -93,6 +113,7 @@ Usage:
 * Use the two notification types in the commands array.
 * Connect using a key pair with passphrase.
 * Use an .env file for server values loaded by dotenv from the root of the project.
+* Define default event handlers for the class instead of defining them in the host object.
 
 *.env*
 ```
@@ -106,6 +127,7 @@ PASS_PHRASE=myPassPhrase
 
 *app.js*
 ```
+var SSH2Shell = require ('ssh2shell');
 var dotenv = require('dotenv');
 dotenv.load();
 
@@ -118,7 +140,6 @@ var host = {
     passPhrase:   process.env.PASS_PHRASE,
     privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
   },
-  hosts:               [],
   commands:            [
     "`This is a message that will be added to the full sessionText`",
     "msg:This is a message that will be handled by the msg.send code",
@@ -134,117 +155,34 @@ var host = {
       console.log(message);
     }
   },
-  verbose:             false,
-  debug:               false,
   connectedMessage:    "Connected",
   readyMessage:        "Running commands Now",
-  closedMessage:       "Completed",
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-    //nothing to do here
-  },
-  onCommandComplete:   function( command, response, sshObj ) {
-    //confirm it is the root home dir and change to root's .ssh folder
-    if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
-      //unshift will add the command as the next command, use push to add command as the last command
-      sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
-      sshObj.commands.unshift("cd .ssh");
-    }
-    //we are listing the dir so output it to the msg handler
-    else if (command == "ll"){      
-      sshObj.msg.send(response);
-    }
-  },
-  onEnd:               function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  }
+  closedMessage:       "Completed"
 };
-
-var SSH2Shell = require ('ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(host);
+
+SSH.on('commandComplete',   function( command, response, sshObj ) {
+  //confirm it is the root home dir and change to root's .ssh folder
+  if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
+    //unshift will add the command as the next command, use push to add command as the last command
+    sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
+    sshObj.commands.unshift("cd .ssh");
+  }
+  //we are listing the dir so output it to the msg handler
+  else if (command == "ll"){      
+    sshObj.msg.send(response);
+  }
+}
+ 
+SSH.on('end', function( sessionText, sshObj ) {
+  //show the full session output. This could be emailed or saved to a log file.
+  sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
+}
+
 SSH.connect();
 
-```
-
-Trouble shooting:
------------------
-
-* `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate that it could not decrypt the private key. 
- * Recheck your passphrase for typos or missing chars.
- * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
- * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
-* If your password is incorrect the connection will return an error.
-* There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
-* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds.
-
-Authentication:
----------------
-* Each host authenticates with its own host.server parameters.
-* When using key authentication you may require a valid passphrase if your key was created with one. If not set host.server.passPhrase to ''
-
-Sudo Commands:
---------------
-If sudo su is detected an extra exit command will be added to close the session correctly once all commands are complete.
-
-If your sudo password is incorrect an error message will be returned and the session closed. 
-If debug is set to true the password that was used will also be returned.
-
-**Su as another user:** Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password via stream.write.
-
-Notification commands:
-----------------------
-There are two notification commands that can be added to the command array but are not processed in the shell.
-
-1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
-2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the onEnd callback function. The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
-
-Verbose and Debug:
---------
-* When verbose is set to true each command response is passed to the msg.send function when the command completes.
-* When debug is set to true in a host object process messages will be outputted to the msg.send function to help identify what the internal process is. 
-
-
-Responding to command prompts:
-----------------------
-When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
-The command response check method is the same as in the example for the onCommandComplete callback but in this case we use it in the onCommandProcessing callback and stream.write to send the response.
-The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
-
-```
-  onCommandProcessing:  function( command, response, sshObj, stream ) {
-    //Check the command and prompt exits and respond with a 'y'
-    if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
-      sshObj.msg.send('Sending install nano response');
-      stream.write('y\n');
-    }
-  }
-```
-
-Bash scripts on the fly:
-------------------------
-If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate or get the script on the fly. 
-You can echo/printf the script content into a file as a command, ensure it is executable, run it and then delete it.
-The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
-
-```
- commands: [ "some commands here",
-  "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
- #\n
- current=$(pwd);\n
- cd ..;\n
- if [ -f myfile ]; then
-  sed \"/^[ \\t]*$/d\" ${current}/myfile | while read line; do\n
-    printf \"Doing some stuff\";\n
-    printf $line;\n
-  done\n
- fi\n' > myscript.sh; 
-fi",
-  "sudo chmod 700 myscript.sh",
-  "./myscript.sh",
-  "rm myscript.sh"
-]
 ```
 
 Tunnelling nested host objects:
@@ -287,6 +225,7 @@ server3.hosts = []
 * Defining different commands and command handlers for each host
 * Sharing duplicate functions between host objects
 * What host object attributes you can leave out of primary and secondary host objects
+* Unique event handlers set in host objects common event handler set on class
 
 ```
 //Host connection and authentication parameters
@@ -320,13 +259,6 @@ var msg = {
   send: function( message ) {
     console.log(message);
   }
- },
- onCommandProcessing = function( command, response, sshObj, stream ) { 
-  //nothing to do here 
- },
- onEnd = function( sessionText, sshObj ) {
-  //show the full session output. This could be emailed or saved to a log file.
-  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
  }
 
 //Host objects:
@@ -340,14 +272,12 @@ var host1 = {
   connectedMessage:    "Connected to Primary host1",
   readyMessage:        "Running commands Now",
   closedMessage:       "Completed",
-  onCommandProcessing: onCommandProcessing,
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if (command == "ll"){      
       sshObj.msg.send(response);
     }
-  },
-  onEnd:               onEnd
+  }
 },
 host2 = {
   server:              conParamsHost2,
@@ -358,14 +288,12 @@ host2 = {
     "ll"
   ],
   msg:                 msg,
-  onCommandProcessing: onCommandProcessing,
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if (command == "sudo su"){      
       sshObj.msg.send("Just ran a sudo su command");
     }
-  },
-  onEnd:               onEnd
+  }
 },
 host3 = {
   server:              conParamsHost3,
@@ -376,15 +304,13 @@ host3 = {
     "ll"
   ],
   msg:                 msg,
-  onCommandProcessing: onCommandProcessing,
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if (command.indexOf("cd") != -1){  
       sshObj.msg.send("Just ran a cd command:");    
       sshObj.msg.send(response);
     }
-  },
-  onEnd:               onEnd
+  }
 }
 
 
@@ -395,12 +321,142 @@ host1.hosts = [ host2, host3 ];
 //host2.hosts = [ host3 ];
 //host1.hosts = [ host2 ];
 
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('ssh2shell');
-
 //run the commands in the shell session
-var SSH = new SSH2Shell(host1);
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host1);
+
+//default on end event handler used by all hosts as no objects define it
+SSH.on ('end', function( sessionText, sshObj ) {
+  //show the full session output. This could be emailed or saved to a log file.
+  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+ });
+ 
 SSH.connect();
  
 ```
+
+Trouble shooting:
+-----------------
+
+* `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate that it could not decrypt the private key. 
+ * Recheck your passphrase for typos or missing chars.
+ * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
+ * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
+* If your password is incorrect the connection will return an error.
+* There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
+* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds.
+
+Authentication:
+---------------
+* Each host authenticates with its own host.server parameters.
+* When using key authentication you may require a valid passphrase if your key was created with one. If not set host.server.passPhrase to ''
+
+Sudo Commands:
+--------------
+If sudo su is detected an extra exit command will be added to close the session correctly once all commands are complete.
+
+If your sudo password is incorrect an error message will be returned and the session closed. 
+If debug is set to true the password that was used will also be returned.
+
+**Su as another user:** Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password via stream.write.
+
+Notification commands:
+----------------------
+There are two notification commands that can be added to the command array but are not processed in the shell.
+
+1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
+2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the onEnd callback function. The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
+
+Verbose and Debug:
+------------------
+* When verbose is set to true each command response is passed to the msg.send function when the command completes.
+* When debug is set to true in a host object process messages will be outputted to the msg.send function to help identify what the internal process is. 
+
+Event Handlers:
+---------------
+There are a number of event handlers that can be defined and in two ways:
+
+1. Defined for the class as the default handler used by all hosts if no host event handler is defined.
+2. Or in a host object used when the connection to that host is made overriding the classes default handler.
+
+**Event handler definitions:**
+
+For the class:
+```
+var SSH2Shell = require ('ssh2shell'),
+    ssh       = new SSH2Shell(host1);
+ssh.on ("connect", () { })
+
+ssh.on ("ready", () { })
+      
+ssh.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { })
+    
+ssh.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { })
+    
+ssh.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { })
+
+ssh.on ('end', function onEnd( sessionText, sshObj ) { })
+
+ssh.on ("close", function onClose(had_error) { })
+```
+In the host object:
+
+*See the requirements section*
+
+
+Responding to command prompts:
+----------------------
+When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
+The command response check method is the same as in the example for the onCommandComplete callback but in this case we use it in the onCommandProcessing callback and stream.write to send the response. If you want to terminate the connection then se the 
+The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
+
+```
+//in the host object definition that will be used only for that host
+  onCommandProcessing:  function( command, response, sshObj, stream ) {
+    //Check the command and prompt exits and respond with a 'y'
+    if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
+      sshObj.msg.send('Sending install nano response');
+      stream.write('y\n');
+    }
+  }
+
+```
+The other alternative is to use the commandTimeout event handler
+
+```
+//in the host object definition that will be used only for that host
+  onCommandTimeout:  function( command, response, sshObj, stream, connection ) {
+    if (response.indexOf("[y/N]?") != -1 ) {
+      stream.write('n\n');
+    }
+  }
+```
+To terminate the session on such a prompt use connection.end() within the timeout event handler.
+
+Bash scripts on the fly:
+------------------------
+If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate or get the script on the fly. 
+You can echo/printf the script content into a file as a command, ensure it is executable, run it and then delete it.
+The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
+
+```
+ commands: [ "some commands here",
+  "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
+ #\n
+ current=$(pwd);\n
+ cd ..;\n
+ if [ -f myfile ]; then
+  sed \"/^[ \\t]*$/d\" ${current}/myfile | while read line; do\n
+    printf \"Doing some stuff\";\n
+    printf $line;\n
+  done\n
+ fi\n' > myscript.sh; 
+fi",
+  "sudo chmod 700 myscript.sh",
+  "./myscript.sh",
+  "rm myscript.sh"
+]
+```
+
+
 
