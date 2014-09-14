@@ -60,21 +60,21 @@ host = {
   //of the class
   onCommandProcessing: function( command, response, sshObj, stream ) {
    //optional code to run during the procesing of a command 
-   //response is the text buffer that is being loaded with each data event
+   //command is the command being run
+   //response is the text buffer that is still being loaded with each data event
    //sshObj is this object and gives access to the current set of commands
    //stream object allows strea.write access if a command requires a response
   },
   onCommandComplete:   function( command, response, sshObj ) {
    //optional code to run on the completion of a command
-   //response is the final buffered result from the command being completed
+   //response is the full response from the command completed
    //sshObj is this object and gives access to the current set of commands
   },
   onCommandTimeout:    function(command, response, sshObj, stream, connection) {
-   //optional code for responding to command timeouts
-   //command is the command being run
-   //response is the text buffer from the command up to it timing out
+   //optional code for responding to command timeout
+   //response is the text response from the command up to it timing out
    //stream object allows being able to respond to the timeout without having to close the connection
-   //connection object gives access to closed the shell using connection.end()
+   //connection object gives access to close the shell using connection.end()
   },
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
