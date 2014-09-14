@@ -146,9 +146,9 @@ var host = {
     "echo $(pwd)",
     "sudo su",
     "cd ~/",
-    "ll",
+    "ls -l",
     "echo $(pwd)",
-    "ll"
+    "ls -l"
   ],
   msg: {
     send: function( message ) {
@@ -167,11 +167,11 @@ SSH.on('commandComplete',   function( command, response, sshObj ) {
   //confirm it is the root home dir and change to root's .ssh folder
   if (command == "echo $(pwd)" && response.indexOf("/root") != -1 ) {
     //unshift will add the command as the next command, use push to add command as the last command
-    sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ll command.");
+    sshObj.commands.unshift("msg:This shows that the command and response check worked and that another command was added before the next ls command.");
     sshObj.commands.unshift("cd .ssh");
   }
   //we are listing the dir so output it to the msg handler
-  else if (command == "ll"){      
+  else if (command == "ls -l"){      
     sshObj.msg.send(response);
   }
 }
@@ -266,7 +266,7 @@ var host1 = {
   server:              conParamsHost1,
   commands:            [
     "msg:connected to host: passed",
-    "ll"
+    "ls -l"
   ],
   msg:                 msg,
   connectedMessage:    "Connected to Primary host1",
@@ -274,7 +274,7 @@ var host1 = {
   closedMessage:       "Completed",
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
-    if (command == "ll"){      
+    if (command == "ls -l"){      
       sshObj.msg.send(response);
     }
   }
@@ -285,7 +285,7 @@ host2 = {
     "msg:connected to host: passed",
     "sudo su",
     "cd ~/",
-    "ll"
+    "ls -l"
   ],
   msg:                 msg,
   onCommandComplete:   function( command, response, sshObj ) {
@@ -301,7 +301,7 @@ host3 = {
     "msg:connected to host: passed",
     "sudo su",
     "cd ~/",
-    "ll"
+    "ls -l"
   ],
   msg:                 msg,
   onCommandComplete:   function( command, response, sshObj ) {
