@@ -31,7 +31,7 @@ npm install ssh2shell
 Requirements:
 ------------
 The class expects an object with the following structure to be passed to its constructor:
-```
+```javascript
 //Host object
 host = {
   server:              {       
@@ -86,7 +86,7 @@ host = {
  
 Test:
 -----
-```
+```javascript
 //single host test
 cp .env-example .env
 
@@ -126,7 +126,7 @@ PASS_PHRASE=myPassPhrase
 ```
 
 *app.js*
-```
+```javascript
 var dotenv = require('dotenv');
 dotenv.load();
 
@@ -223,7 +223,10 @@ server3.hosts = []
 * What host object attributes you can leave out of primary and secondary host objects
 * Unique event handlers set in host objects common event handler set on class instance
 
-```
+```javascript
+var dotenv = require('dotenv');
+dotenv.load();
+
 //Host connection and authentication parameters
 var conParamsHost1 = {
   host:         process.env.SERVER1_HOST,
@@ -376,7 +379,7 @@ When running commands there are cases that you might need to respond to specific
 The command response check method is the same as in the example for the onCommandComplete callback but in this case we use it in the onCommandProcessing callback and stream.write to send the response. If you want to terminate the connection then se the 
 The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
 
-```
+```javascript
 //in the host object definition that will be used only for that host
 host.onCommandProcessing = function( command, response, sshObj, stream ) {
    //Check the command and prompt exits and respond with a 'y'
@@ -399,7 +402,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 ```
 The other alternative is to use the onCommandTimeout event handler but it will be delayed by the idleTimout value
 
-```
+```javascript
 host.onCommandTimeout:  function( command, response, sshObj, stream, connection ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
@@ -414,7 +417,7 @@ If the commands you need to run would be better suited to a bash script as part 
 You can echo/printf the script content into a file as a command, ensure it is executable, run it and then delete it.
 The other option is to curl or wget the script from a remote location and do the same but this has some risks associated with it. I like to know what is in the script I am running.
 
-```
+```javascript
  commands: [ "some commands here",
   "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
  #\n
@@ -446,7 +449,7 @@ There are a number of event handlers that enable you to add your own code to be 
 [node.js event emitter](http://nodejs.org/api/events.html#events_class_events_eventemitter)
 
 *Default event definitions:*
-```
+```javascript
 ssh2shell.on ("connect", function onConnect() { [default: outputs primaryHost.connectedMessage] })
 
 ssh2shell.on ("ready", function onReady() { [default: outputs primaryHost.readyMessage] })
