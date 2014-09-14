@@ -17,12 +17,12 @@ class SSH2Shell extends EventEmitter
   _timedout: =>
     @.emit 'commandTimeout', @command, @_buffer, @_stream, @connection
 
-  _processData: =>
+  _processData: ( data )=>
     #remove non-standard ascii from terminal responses
-    @_data = @_data.replace(/[^\r\n\x20-\x7e]/g, "")
+    data = data.replace(/[^\r\n\x20-\x7e]/g, "")
     #remove other weird nonstandard char representation from responses like [32m[31m
-    @_data = @_data.replace(/(\[[0-9]?[0-9]m)/g, "")
-    @_buffer += @_data
+    data = data.replace(/(\[[0-9]?[0-9]m)/g, "")
+    @_buffer += data
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
 
     #check if sudo password is needed
@@ -272,8 +272,7 @@ class SSH2Shell extends EventEmitter
             @_stream.on "readable", =>
               try
                 while (data = @_stream.read())
-                  @_data = "#{data}"
-                  @_processData()
+                  @_processData( "#{data}" )
               catch e
                 @.emit 'error', "#{e} #{e.stack}", "Processing response:", true
                 
