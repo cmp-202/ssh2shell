@@ -15,7 +15,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * See progress messages handled by msg.send: either static (on events) or dynamic (from callback functions) or verbose (each command response) and debug output (progress logic output).
 * Use full session response text in the onEnd callback function triggered when each host connection is closed.
 * Run commands that are processed as notification messages to either the full session text or the msg.send function and not run in the shell.
-* Added default event handlers either to the class or within host object definitions.
+* Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 
 Code:
@@ -73,7 +73,7 @@ host = {
   onCommandTimeout:    function(command, response, sshObj, stream, connection) {
    //optional code for responding to command timeout
    //response is the text response from the command up to it timing out
-   //stream object allows being able to respond to the timeout without having to close the connection
+   //stream object used  to respond to the timeout without having to close the connection
    //connection object gives access to close the shell using connection.end()
   },
   onEnd:               function( sessionText, sshObj ) {
@@ -391,7 +391,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
  
  //To handle all hosts the same add an event handler to the class instance
  //This will be run in addition to any other handlers defined for this event
- ssh2shell.on ('commandProcessing': function onCommandProcessing( command, response, sshObj, stream ) {
+ ssh2shell.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
    //Check the command and prompt exits and respond with a 'y'
    if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
      sshObj.msg.send('Sending install nano response');
