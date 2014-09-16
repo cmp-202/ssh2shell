@@ -94,7 +94,9 @@ class SSH2Shell extends EventEmitter
         #no connection so drop back to first host settings if there was one
         if @_connections.length > 0
           @sshObj = @_connections.pop()
-        #@_stream.signal 'INT'
+        #add buffer to sessionText so the ssh response can be seen
+        @sshObj.sessionText += "#{@_buffer}"
+        #send ctrl-c to exit authentication prompt
         @_stream.write '\x03'
  
       #normal prompt so continue with next command
@@ -158,7 +160,7 @@ class SSH2Shell extends EventEmitter
     @_connections.push @sshObj
     @sshObj = @nextHost
     @_loadDefaults()
-    if @sshObj.hosts is undefined or (@sshObj.hosts and @sshObj.hosts.length is 0)
+    if @sshObj.hosts and @sshObj.hosts.length is 0
       @sshObj.exitCommands.push "exit"
     @sshObj.commands.unshift("ssh -oStrictHostKeyChecking=no #{@sshObj.server.userName}@#{@sshObj.server.host}")
     @_processNextCommand()
@@ -184,6 +186,7 @@ class SSH2Shell extends EventEmitter
       if @_connections.length > 0
         @sshObj.exitCommands.push "exit"
       @_processNextCommand()
+    #Nothing more to do so end the stream with last exit
     else
       @.emit 'msg', "Exit and close connection on: #{@sshObj.server.host}" if @sshObj.debug
       @_stream.end "exit\n"
@@ -240,7 +243,7 @@ class SSH2Shell extends EventEmitter
 
     @.on "close", (had_error) =>
       if had_error
-        @.emit 'msg', had_error
+        @.emit "error", had_error, "Close"
       else
         @.emit 'msg', @sshObj.closedMessage
     
