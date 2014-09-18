@@ -144,9 +144,12 @@ var host = {
   "msg:This is a message that will be handled by the msg.send code",
   "echo $(pwd)",
   "sudo su",
+  "msg:changing directory",
   "cd ~/",
   "ls -l",
+  "msg:Confirming the current path",
   "echo $(pwd)",
+  "msg:Getting the directory listing to confirm the extra command was added",
   "ls -l"
  ],
  msg: {
