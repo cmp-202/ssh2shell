@@ -484,7 +484,9 @@ ssh2shell.on ("close", function onClose(had_error) {
  //default: outputs primaryHost.closeMessage or error if one was received
 });
 
-ssh2shell.on ("error", function onError(err, type, close = false, callback) {
+ssh2shell.on ("error", function onError(err, type, close, callback) {
  //default: Outputs the error, runs the callback if defined and closes the connection
+ //Close and callback should be set by default to close = false and callback = undefined
+ //not all error events will pass those two parameters to the evnt handler.
 });
 ```
