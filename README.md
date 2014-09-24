@@ -108,12 +108,17 @@ Connecting to a single host:
 ----------------------------
 
 *How to:*
+* Use an .env file for server values loaded by dotenv from the root of the project.
+* Connect using a key pair with passphrase.
 * Use sudo su with user password.
 * Set commands.
-* Test the response of a command and add more commands and notifications in the onCommandComplete event handler.
+* Test the response of a command and add more commands and notifications in the host.onCommandComplete event handler.
 * Use the two notification types in the commands array.
-* Connect using a key pair with passphrase.
-* Use an .env file for server values loaded by dotenv from the root of the project.
+* Use msg: notifications to track progress in the console as the process completes.
+* Email the final full session text to yourself.
+* Trigger an event handler by using this.emit for known event handlers: error and msg.
+
+(will require a package json with ssh2shell, dotenv and email defined as dependencies)
 
 *.env*
 ```
@@ -129,6 +134,7 @@ PASS_PHRASE=myPassPhrase
 ```javascript
 var dotenv = require('dotenv');
 dotenv.load();
+var Email = require('email');
 
 var host = {
  server:              {     
@@ -150,7 +156,8 @@ var host = {
   "msg:Confirming the current path",
   "echo $(pwd)",
   "msg:Getting the directory listing to confirm the extra command was added",
-  "ls -l"
+  "ls -l",
+  "`All done!`"
  ],
  msg: {
   send: function( message ) {
@@ -161,7 +168,7 @@ var host = {
   //confirm it is the root home dir and change to root's .ssh folder
   if (command === "echo $(pwd)" && response.indexOf("/root") != -1 ) {
    //unshift will add the command as the next command, use push to add command as the last command
-   sshObj.commands.unshift("msg:The command and response check worked, another command was added before the next ls command.");
+   sshObj.commands.unshift("msg:The command and response check worked. Added another cd command.");
    sshObj.commands.unshift("cd .ssh");
   }
   //we are listing the dir so output it to the msg handler
@@ -170,8 +177,19 @@ var host = {
   }
  },
  onEnd: function( sessionText, sshObj ) {
-  //show the full session output. This could be emailed or saved to a log file.
-  sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
+  //email the session text instead of outputting it to the console
+  var sessionEmail = new Email({ 
+    from: "me@example.com", 
+    to:   "me@example.com", 
+    subject: "Automated SSH Session Response",
+    body: "\nThis is the full session responses for " + sshObj.server.host + ":\n\n" + sessionText
+  });
+  this.emit('msg', "Sending session response email");
+  //same as sshObj.msg.send("Sending session response email");
+  
+  // if callback is provided, errors will be passed into it
+  // else errors will be thrown
+  sessionEmail.send(function(err){ this.emit('error', err, 'Email'); });
  }
 };
 
@@ -192,7 +210,7 @@ Each host config object has its own server settings, commands, command handlers 
 This a very robust and simple multi host configuration method.
 
 **Tunnelling Example:**
-This example shows two hosts (server2, server3) that are connected to through server1 by defining them first then adding them to the hosts array in server 1.
+This example shows two hosts (server2, server3) that are connected to through server1 by adding them to server1.hosts array.
 ```
 server1.hosts = [server2, server3] 
 server2.hosts = []
@@ -205,26 +223,34 @@ server2.hosts = [server3]
 server3.hosts = []
 ```
 
-*The process:*
+*The nested process:*
 
 1. The primary host (server1) is connected and all its commands completed. 
-2. Once complete a connection to server2 is made using its server parameters, its commands are completed the command events handled, then connection to server2 closed triggering its end event (calling host.onEnd function if defined).
-3. Server3 is connected to and it completes its process and the connection is closed.
-4. Control is returned to server1 and its connection is closed triggering its end event.
-5. As all sessions are closed the process ends.
+2. Server1.hosts array is checked for other hosts and the next host popped off the array.
+3. Server1 is stored for use later and server2's host object is loaded as the current host.
+4. A connection to server2 is made using its server parameters
+5. Server2's commands are completed and server2.hosts array is checked for other hosts.
+6. With no hosts found the connection to server2 is closed triggering an end event (calling server2.onEnd function if defined).
+5. Server1 host object is reloaded as the current host object and server2 host object discarded.
+6. Server1.hosts array is checked for other hosts and the next host popped off the array.
+7. Server1's host object is stored again and server3's host object is loaded as the current host.
+8. Server3 is connected to and it completes its process.
+9. Server3.hosts is checked and with no hosts found the connection is closed and the end event is triggered.
+9. Server1 is loaded for the last time.
+10. With no further hosts to load the connection is closed triggering an end event for the last time.
+6. As all sessions are closed the process ends.
 
 *Note:* 
-
 * A host object needs to be defined before it is added to another host.hosts array.
-* Only the primary host objects connected,ready and closed messages will be used by ssh2shell.
+* Only the primary host objects connected, ready and closed messages will be used by ssh2shell.
 
 *How to:*
-* How to set up nested hosts
+* Define nested hosts
 * Use unique host connection settings for each host
-* Defining different commands and command handlers for each host
+* Defining different commands and command event handlers for each host
 * Sharing duplicate functions between host objects
 * What host object attributes you can leave out of primary and secondary host objects
-* Unique event handlers set in host objects common event handler set on class instance
+* Unique event handlers set in host objects, common event handler set on class instance
 
 ```javascript
 var dotenv = require('dotenv');
@@ -352,12 +378,12 @@ Trouble shooting:
  * I did read of people having problems with the the passphrase or password having an \n added when used from an external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
 * There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
-* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds.
+* The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds. (1000 = 1 sec)
 
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
-* When using key authentication you may require a valid passphrase if your key was created with one. If not set host.server.passPhrase to ''
+* When using key authentication you may require a valid passphrase if your key was created with one. 
 
 Sudo Commands:
 --------------
@@ -384,7 +410,7 @@ Responding to command prompts:
 ----------------------
 When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
 The command response check method is the same as in the example for the host.onCommandComplete event handler but in this case we use it in the host.onCommandProcessing event handler and stream.write to send the response. If you want to terminate the connection then se the 
-The stream object is available in the onCommandProcessing event handler to output the response to the prompt directly as follows:
+The stream object is available in the host.onCommandProcessing event handler to output the response to the prompt directly as follows:
 
 ```javascript
 //in the host object definition that will be used only for that host
@@ -407,7 +433,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
  };
 
 ```
-The other alternative is to use the onCommandTimeout event handler but it will be delayed by the idleTimout value
+The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
 host.onCommandTimeout = function( command, response, sshObj, stream, connection ) {
@@ -445,18 +471,21 @@ fi",
 
 Event Handlers:
 ---------------
-There are a number of event handlers that enable you to add your own code to be run when those events are triggered and there are two ways to add them:
+There are a number of event handlers that enable you to add your own code to be run when those events are triggered. You do not have to add event handlers unless you want to add your own functionality as the class already has default handlers defined. 
 
-1. To the class instance which will be run every time the event is triggered for all hosts in addition to the existing default handlers.
-2. To the host object which will only be run for that host.
+There are two ways to add event handlers:
+
+1. Add handller functions to the host object (See Requirments) these event handlers will only be run for that host.
  * Connect, ready and close are not available for definition in the hosts object 
+2. Add handlers to the class instance which will be run every time the event is triggered for all hosts.
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
-**Note:** any event handlers you add to the class instance are run as well as any other event handlers defined.
+**Note:** any event handlers you add to the class instance are run as well as any other event handlers defined for the same event.
 
-[node.js event emitter](http://nodejs.org/api/events.html#events_class_events_eventemitter)
+*Further reading:* [node.js event emitter](http://nodejs.org/api/events.html#events_class_events_eventemitter)
 
-*Default event definitions:*
+**Class Instance Event Definitions:**
+
 ```javascript
 ssh2shell.on ("connect", function onConnect() { 
  //default: outputs primaryHost.connectedMessage
@@ -468,32 +497,51 @@ ssh2shell.on ("ready", function onReady() {
 
 ssh2shell.on ("msg", function onMsg( message ) {
  //default: outputs the message to the host.msg.send function. If undefined output is to console.log
+ //message is the text to ouput.
 });
 
-ssh2shell.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream )  { 
+ssh2shell.on ("commandProcessing", function onCommandProcessing( command, response, sshObj, stream )  { 
  //default: runs host.onCommandProcessing function if defined 
+ //command is the command that is being processed
+ //response is the text buffer that is being loaded with each data event from the stream
+ //sshObj is the host object
+ //stream is the session stream
 });
     
-ssh2shell.on ('commandComplete', function onCommandComplete( command, response, sshObj ) { 
+ssh2shell.on ("commandComplete", function onCommandComplete( command, response, sshObj ) { 
  //default: runs host.onCommandComplete function if defined 
+ //command is the command that was compleated
+ //response is the full test response from the command
+ //sshObj is the host object
 });
     
-ssh2shell.on ('commandTimeout', function onCommandTimeout( command, response, stream, connection ) { 
+ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, stream, connection ) { 
  //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
  //the error is outputed to the msg event and the connection is closed
+ //command is the command that timed out
+ //response is the text buffer up to the time out
+ //stream is the session stream
+ //connection is the main ssh2 connection object
 });
 
-ssh2shell.on ('end', function onEnd( sessionText, sshObj ) { 
+ssh2shell.on ("end", function onEnd( sessionText, sshObj ) { 
  //default: run host.onEnd function if defined 
+ //sessionText is the full text response from the session for the host
+ //sshObj is the host object for this session
 });
 
 ssh2shell.on ("close", function onClose(had_error) { 
  //default: outputs primaryHost.closeMessage or error if one was received
+ //had_error indicates an error was recieved on close
 });
 
 ssh2shell.on ("error", function onError(err, type, close, callback) {
  //default: Outputs the error, runs the callback if defined and closes the connection
  //Close and callback should be set by default to close = false and callback = undefined
  //not all error events will pass those two parameters to the evnt handler.
+ //err is the error message received
+ //type is a string identifying the source of the error
+ //close is a bollean value indicating if the error will close the session
+ //callback a fuction that will be run by the default handler
 });
 ```
