@@ -12,8 +12,8 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Ability to respond to prompts resulting from a command as it is being run.
 * Ability to check the last command and conditions within the response text before the next command is run.
 * Performing actions based on command/response tests like adding or removing commands, sending notifications or processing of command response text.
-* See progress messages handled by msg.send: either static (on events) or dynamic (from callback functions) or verbose (each command response) and debug output (progress logic output).
-* Use full session response text in the onEnd callback function triggered when each host connection is closed.
+* See progress messages handled by msg.send: either static (on events) or dynamic (from event handlers) or verbose (each command response) and debug output (progress logic output).
+* Use full session response text in the end event (calling host.onEnd function) triggered when each host connection is closed.
 * Run commands that are processed as notification messages to either the full session text or the msg.send function and not run in the shell.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
@@ -110,7 +110,7 @@ Connecting to a single host:
 *How to:*
 * Use sudo su with user password.
 * Set commands.
-* Test the response of a command and add more commands and notifications in the onCommandComplete callback function.
+* Test the response of a command and add more commands and notifications in the onCommandComplete event handler.
 * Use the two notification types in the commands array.
 * Connect using a key pair with passphrase.
 * Use an .env file for server values loaded by dotenv from the root of the project.
@@ -208,9 +208,9 @@ server3.hosts = []
 *The process:*
 
 1. The primary host (server1) is connected and all its commands completed. 
-2. Once complete a connection to server2 is made using its server parameters, its commands are completed and handled by its command callback functions, then connection to server2 closed triggering its onEnd callback.
+2. Once complete a connection to server2 is made using its server parameters, its commands are completed the command events handled, then connection to server2 closed triggering its end event (calling host.onEnd function if defined).
 3. Server3 is connected to and it completes its process and the connection is closed.
-4. Control is returned to server1 and its connection is closed triggering its onEnd callback.
+4. Control is returned to server1 and its connection is closed triggering its end event.
 5. As all sessions are closed the process ends.
 
 *Note:* 
@@ -256,7 +256,7 @@ var conParamsHost1 = {
   privateKey:   ''
  }
  
-//Callback functions used by all hosts
+//functions used by all hosts
 var msg = {
   send: function( message ) {
     console.log(message);
@@ -267,7 +267,7 @@ var msg = {
 var host1 = {
   server:              conParamsHost1,
   commands:            [
-    "msg:connected to host: passed",
+    "msg:connected to host: passed. Listing dir.",
     "ls -l"
   ],
   msg:                 msg,
@@ -287,7 +287,9 @@ host2 = {
   commands:            [
     "msg:connected to host: passed",
     "sudo su",
+    "msg:Changing to root dir",
     "cd ~/",
+    "msg:Listing dir",
     "ls -l"
   ],
   msg:                 msg,
@@ -305,6 +307,7 @@ host3 = {
     "msg:connected to host: passed",
     "sudo su",
     "cd ~/",
+    "msg:Listing root dir",
     "ls -l"
   ],
   msg:                 msg,
@@ -342,6 +345,7 @@ SSH.connect();
 Trouble shooting:
 -----------------
 
+* Adding msg command `"msg:Doing something"` to your commands array at key points will help you track the sequence of what has been done as the process runs. (see examples)
 * `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate that it could not decrypt the private key. 
  * Recheck your passphrase for typos or missing chars.
  * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
@@ -368,19 +372,19 @@ Notification commands:
 ----------------------
 There are two notification commands that can be added to the command array but are not processed in the shell.
 
-1. "msg:This is a message intended for monitoring the process as it runs" The text after `msg:` is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
-2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the onEnd callback function. The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
+1. "msg:This is a message intended for monitoring the process as it runs" The text after msg: is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
+2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the end event handler (host.onEnd()). The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
 
 Verbose and Debug:
 ------------------
-* When verbose is set to true each command response is passed to the msg.send function when the command completes.
-* When debug is set to true in a host object process messages will be outputted to the msg.send function to help identify what the internal process is. 
+* When verbose is set to true each command response raises a msg event (calls host.msg.send(message)) when the command completes.
+* When debug is set to true in a host object process messages raises a msg event (calls host.msg.send(message)) to help identify what the internal process of each step was. 
 
 Responding to command prompts:
 ----------------------
 When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
-The command response check method is the same as in the example for the onCommandComplete callback but in this case we use it in the onCommandProcessing callback and stream.write to send the response. If you want to terminate the connection then se the 
-The stream object is available in the onCommandProcessing function to output the response to the prompt directly as follows:
+The command response check method is the same as in the example for the host.onCommandComplete event handler but in this case we use it in the host.onCommandProcessing event handler and stream.write to send the response. If you want to terminate the connection then se the 
+The stream object is available in the onCommandProcessing event handler to output the response to the prompt directly as follows:
 
 ```javascript
 //in the host object definition that will be used only for that host
