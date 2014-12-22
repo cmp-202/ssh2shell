@@ -32,7 +32,7 @@ class SSH2Shell extends EventEmitter
     else if @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #Command prompt so run the next command
-    else if @_buffer.match(/[#$]\s$/)
+    else if @_buffer.match(/[#$>]\s$/)
       @.emit 'msg', "#{@sshObj.server.host}: normal prompt" if @sshObj.debug
       @_processNextCommand()
     #command still processing
