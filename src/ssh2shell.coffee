@@ -62,7 +62,7 @@ class SSH2Shell extends EventEmitter
         @_stream.write '\x03'
         
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$]\s$/)
+      else if @_buffer.match(/[#$>]\s$/)
         @_processNextCommand()
         
   _processSSHPrompt: =>
@@ -79,7 +79,7 @@ class SSH2Shell extends EventEmitter
         @sshObj.sshAuth = "true"
         @_stream.write "#{@sshObj.server.passPhrase}\n"
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$]\s$/)
+      else if @_buffer.match(/[#$>]\s$/)
         @.emit 'msg', "ssh auth normal prompt" if @sshObj.debug
         @sshObj.sshAuth = true
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
@@ -100,7 +100,7 @@ class SSH2Shell extends EventEmitter
         @_stream.write '\x03'
  
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$]\s$/)
+      else if @_buffer.match(/[#$>]\s$/)
         @.emit 'msg', "ssh normal prompt" if @sshObj.debug
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
         @_processNextCommand()
