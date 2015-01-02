@@ -385,14 +385,13 @@ Authentication:
 * Each host authenticates with its own host.server parameters.
 * When using key authentication you may require a valid passphrase if your key was created with one. 
 
-Sudo Commands:
+Sudo and su Commands:
 --------------
-If sudo su is detected an extra exit command will be added to close the session correctly once all commands are complete.
+It is possible to use `sudo [command]`, `sudo su`, `su [username]` and `sudo -u [username] -i`. Sudo commands uses the password for the user that is accessing the server and is handled by SSH2shell. Su on the other hand uses the password of root or the other user (`su seconduser`) and requires you detect the password prompt in onCommandProcessing.
 
-If your sudo password is incorrect an error message will be returned and the session closed. 
-If debug is set to true the password that was used will also be returned.
+See: [su VS sudo su VS sudo -u -i](http://johnkpaul.tumblr.com/post/19841381351/su-vs-sudo-su-vs-sudo-u-i) for clarification about the difference between the commands.
 
-**Su as another user:** Use the **Responding to command prompts** method outline below to detect the `su username` command and the `/password:\s/i` prompt then respond with user password via stream.write.
+See: test/sudosutest.js for a working code example.
 
 Notification commands:
 ----------------------
