@@ -118,10 +118,10 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', "#{@sshObj.server.host}: #{msgNote[1]}"
       
       #load the next command and repeat the checks
-	  if sshObj.commands.length > 0
-		@command = @sshObj.commands.shift()
-	  else
-		@command = false
+      if @sshObj.commands.length > 0
+        @command = @sshObj.commands.shift()
+      else
+        @command = false
 
   _processNextCommand: =>
     #check sudo su has been authenticated and add an extra exit command
