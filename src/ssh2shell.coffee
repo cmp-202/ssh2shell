@@ -26,10 +26,10 @@ class SSH2Shell extends EventEmitter
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
 
     #check if sudo password is needed
-    if @command.indexOf("sudo ") isnt -1    
+    if @command and @command.indexOf("sudo ") isnt -1    
       @_processPasswordPrompt()
     #check if ssh authentication needs to be handled
-    else if @command.indexOf("ssh ") isnt -1
+    else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #Command prompt so run the next command
     else if @_buffer.match(/[#$>]\s$/)
@@ -118,7 +118,10 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', "#{@sshObj.server.host}: #{msgNote[1]}"
       
       #load the next command and repeat the checks
-      @command = @sshObj.commands.shift()  
+	  if sshObj.commands.length > 0
+		@command = @sshObj.commands.shift()
+	  else
+		@command = false
 
   _processNextCommand: =>
     #check sudo su has been authenticated and add an extra exit command
