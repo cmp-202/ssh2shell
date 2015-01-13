@@ -93,13 +93,21 @@ cp .env-example .env
 //change .env values to valid host settings then run
 node test/devtest.js
 
-//test the idle time out timer
-node test/timeouttest.js
-
 //multiple nested hosts
 //requires the additional details added to .env file for each server
 //my tests were done using three VM hosts
 node test/tunneltest.js
+
+//test the command idle time out timer
+node test/timeouttest.js
+
+//Test multiple sudo and su combinations for changing user
+//Issue #10
+node test/sudosutest.js
+
+//test using notification commands as the last command
+//Issue #11
+node test/notificationstest.js
 ```
 
 Usage:
