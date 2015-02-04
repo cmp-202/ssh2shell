@@ -248,6 +248,7 @@ server3.hosts = []
 10. With no further hosts to load the connection is closed triggering an end event for the last time.
 6. As all sessions are closed the process ends.
 
+
 *Note:* 
 * A host object needs to be defined before it is added to another host.hosts array.
 * Only the primary host objects connected, ready and closed messages will be used by ssh2shell.
