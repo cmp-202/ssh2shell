@@ -13,32 +13,32 @@ var sshObj = {
   commands:           [
     "msg:Showing current directory",
     "echo $(pwd)",
-	"msg:using su root then connecting to another user",
-	"msg:Changing to root via su root",
+    "msg:using su root then connecting to another user",
+    "msg:Changing to root via su root",
     "su root",
-	"msg:Changing to " + process.env.secondaryUser + " via su [username]",
-    "su " + process.env.secondaryUser,
-	"msg:Showing current directory",
-    "echo $(pwd)",
-	"msg:exiting user and root",
-    "exit",
-	"exit",
-    "ls -la",
-	"msg:Changing user via su [username]",
+    "msg:Changing to " + process.env.secondaryUser + " via su [username]",
     "su " + process.env.secondaryUser,
     "msg:Showing current directory",
     "echo $(pwd)",
-	"exit",
+    "msg:exiting user and root",
+    "exit",
+    "exit",
     "ls -la",
-	"msg:Changing user via sudo su [username]",
+    "msg:Changing user via su [username]",
+    "su " + process.env.secondaryUser,
+    "msg:Showing current directory",
+    "echo $(pwd)",
+    "exit",
+    "ls -la",
+    "msg:Changing user via sudo su [username]",
     "sudo su " + process.env.secondaryUser,
     "msg:Showing current directory",
     "echo $(pwd)",
-	"msg:Exiting from current user",
-	"exit",
+    "msg:Exiting from current user",
+    "exit",
     "ls -la",
-	"msg:Changing user via sudo -u [username] -i",
-	"sudo -u " + process.env.secondaryUser + " -i",
+    "msg:Changing user via sudo -u [username] -i",
+    "sudo -u " + process.env.secondaryUser + " -i",
     "msg:Showing current directory",
     "echo $(pwd)",
     "ls -la"
@@ -48,9 +48,9 @@ var sshObj = {
       console.log(message);
     }
   },
-  debug:			  true,
-  verbose:			  true,
-  suPassSent:		  false, //used by commandProcessing to only send password once
+  debug:        true,
+  verbose:        true,
+  suPassSent:     false, //used by commandProcessing to only send password once
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed"
@@ -64,16 +64,16 @@ var SSH = new SSH2Shell(sshObj);
 
 SSH.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
     //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
-	
-	if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
-	  sshObj.commands.unshift("msg:Using secondary user password");
-	  //this is required to stop "bounce" without this the password would be sent multiple times
-	  sshObj.suPassSent = true;
+
+  if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
+    sshObj.commands.unshift("msg:Using secondary user password");
+    //this is required to stop "bounce" without this the password would be sent multiple times
+    sshObj.suPassSent = true;
       stream.write(process.env.secondUserPassword + "\n");
     } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
       sshObj.commands.unshift("msg:Using root user password");
-	  //this is required to stop "bounce" without this the password would be sent multiple times
-	  sshObj.rootPassSent = true;
+    //this is required to stop "bounce" without this the password would be sent multiple times
+    sshObj.rootPassSent = true;
       stream.write(process.env.rootPassword + "\n");
     }
   });
