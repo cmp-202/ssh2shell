@@ -21,7 +21,7 @@ class SSH2Shell extends EventEmitter
     #remove non-standard ascii from terminal responses
     data = data.replace(/[^\r\n\x20-\x7e]/g, "")
     #remove other weird nonstandard char representation from responses like [32m[31m
-    data = data.replace(/(\[[0-9]?[0-9]m)/g, "")
+    data = data.replace(/(\[[0-9]?[0-9][a-zA-Z])/g, "")
     @_buffer += data
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
 
