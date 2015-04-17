@@ -48,7 +48,10 @@ class SSH2Shell extends EventEmitter
       if @_buffer.match(/password.*:\s$/i)
         @.emit 'msg', "#{@sshObj.server.host}: Send password [#{@sshObj.server.password}]" if @sshObj.debug
         @sshObj.pwSent = true
-        @_stream.write "#{@sshObj.server.password}\n"        
+        @_stream.write "#{@sshObj.server.password}\n"
+      #normal prompt so continue with next command
+      else if @_buffer.match(/[#$>]\s$/)
+        @_processNextCommand()
     #password sent so either check for failure or run next command  
     else
       #reprompted for password again so failed password 
