@@ -65,7 +65,7 @@ class SSH2Shell extends EventEmitter
         @_buffer = ""
         @sshObj.commands = []
         @_stream.write '\x03'
-      
+
   _processSSHPrompt: =>
     #not authenticated yet so detect prompts
     unless @sshObj.sshAuth
