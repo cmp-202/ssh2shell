@@ -1,6 +1,10 @@
 var dotenv = require('dotenv');
 dotenv.load();
-
+/*
+* Used `sudo visudo` to add `[username] ALL=(ALL) NOPASSWD: ALL` on the first test
+* server to test no password required detecting normal prompt correctly to run the 
+* next command
+*/
 var sshObj = {
   server:             {     
     host:         process.env.HOST,
@@ -13,6 +17,8 @@ var sshObj = {
   commands:           [
     "msg:Showing current directory",
     "echo $(pwd)",
+    "msg:Checking no password for sudo ls",
+    "sudo ls",
     "msg:using su root then connecting to another user",
     "msg:Changing to root via su root",
     "su root",
@@ -48,8 +54,8 @@ var sshObj = {
       console.log(message);
     }
   },
-  debug:        true,
-  verbose:        true,
+  debug:        false,
+  verbose:        false,
   suPassSent:     false, //used by commandProcessing to only send password once
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
