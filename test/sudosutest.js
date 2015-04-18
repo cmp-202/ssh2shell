@@ -54,9 +54,9 @@ var sshObj = {
       console.log(message);
     }
   },
-  debug:        false,
-  verbose:        false,
-  suPassSent:     false, //used by commandProcessing to only send password once
+  debug:              false,
+  verbose:            false,
+  suPassSent:         false, //used by commandProcessing to only send password once
   connectedMessage:   "Connected",
   readyMessage:       "Running commands Now",
   closedMessage:      "Completed"

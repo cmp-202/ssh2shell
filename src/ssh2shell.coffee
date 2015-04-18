@@ -12,8 +12,7 @@ class SSH2Shell extends EventEmitter
   _stream:       {}
   _data:         ""
   _buffer:       ""
-  _connections:  []
-    
+  _connections:  [] 
   _timedout: =>
     @.emit 'commandTimeout', @command, @_buffer, @_stream, @connection
 
@@ -23,6 +22,7 @@ class SSH2Shell extends EventEmitter
     #remove other weird nonstandard char representation from responses like [32m[31m
     data = data.replace(/(\[[0-9]?[0-9][a-zA-Z])/g, "")
     @_buffer += data
+    
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
 
     #check if sudo password is needed
@@ -32,7 +32,7 @@ class SSH2Shell extends EventEmitter
     else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #Command prompt so run the next command
-    else if @_buffer.match(/[#$>]\s$/)
+    else if @standardPromt.test(@_buffer)
       @.emit 'msg', "#{@sshObj.server.host}: normal prompt" if @sshObj.debug
       @_processNextCommand()
     #command still processing
@@ -43,24 +43,25 @@ class SSH2Shell extends EventEmitter
 
   _processPasswordPrompt: =>
     #First test for password prompt
-    unless @sshObj.pwSent
+     
+    unless @sshObj.pwSent      
       #when the buffer is fully loaded the prompt can be detected
-      if @_buffer.match(/password.*:\s$/i)
+      if @passwordPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: Send password [#{@sshObj.server.password}]" if @sshObj.debug
         @sshObj.pwSent = true
         @_stream.write "#{@sshObj.server.password}\n"        
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$>]\s$/)
+      else if @standardPromt.test(@_buffer)
         @_processNextCommand()
         
     #normal prompt so continue with next command
-    else if @_buffer.match(/[#$>]\s$/)
+    else if @standardPromt.test(@_buffer)
       @_processNextCommand()
       
     #password sent so either check for failure or run next command  
     else
       #reprompted for password again so failed password 
-      if @_buffer.match(/password.*:\s$/i)  
+      if @passwordPromt.test(@_buffer)  
         @.emit 'msg', "#{@sshObj.server.host}: Error: Sudo password was incorrect for #{@sshObj.server.userName}, leaving host."
         @.emit 'msg', "#{@sshObj.server.host}: password: [#{@sshObj.server.password}]" if @sshObj.debug
         #add buffer to sessionText so the sudo response can be seen
@@ -73,24 +74,24 @@ class SSH2Shell extends EventEmitter
     #not authenticated yet so detect prompts
     unless @sshObj.sshAuth
       #provide password
-      if @_buffer.match(/password.*:\s$/i)
+      if @passwordPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh password prompt" if @sshObj.debug
         @sshObj.sshAuth = true
         @_stream.write "#{@sshObj.server.password}\n"
       #provide passphrase
-      else if @_buffer.match(/passphrase.*:\s$/i)
+      else if @passphrasePromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh passphrase prompt" if @sshObj.debug
         @sshObj.sshAuth = "true"
         @_stream.write "#{@sshObj.server.passPhrase}\n"
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$>]\s$/)
+      else if @standardPromt.test(@_buffer)
         @.emit 'msg', "ssh auth normal prompt" if @sshObj.debug
-        @sshObj.sshAuth = true
+        @sshObj.sshAuth = true        
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
         @_processNextCommand()
     else 
       #detect failed authentication
-      if (password = @_buffer.match(/password.*:\s$/i)) or @_buffer.match(/passphrase.*:\s$/i)
+      if (password = (@passwordPromt.test(@_buffer) or @passphrasePromt.test(@_buffer)))
         @sshObj.sshAuth = false
         @.emit 'msg', "Error: SSH authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}"
         if @sshObj.debug
@@ -104,7 +105,7 @@ class SSH2Shell extends EventEmitter
         @_stream.write '\x03'
  
       #normal prompt so continue with next command
-      else if @_buffer.match(/[#$>]\s$/)
+      else if @passwordPromt.test(@_buffer)
         @.emit 'msg', "ssh normal prompt" if @sshObj.debug
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
         @_processNextCommand()
@@ -208,10 +209,16 @@ class SSH2Shell extends EventEmitter
     @sshObj.verbose = false unless @sshObj.verbose
     @sshObj.debug = false unless @sshObj.debug
     @sshObj.hosts = [] unless @sshObj.hosts 
+    @sshObj.standardPrompt = ">$#" unless @sshObj.standardPrompt
+    @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
+    @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
     @_idleTime = @sshObj.idleTimeOut ? 5000
+    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s$","i");
+    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s$","i");
+    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s$");
     
   constructor: (@sshObj) ->
     @_loadDefaults()

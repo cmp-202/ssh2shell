@@ -43,6 +43,9 @@ host = {
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional default:""
   },
   hosts:               [Array, of, nested, host, configs, objects], //optional default:[]
+  standardPrompt:     "$#>",//optional default:"$#>"
+  passwordPrompt:     ":",//optional default:":"
+  passphrasePrompt:   ":",//optional default:":"
   commands:            ["Array", "of", "command", "strings"],
   msg:                 {
     send: function( message ) {
