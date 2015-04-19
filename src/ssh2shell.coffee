@@ -209,7 +209,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.verbose = false unless @sshObj.verbose
     @sshObj.debug = false unless @sshObj.debug
     @sshObj.hosts = [] unless @sshObj.hosts 
-    @sshObj.standardPrompt = ">$#" unless @sshObj.standardPrompt
+    @sshObj.standardPrompt = ">$%#" unless @sshObj.standardPrompt
     @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
     @sshObj.exitCommands = []
