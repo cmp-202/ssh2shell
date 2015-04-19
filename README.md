@@ -9,6 +9,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * SSH tunnelling using nested host objects.
 * When tunnelling each host has its own connection parameters, commands, command handlers, event handlers and debug or verbose settings.
 * Supports `sudo`, `sudo su` and `su user` commands.
+* Supports changeing default promt matching regular expressions for different prompt requiements
 * Ability to respond to prompts resulting from a command as it is being run.
 * Ability to check the last command and conditions within the response text before the next command is run.
 * Performing actions based on command/response tests like adding or removing commands, sending notifications or processing of command response text.
@@ -43,7 +44,7 @@ host = {
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional default:""
   },
   hosts:               [Array, of, nested, host, configs, objects], //optional default:[]
-  standardPrompt:     "$#>",//optional default:"$#>"
+  standardPrompt:     "$%#>",//optional default:"$#>"
   passwordPrompt:     ":",//optional default:":"
   passphrasePrompt:   ":",//optional default:":"
   commands:            ["Array", "of", "command", "strings"],
@@ -84,10 +85,21 @@ host = {
    //sessionText is the full text for this hosts session
   }
 };
+``` 
+
+Prompt detection override
+-------------------------
+The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
+
+These do not need to be altered or even added to the host object because internaly the default will be set to the values below. If it finds you have provided a new value then that value will override the interal default.
 
 ``` 
+  standardPrompt:     "$%#>",//optional default:"$#>"
+  passwordPrompt:     ":",//optional default:":"
+  passphrasePrompt:   ":",//optional default:":"
+ ``` 
  
-Test:
+Tests:
 -----
 ```javascript
 //single host test
@@ -106,6 +118,8 @@ node test/timeouttest.js
 
 //Test multiple sudo and su combinations for changing user
 //Issue #10
+//Also test promt detection with no password requested 
+//Issue #14
 node test/sudosutest.js
 
 //test using notification commands as the last command
