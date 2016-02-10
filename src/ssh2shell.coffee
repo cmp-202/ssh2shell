@@ -18,9 +18,9 @@ class SSH2Shell extends EventEmitter
 
   _processData: ( data )=>
     #remove non-standard ascii from terminal responses
-    data = data.replace(/[^\r\n\x20-\x7e]/g, "")
-    #remove other weird nonstandard char representation from responses like [32m[31m
-    data = data.replace(/(\[[0-9]?[0-9][a-zA-Z])/g, "")
+    data = @asciiFilter.test(data)
+    #remove test coloring from responses like [32m[31m
+    data = @textColorFilter.test(data)
     @_buffer += data
     
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
@@ -212,13 +212,17 @@ class SSH2Shell extends EventEmitter
     @sshObj.standardPrompt = ">$%#" unless @sshObj.standardPrompt
     @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
+    @sshObj.asciiFilter = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.textColorFilter = "(\[[0-9]?[0-9][a-zA-Z])" unless @sshObj.textColorFilter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
     @_idleTime = @sshObj.idleTimeOut ? 5000
-    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s$","i");
-    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s$","i");
-    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s$");
+    @asciiFilter = new RegExp(@sshObj.asciiFilter,"g");
+    @textColorFilter = new RegExp(@sshObj.textColorFilter,"g");
+    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i");
+    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i");
+    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$");
     
   constructor: (@sshObj) ->
     @_loadDefaults()

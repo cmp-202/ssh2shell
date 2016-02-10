@@ -99,6 +99,17 @@ These do not need to be altered or even added to the host object because interna
   passphrasePrompt:   ":",//optional default:":"
  ``` 
  
+ Text regular expression filters
+ -------------------------------
+ There are two regular expression filters that remove unwanted text from responce data.
+ 
+ The first removes nonstatndard ascii and the second removes text coloring. Both of these can be modified in your host object to overide defaults.
+ 
+ ```javascript
+sshObj.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
+sshObj.textColorFilter = "(\[[0-9]?[0-9][a-zA-Z])" (default value)
+ ```
+ 
 Tests:
 -----
 ```javascript
