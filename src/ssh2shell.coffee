@@ -18,9 +18,9 @@ class SSH2Shell extends EventEmitter
 
   _processData: ( data )=>
     #remove non-standard ascii from terminal responses
-    data = @asciiFilter.test(data)
+    data = data.replace(@asciiFilter.test, "")
     #remove test coloring from responses like [32m[31m
-    data = @textColorFilter.test(data)
+    data = data.replace(@textColorFilter, "")
     @_buffer += data
     
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
