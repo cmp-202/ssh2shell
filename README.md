@@ -47,18 +47,21 @@ host = {
   standardPrompt:     "$%#>",//optional default:"$#>"
   passwordPrompt:     ":",//optional default:":"
   passphrasePrompt:   ":",//optional default:":"
+  sshObj.asciiFilter: "[^\r\n\x20-\x7e]", //optional default: "[^\r\n\x20-\x7e]"
+  sshObj.textColorFilter: "(\x1b\[[0-9;]*m)", //optional default: "(\x1b\[[0-9;]*m)"
   commands:            ["Array", "of", "command", "strings"],
   msg:                 {
     send: function( message ) {
       //message handler code
+	  console.log(message);
     }
   }, 
   verbose:             true/false,  //optional default:false
   debug:               true/false,  //optional default:false
-  idleTimeOut:         5000,        //optional: value in milliseconds (default:5000)
-  connectedMessage:    "Connected", //optional: on Connected message
-  readyMessage:        "Ready",     //optional: on Ready message
-  closedMessage:       "Closed",    //optional: on Close message
+  idleTimeOut:         5000,        //optional value in milliseconds (default:5000)
+  connectedMessage:    "Connected", //optional on Connected message
+  readyMessage:        "Ready",     //optional on Ready message
+  closedMessage:       "Closed",    //optional on Close message
   
   //optional event handlers defined for a host that will be called by the default event handlers
   //of the class
@@ -106,8 +109,8 @@ These do not need to be altered or even added to the host object because interna
  The first removes nonstatndard ascii and the second removes text coloring. Both of these can be modified in your host object to overide defaults.
  
  ```javascript
-sshObj.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
-sshObj.textColorFilter = "(\[[0-9]?[0-9][a-zA-Z])" (default value)
+host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
+host.textColorFilter = "(\x1b\[[0-9;]*m)" (default value)
  ```
  
 Tests:

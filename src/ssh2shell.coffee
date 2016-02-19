@@ -213,7 +213,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
     @sshObj.asciiFilter = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
-    @sshObj.textColorFilter = "(\[[0-9]?[0-9][a-zA-Z])" unless @sshObj.textColorFilter
+    @sshObj.textColorFilter = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
