@@ -133,11 +133,12 @@ These do not need to be altered or even added to the host object because interna
   passphrasePrompt:   ":",//optional default:":"
  ``` 
  
- Text regular expression filters:
- -------------------------------
- There are two regular expression filters that remove unwanted text from responce data.
  
- The first removes nonstatndard ascii and the second removes text coloring. Both of these can be modified in your host object to overide defaults.
+Text regular expression filters:
+-------------------------------
+There are two regular expression filters that remove unwanted text from responce data.
+ 
+The first removes non-statndard ascii and the second removes ANSI text formating codes. Both of these can be modified in your host object to overide defaults. It is also possible to output the ANSI codes by setting disableColorFilter to true.
  
  ```javascript
 host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
