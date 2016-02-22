@@ -20,7 +20,8 @@ class SSH2Shell extends EventEmitter
     #remove non-standard ascii from terminal responses
     data = data.replace(@asciiFilter, "")
     #remove test coloring from responses like [32m[31m
-    data = data.replace(@textColorFilter, "")
+    unless @sshObj.disableColorFilter
+      data = data.replace(@textColorFilter, "")
     @_buffer += data
     
     #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
@@ -213,6 +214,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
     @sshObj.asciiFilter = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter
     @sshObj.textColorFilter = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false

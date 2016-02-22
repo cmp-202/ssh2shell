@@ -40,28 +40,29 @@ host = {
     port:         "external port number",
     userName:     "user name",
     password:     "user password",
-    passPhrase:   "privateKeyPassphrase", //optional default:""
-    privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional default:""
+    passPhrase:   "privateKeyPassphrase", //optional string
+    privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
   },
-  hosts:               [Array, of, nested, host, configs, objects], //optional default:[]
-  standardPrompt:     "$%#>",//optional default:"$#>"
-  passwordPrompt:     ":",//optional default:":"
-  passphrasePrompt:   ":",//optional default:":"
-  sshObj.asciiFilter: "[^\r\n\x20-\x7e]", //optional default: "[^\r\n\x20-\x7e]"
-  sshObj.textColorFilter: "(\x1b\[[0-9;]*m)", //optional default: "(\x1b\[[0-9;]*m)"
-  commands:            ["Array", "of", "command", "strings"],
-  msg:                 {
+  hosts:              [Array, of, nested, host, configs, objects], //optional array()
+  standardPrompt:     "$%#>",//optional string
+  passwordPrompt:     ":",//optional string
+  passphrasePrompt:   ":",//optional string
+  asciiFilter:        "[^\r\n\x20-\x7e]", //optional regular exression string
+  diableColorFilter:  false, //optional bollean 
+  textColorFilter:    "(\x1b\[[0-9;]*m)", //optional regular exression string
+  commands:           ["Array", "of", "strings", "command"], //array() of command strings
+  msg:                {
     send: function( message ) {
       //message handler code
 	  console.log(message);
     }
   }, 
-  verbose:             true/false,  //optional default:false
-  debug:               true/false,  //optional default:false
-  idleTimeOut:         5000,        //optional value in milliseconds (default:5000)
-  connectedMessage:    "Connected", //optional on Connected message
-  readyMessage:        "Ready",     //optional on Ready message
-  closedMessage:       "Closed",    //optional on Close message
+  verbose:             false,  //optional boolean
+  debug:               false,  //optional boolean
+  idleTimeOut:         5000,        //optional number in milliseconds
+  connectedMessage:    "Connected", //optional string
+  readyMessage:        "Ready",     //optional string
+  closedMessage:       "Closed",    //optional string
   
   //optional event handlers defined for a host that will be called by the default event handlers
   //of the class
@@ -86,11 +87,41 @@ host = {
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
    //sessionText is the full text for this hosts session
+   this.emit('msg', sessionText);
   }
 };
+```
+
+Minimal Example:
+
+```javascript
+var host = {
+ server:        {     
+  host:         "127.0.0.1",
+  userName:     "test",
+  password:     "1234",
+ },
+ commands:      [
+  "msg:Connected",
+  "echo $(pwd)",
+  "ls -l"
+ ],
+ msg: {
+  send: function( message ) {
+   console.log(message);
+  }
+ }
+};
+
+//Create a new instance
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host);
+
+//Start the process
+SSH.connect();
 ``` 
 
-Prompt detection override
+Prompt detection override:
 -------------------------
 The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
 
@@ -102,7 +133,7 @@ These do not need to be altered or even added to the host object because interna
   passphrasePrompt:   ":",//optional default:":"
  ``` 
  
- Text regular expression filters
+ Text regular expression filters:
  -------------------------------
  There are two regular expression filters that remove unwanted text from responce data.
  
@@ -110,6 +141,7 @@ These do not need to be altered or even added to the host object because interna
  
  ```javascript
 host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
+host.disableColorFilter = false //or true to allow ansi control codes to be returned in the response text
 host.textColorFilter = "(\x1b\[[0-9;]*m)" (default value)
  ```
  
