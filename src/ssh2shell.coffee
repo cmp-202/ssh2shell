@@ -1,4 +1,4 @@
-﻿#================================
+#================================
 #  SSH2Shel
 #================================
 # Description
@@ -320,6 +320,12 @@ class SSH2Shell extends EventEmitter
           password:   @sshObj.server.password
           privateKey: @sshObj.server.privateKey ? ""
           passphrase: @sshObj.server.passPhrase ? ""
+          hostVerifier: (hashedKey)->
+            if @sshObj.server.hashKey is undefined or @sshObj.server.hashKey is ""
+              return true
+            else if hashedKey is @sshObj.server.hashKey
+              return true
+            return false
 
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connect:", true
