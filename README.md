@@ -42,8 +42,10 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-	//hashKey is used to validate the server SSH fingerprint
-	hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e" //optional string default ""
+    //hashKey is used to validate the server SSH fingerprint
+    hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e" //optional string default ""
+    //if using SSH fingerprint validation set the next value to either 'md5' or 'sha1'
+    hostHash:     "md5" // or "sha1" default is "md5"
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     "$%#>",//optional string

@@ -326,7 +326,7 @@ class SSH2Shell extends EventEmitter
             else if hashedKey is @sshObj.server.hashKey
               return true
             return false
-
+          hostHash: @sshObj.server.hostHash ? "md5"
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connect:", true
         
