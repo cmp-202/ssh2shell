@@ -5,7 +5,6 @@
 # SSH2 wrapper for creating a SSH shell connection and running multiple commands sequentially.
 
 EventEmitter = require('events').EventEmitter
-hashKey = ""
 
 class SSH2Shell extends EventEmitter
   sshObj:        {}
@@ -226,9 +225,7 @@ class SSH2Shell extends EventEmitter
     @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i");
     @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i");
     @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$");
-    hashKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
-    console.log(hashKey)
-	
+
   constructor: (@sshObj) ->
     @_loadDefaults()
     
@@ -323,7 +320,8 @@ class SSH2Shell extends EventEmitter
           password:   @sshObj.server.password
           privateKey: @sshObj.server.privateKey ? ""
           passphrase: @sshObj.server.passPhrase ? ""
-          hostVerifier: (hashedKey)->
+          hostVerifier: (hashedKey)=>
+            hashKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
             if hashKey is ""
               return true
             else if hashedKey is hashKey
