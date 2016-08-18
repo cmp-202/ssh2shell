@@ -45,7 +45,8 @@ host = {
     //hashKey is used to validate the server SSH fingerprint
     hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e" //optional string default ""
     //if using SSH fingerprint validation set the next value to either 'md5' or 'sha1'
-    hostHash:     "md5" // or "sha1" default is "md5"
+    hashMethod:   "md5" // or "sha1" default is "md5"
+    hashInit:     true/false //true forces fingerprint validation returning the server hash needed for hashKey 
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     "$%#>",//optional string

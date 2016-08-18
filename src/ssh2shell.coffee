@@ -219,6 +219,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
+    @sshObj.server.hashInit = @sshObj.server.hashInit ? false
     @_idleTime = @sshObj.idleTimeOut ? 5000
     @asciiFilter = new RegExp(@sshObj.asciiFilter,"g");
     @textColorFilter = new RegExp(@sshObj.textColorFilter,"g");
@@ -322,14 +323,18 @@ class SSH2Shell extends EventEmitter
           passphrase: @sshObj.server.passPhrase ? ""
           hostVerifier: (hashedKey)=>
             hashKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
-            if hashKey is ""
+            if hashKey is "" and @sshObj.server.hashInit isnt "true"
+              return true
+            else if hashKey is "" and @sshObj.server.hashInit is "true"
+              @sshObj.server.hashKey = hashedKey
+              @.emit 'msg', "Server hash:" + hashedKey
               return true
             else if hashedKey is hashKey
               return true
-            
-            console.log("Server hash:" + hashedKey + ", Client Hash:" + hashKey)
+            console.log("4")            
+            @.emit 'msg', "Server hash:" + hashedKey + ", Client Hash:" + hashKey
             return false
-          hostHash: @sshObj.server.hostHash ? "md5"
+          hostHash: @sshObj.server.hashMethod ? "md5"
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connect:", true
         
