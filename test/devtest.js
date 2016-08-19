@@ -19,7 +19,8 @@ var sshObj = {
     send: function( message ) {
       console.log(message);
     }
-  }
+  },
+  verbose: true
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');

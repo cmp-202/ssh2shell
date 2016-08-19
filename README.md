@@ -46,7 +46,6 @@ host = {
     hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e" //optional string default ""
     //if using SSH fingerprint validation set the next value to either 'md5' or 'sha1'
     hashMethod:   "md5" // or "sha1" default is "md5"
-    hashInit:     true/false //true forces fingerprint validation returning the server hash needed for hashKey 
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     "$%#>",//optional string
@@ -462,6 +461,20 @@ Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
 * When using key authentication you may require a valid passphrase if your key was created with one. 
+
+Fingerprint Validation:
+---------------
+At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
+This hash only changes with a reinstall of SSH or a key change so the hash is the servers key fingerprint. 
+
+**Note: Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
+
+To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
+* By setting host.server.hashKey to any non-empty string (say "1234") validation will be checked and fail causing an error to be returned with both the server hash and the string you provided. This is also what will happen if you think you have entered the correct hash but the comparison fails.
+* Turning on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
+ * The sshObj.server.hashKey will also be set to the servers returned hash so you can access it without having to parse response text.
+
+To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. The hash will be parsed to remove :'s an make it lowercase to match the servers hash string.
 
 Sudo and su Commands:
 --------------
