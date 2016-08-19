@@ -322,16 +322,16 @@ class SSH2Shell extends EventEmitter
           privateKey: @sshObj.server.privateKey ? ""
           passphrase: @sshObj.server.passPhrase ? ""
           hostVerifier: (hashedKey)=>
-            hashKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
-            hashedKey = hashedKey.replace(/[:]/g,"").toLowerCase()        
-            if hashKey is ""
+            clientKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
+            serverKey = hashedKey.replace(/[:]/g,"").toLowerCase()        
+            if  clientKey is ""
               @.emit 'msg', "#{@sshObj.server.host} verbose: Server hash:" + hashedKey if @sshObj.verbose
               @sshObj.server.hashKey = hashedKey              
               return true
-            else if hashedKey is hashKey
-              @.emit 'msg', "#{@sshObj.server.host} verbose: Fingerprint match passed" if @sshObj.debug
+            else if serverKey is clientKey
+              @.emit 'msg', "#{@sshObj.server.host}: Fingerprint verification passed" if @sshObj.debug
               return true 
-            @.emit "error", "Server hash:" + hashedKey + " <> Client Hash:" + hashKey, "Failed fingerprint", false
+            @.emit "error", "Comparison: Server:" + serverKey + " <> Client:" + clientKey, "Failed fingerprint verification", false
             return false
           hostHash: @sshObj.server.hashMethod ? "md5"
       catch e

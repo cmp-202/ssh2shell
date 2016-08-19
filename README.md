@@ -476,7 +476,7 @@ To use figngerprint validation you first need the server hash string which can b
 * Turning on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
  * The sshObj.server.hashKey will also be set to the servers returned hash so you can access it without having to parse response text.
 
-To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. The hash will be parsed to remove :'s an make it lowercase to match the servers hash string.
+To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. Both hash strings will be parsed to remove :'s and converted lowercase prior to validation.
 
 Sudo and su Commands:
 --------------
