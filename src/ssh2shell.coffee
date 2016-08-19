@@ -1,4 +1,4 @@
-﻿#================================
+#================================
 #  SSH2Shel
 #================================
 # Description
@@ -219,13 +219,14 @@ class SSH2Shell extends EventEmitter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
+    @sshObj.server.hashKey = @sshObj.server.hashKey ? ""
     @_idleTime = @sshObj.idleTimeOut ? 5000
     @asciiFilter = new RegExp(@sshObj.asciiFilter,"g");
     @textColorFilter = new RegExp(@sshObj.textColorFilter,"g");
     @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i");
     @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i");
     @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$");
-    
+
   constructor: (@sshObj) ->
     @_loadDefaults()
     
@@ -320,7 +321,19 @@ class SSH2Shell extends EventEmitter
           password:   @sshObj.server.password
           privateKey: @sshObj.server.privateKey ? ""
           passphrase: @sshObj.server.passPhrase ? ""
-
+          hostVerifier: (hashedKey)=>
+            clientKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
+            serverKey = hashedKey.replace(/[:]/g,"").toLowerCase()        
+            if  clientKey is ""
+              @.emit 'msg', "#{@sshObj.server.host} verbose: Server hash:" + hashedKey if @sshObj.verbose
+              @sshObj.server.hashKey = hashedKey              
+              return true
+            else if serverKey is clientKey
+              @.emit 'msg', "#{@sshObj.server.host}: Fingerprint verification passed" if @sshObj.debug
+              return true 
+            @.emit "msg", "#{@sshObj.server.host} verbose: Hash values: Server = " + serverKey + " <> Client = " + clientKey  if @sshObj.verbose
+            return false
+          hostHash: @sshObj.server.hashMethod ? "md5"
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connect:", true
         
