@@ -468,7 +468,7 @@ Fingerprint Validation:
 At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
 This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now in place. 
 
-**Note: Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
+*Note:* Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
 * Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). Validation will be checked and fail causing the connection to terminate. A verbose message will returned both the server hash and client hash values that failed comparison. 
@@ -478,7 +478,7 @@ To use figngerprint validation you first need the server hash string which can b
 
 To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. Both hash strings will be parsed to remove :'s and converted lowercase prior to validation.
 
-**Note: host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
+*Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
 
 Sudo and su Commands:
 --------------
