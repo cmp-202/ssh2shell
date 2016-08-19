@@ -18,6 +18,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Run commands that are processed as notification messages to either the full session text or the msg.send function and not run in the shell.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
+* Server SSH fingerprint validation.
 
 Code:
 -----
@@ -465,12 +466,13 @@ Authentication:
 Fingerprint Validation:
 ---------------
 At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
-This hash only changes with a reinstall of SSH or a key change so the hash is the servers key fingerprint. 
+This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now inplace. 
 
 **Note: Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
-* By setting host.server.hashKey to any non-empty string (say "1234") validation will be checked and fail causing an error to be returned with both the server hash and the string you provided. This is also what will happen if you think you have entered the correct hash but the comparison fails.
+* By setting host.server.hashKey to any non-empty string (say "1234") validation will be checked and fail causing the connection to terminate. An error to be returned with both the server hash and the string you provided. 
+ * This is also what will happen if your hash fails the comparison with the server.
 * Turning on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
  * The sshObj.server.hashKey will also be set to the servers returned hash so you can access it without having to parse response text.
 
