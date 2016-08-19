@@ -6,9 +6,7 @@ var sshObj = {
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
-    hashKey:      process.env.hashKey,
-    hashInit:     process.env.hashInit
+    password:     process.env.PASSWORD
   },
   commands:           [
     "`Test session text message: passed`",

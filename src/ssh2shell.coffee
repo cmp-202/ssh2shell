@@ -219,7 +219,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.exitCommands = []
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
-    @sshObj.server.hashInit = @sshObj.server.hashInit ? false
+    @sshObj.server.hashKey = @sshObj.server.hashKey ? ""
     @_idleTime = @sshObj.idleTimeOut ? 5000
     @asciiFilter = new RegExp(@sshObj.asciiFilter,"g");
     @textColorFilter = new RegExp(@sshObj.textColorFilter,"g");
