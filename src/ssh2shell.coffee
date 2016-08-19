@@ -331,7 +331,7 @@ class SSH2Shell extends EventEmitter
             else if serverKey is clientKey
               @.emit 'msg', "#{@sshObj.server.host}: Fingerprint verification passed" if @sshObj.debug
               return true 
-            @.emit "error", "Comparison: Server: " + serverKey + " <> Client: " + clientKey, "Failed fingerprint verification", false
+            @.emit "msg", "#{@sshObj.server.host} verbose: Hash values: Server = " + serverKey + " <> Client = " + clientKey  if @sshObj.verbose
             return false
           hostHash: @sshObj.server.hashMethod ? "md5"
       catch e
