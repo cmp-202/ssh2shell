@@ -466,7 +466,7 @@ Authentication:
 Fingerprint Validation:
 ---------------
 At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
-This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now inplace. 
+This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now in place. 
 
 **Note: Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
