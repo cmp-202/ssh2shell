@@ -471,9 +471,9 @@ This hash only changes with a reinstall of SSH, a key change on the server or a 
 *Note:* Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
-* Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). Validation will be checked and fail causing the connection to terminate. A verbose message will returned both the server hash and client hash values that failed comparison. 
- * This is also what will happen if your hash fails the comparison with the server in the normal vreification process.
-* Turning on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
+* Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). Validation will be checked and fail causing the connection to terminate. A verbose message will return both the server hash and client hash values that failed comparison. 
+ * This is also what will happen if your hash fails the comparison with the server in the normal verification process.
+* Turn on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
  * The sshObj.server.hashKey will also be set to the servers returned hash so you can access it without having to parse response text.
 
 To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. Both hash strings will be parsed to remove :'s and converted lowercase prior to validation.
