@@ -478,6 +478,8 @@ To use figngerprint validation you first need the server hash string which can b
 
 To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. Both hash strings will be parsed to remove :'s and converted lowercase prior to validation.
 
+**Note: host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
+
 Sudo and su Commands:
 --------------
 It is possible to use `sudo [command]`, `sudo su`, `su [username]` and `sudo -u [username] -i`. Sudo commands uses the password for the user that is accessing the server and is handled by SSH2shell. Su on the other hand uses the password of root or the other user (`su seconduser`) and requires you detect the password prompt in onCommandProcessing.
