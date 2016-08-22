@@ -315,13 +315,12 @@ class SSH2Shell extends EventEmitter
           @.emit "close", had_error
 
         @connection.connect
-          host:       @sshObj.server.host
-          port:       @sshObj.server.port
-          username:   @sshObj.server.userName
-          password:   @sshObj.server.password
-          privateKey: @sshObj.server.privateKey ? ""
-          passphrase: @sshObj.server.passPhrase ? ""
-          hostVerifier: (hashedKey)=>
+          host:             @sshObj.server.host
+          port:             @sshObj.server.port
+          forceIPv4:        @sshObj.server.forceIPv4
+          forceIPv6:        @sshObj.server.forceIPv6
+          hostHash:         @sshObj.server.hashMethod
+          hostVerifier:     @sshObj.server.hostVerifier ? (hashedKey)=>
             clientKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
             serverKey = hashedKey.replace(/[:]/g,"").toLowerCase()        
             if  clientKey is ""
@@ -333,7 +332,23 @@ class SSH2Shell extends EventEmitter
               return true 
             @.emit "msg", "#{@sshObj.server.host} verbose: Hash values: Server = " + serverKey + " <> Client = " + clientKey  if @sshObj.verbose
             return false
-          hostHash: @sshObj.server.hashMethod ? "md5"
+          username:         @sshObj.server.userName
+          password:         @sshObj.server.password
+          agent:            @sshObj.server.agent
+          agentForward:     @sshObj.server.agentForward
+          privateKey:       @sshObj.server.privateKey
+          passphrase:       @sshObj.server.passPhrase
+          localHostname:    @sshObj.server.localHostname
+          localUsername:    @sshObj.server.localUsername
+          tryKeyboard:      @sshObj.server.tryKeyboard
+          keepaliveInterval:@sshObj.server.keepaliveInterval
+          keepaliveCountMax:@sshObj.server.keepaliveCountMax
+          readyTimeout:     @sshObj.server.readyTimeout
+          sock:             @sshObj.server.sock
+          strictVendor:     @sshObj.server.strictVendor
+          algorithms:       @sshObj.server.algorithms
+          compress:         @sshObj.server.compress
+          debug:            @sshObj.server.debug
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connect:", true
         
