@@ -98,7 +98,7 @@ host = {
   }
 };
 ```
-* Host.server will also acept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
+* Host.server will also accept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
 * Optional properties do not need to be included if you are not changing them.
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
