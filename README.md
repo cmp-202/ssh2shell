@@ -19,6 +19,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
+* Access to [SSH2.connect variables](https://www.npmjs.com/package/ssh2#client-methods) for a more robust connection control.
 
 Code:
 -----
@@ -30,9 +31,9 @@ Installation:
 npm install ssh2shell
 ```
 
-Requirements:
+Host Configuration:
 ------------
-The class expects an object with the following structure to be passed to its constructor:
+SSH2Shell expects an object with the following structure to be passed to its constructor:
 ```javascript
 //Host object
 host = {
@@ -44,13 +45,13 @@ host = {
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
     //hashKey is used to validate the server SSH fingerprint
-    hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e" //optional string default ""
+    hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e", //optional string default ""
     //if using SSH fingerprint validation set the next value to either 'md5' or 'sha1'
-    hashMethod:   "md5" // or "sha1" default is "md5",
-    //Any other SSH2.connect config option. See:https://www.npmjs.com/package/ssh2#client-methods
+    hashMethod:   "md5", //optional "md5" or "sha1" default is "md5"
+    other ssh2.connect options
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
-  standardPrompt:     "$%#>",//optional string
+  standardPrompt:     ">$%#",//optional string
   passwordPrompt:     ":",//optional string
   passphrasePrompt:   ":",//optional string
   asciiFilter:        "[^\r\n\x20-\x7e]", //optional regular exression string
@@ -97,12 +98,15 @@ host = {
   }
 };
 ```
+* Host.server will also acept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
+* Optional properties do not need to be included if you are not changing them.
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
-* If sshObj is passed into the host config defined event handler as one of the parameters then all its variables, and event handlers are available to the event handler.
+* If sshObj is passed into the event handler as one of the parameters then all the host config and some class variables are available to that event handler even if it was added in the host config.
 * onError doesn't have sshObj available to it so can't be added to the host config, it must be added to the instance.
 
 Minimal Example:
+------------
 
 ```javascript
 var host = {
@@ -130,59 +134,6 @@ var SSH2Shell = require ('ssh2shell'),
 //Start the process
 SSH.connect();
 ``` 
-
-Prompt detection override:
--------------------------
-The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
-
-These do not need to be altered or even added to the host object because internaly the default will be set to the values below. If it finds you have provided a new value then that value will override the interal default.
-
-``` 
-  standardPrompt:     "$%#>",//optional default:"$#>"
-  passwordPrompt:     ":",//optional default:":"
-  passphrasePrompt:   ":",//optional default:":"
- ``` 
- 
- 
-Text regular expression filters:
--------------------------------
-There are two regular expression filters that remove unwanted text from responce data.
- 
-The first removes non-statndard ascii and the second removes ANSI text formating codes. Both of these can be modified in your host object to overide defaults. It is also possible to output the ANSI codes by setting disableColorFilter to true.
- 
- ```javascript
-host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
-host.disableColorFilter = false //or true to allow ansi control codes to be returned in the response text
-host.textColorFilter = "(\x1b\[[0-9;]*m)" (default value)
- ```
- 
-Tests:
------
-```javascript
-//single host test
-cp .env-example .env
-
-//change .env values to valid host settings then run
-node test/devtest.js
-
-//multiple nested hosts
-//requires the additional details added to .env file for each server
-//my tests were done using three VM hosts
-node test/tunneltest.js
-
-//test the command idle time out timer
-node test/timeouttest.js
-
-//Test multiple sudo and su combinations for changing user
-//Issue #10
-//Also test promt detection with no password requested 
-//Issue #14
-node test/sudosutest.js
-
-//test using notification commands as the last command
-//Issue #11
-node test/notificationstest.js
-```
 
 Usage:
 ======
@@ -280,7 +231,34 @@ var SSH2Shell = require ('ssh2shell'),
 
 //Start the process
 SSH.connect();
+```
 
+Test Files:
+-----
+```javascript
+//single host test
+cp .env-example .env
+
+//change .env values to valid host settings then run
+node test/devtest.js
+
+//multiple nested hosts
+//requires the additional details added to .env file for each server
+//my tests were done using three VM hosts
+node test/tunneltest.js
+
+//test the command idle time out timer
+node test/timeouttest.js
+
+//Test multiple sudo and su combinations for changing user
+//Issue #10
+//Also test promt detection with no password requested 
+//Issue #14
+node test/sudosutest.js
+
+//test using notification commands as the last command
+//Issue #11
+node test/notificationstest.js
 ```
 
 Tunnelling nested host objects:
@@ -462,6 +440,11 @@ Trouble shooting:
 * There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
 * The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds. (1000 = 1 sec)
 
+Verbose and Debug:
+------------------
+* When verbose is set to true each command response raises a msg event (calls host.msg.send(message)) when the command completes.
+* When debug is set to true in a host object process messages raises a msg event (calls host.msg.send(message)) to help identify what the internal process of each step was.
+
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
@@ -493,6 +476,7 @@ See: [su VS sudo su VS sudo -u -i](http://johnkpaul.tumblr.com/post/19841381351/
 
 See: test/sudosutest.js for a working code example.
 
+
 Notification commands:
 ----------------------
 There are two notification commands that can be added to the command array but are not processed in the shell.
@@ -500,11 +484,33 @@ There are two notification commands that can be added to the command array but a
 1. "msg:This is a message intended for monitoring the process as it runs" The text after msg: is outputted through whatever method the msg.send function uses. It might be to the console or a chat room or a log file but is considered direct response back to whatever or whoever is watching the process to notify them of what is happening.
 2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the end event handler (host.onEnd()). The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
 
-Verbose and Debug:
-------------------
-* When verbose is set to true each command response raises a msg event (calls host.msg.send(message)) when the command completes.
-* When debug is set to true in a host object process messages raises a msg event (calls host.msg.send(message)) to help identify what the internal process of each step was. 
 
+
+Prompt detection override:
+-------------------------
+The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
+
+These do not need to be altered or even added to the host object because internaly the default will be set to the values below. If it finds you have provided a new value then that value will override the interal default.
+
+``` 
+  standardPrompt:     ">$%#",//optional default:">$%#"
+  passwordPrompt:     ":",//optional default:":"
+  passphrasePrompt:   ":",//optional default:":"
+ ``` 
+ 
+ 
+Text regular expression filters:
+-------------------------------
+There are two regular expression filters that remove unwanted text from responce data.
+ 
+The first removes non-statndard ascii and the second removes ANSI text formating codes. Both of these can be modified in your host object to overide defaults. It is also possible to output the ANSI codes by setting disableColorFilter to true.
+ 
+ ```javascript
+host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
+host.disableColorFilter = false //or true to allow ansi control codes to be returned in the response text
+host.textColorFilter = "(\x1b\[[0-9;]*m)" (default value)
+ ```
+ 
 Responding to command prompts:
 ----------------------
 When running commands there are cases that you might need to respond to specific prompt that results from the command being run.
