@@ -233,6 +233,10 @@ class SSH2Shell extends EventEmitter
     @connection = new require('ssh2')()
     
     #event handlers
+    @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
+      if @sshObj.keyboard-interactive
+        @sshObj.keyboard-interactive name, instructions, instructionsLang, prompts, finish
+        
     @.on "connect", =>
       @.emit 'msg', @sshObj.connectedMessage ? "Connected"
 
@@ -276,6 +280,9 @@ class SSH2Shell extends EventEmitter
   connect: ()=>
     if @sshObj.server and @sshObj.commands
       try
+        @conneciton.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
+          @.emit "keyboard-interactive", name, instructions, instructionsLang, prompts, finish
+          
         @connection.on "connect", =>
           @.emit "connect"
 

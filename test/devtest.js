@@ -7,7 +7,6 @@ var sshObj = {
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD,
-	hashKey:      process.env.hashKey,
     algorithms: {
         kex: [
             'diffie-hellman-group1-sha1',
