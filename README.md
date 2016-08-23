@@ -63,12 +63,12 @@ host = {
 	  console.log(message);
     }
   }, 
-  verbose:             false,  //optional boolean
-  debug:               false,  //optional boolean
-  idleTimeOut:         5000,        //optional number in milliseconds
-  connectedMessage:    "Connected", //optional string
-  readyMessage:        "Ready",     //optional string
-  closedMessage:       "Closed",    //optional string
+  verbose:             false,  //optional default false
+  debug:               false,  //optional default false
+  idleTimeOut:         5000,        //optional number in milliseconds default 5000
+  connectedMessage:    "Connected", //optional default "Connected"
+  readyMessage:        "Ready",     //optional default "Ready"
+  closedMessage:       "Closed",    //optional default "Closed"
   
   //optional event handlers defined for a host that will be called by the default event handlers
   //of the class
@@ -93,10 +93,14 @@ host = {
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
    //sessionText is the full text for this hosts session
-   this.emit('msg', sessionText);
+   //sshObj.msg.send(sessionText);
   }
 };
 ```
+* See the end of the readme for event handles available to the instance.
+* Emit and this are not available within host config defined event handlers.
+* If sshObj is passed into the host config defined event handler as one of the parameters then all its variables, and event handlers are available to the event handler. This includes other event handers defined in the host config. 
+* onError doesn't have sshObj available to it so can't be added to the host config, it must be added to the instance.
 
 Minimal Example:
 
@@ -194,7 +198,6 @@ Connecting to a single host:
 * Use the two notification types in the commands array.
 * Use msg: notifications to track progress in the console as the process completes.
 * Email the final full session text to yourself.
-* Trigger an event handler by using this.emit for known event handlers: error and msg.
 
 (will require a package json with ssh2shell, dotenv and email defined as dependencies)
 
@@ -262,12 +265,12 @@ var host = {
     subject: "Automated SSH Session Response",
     body: "\nThis is the full session responses for " + sshObj.server.host + ":\n\n" + sessionText
   });
-  this.emit('msg', "Sending session response email");
+  sshObj.msg.send("Sending session response email");
   //same as sshObj.msg.send("Sending session response email");
   
   // if callback is provided, errors will be passed into it
   // else errors will be thrown
-  sessionEmail.send(function(err){ this.emit('error', err, 'Email'); });
+  sessionEmail.send(function(err){ sshObj.msg.send('error', err, 'Email'); });
  }
 };
 

@@ -269,8 +269,6 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', @sshObj.closedMessage
     
     @.on "error", (err, type, close = false, callback) =>
-      if @sshObj.onError
-        @sshObj.onError err, type, close, callback
       @.emit 'msg', "#{type} error: " + err
       callback(err, type) if callback
       @connection.end() if close
