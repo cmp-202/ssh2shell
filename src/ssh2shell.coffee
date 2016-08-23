@@ -280,7 +280,7 @@ class SSH2Shell extends EventEmitter
   connect: ()=>
     if @sshObj.server and @sshObj.commands
       try
-        @conneciton.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
+        @connection.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
           @.emit "keyboard-interactive", name, instructions, instructionsLang, prompts, finish
           
         @connection.on "connect", =>
