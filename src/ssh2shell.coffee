@@ -234,10 +234,10 @@ class SSH2Shell extends EventEmitter
     
     #event handlers
     @.on "connect", =>
-      @.emit 'msg', @sshObj.connectedMessage
+      @.emit 'msg', @sshObj.connectedMessage ? "Connected"
 
     @.on "ready", =>
-      @.emit 'msg', @sshObj.readyMessage
+      @.emit 'msg', @sshObj.readyMessage ? "Ready"
     
     @.on "msg", ( message ) =>
       if @sshObj.msg
@@ -269,6 +269,8 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', @sshObj.closedMessage
     
     @.on "error", (err, type, close = false, callback) =>
+      if @sshObj.onError
+        @sshObj.onError err, type, close, callback
       @.emit 'msg', "#{type} error: " + err
       callback(err, type) if callback
       @connection.end() if close

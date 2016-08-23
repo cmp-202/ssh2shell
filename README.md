@@ -481,6 +481,7 @@ To turn on fingerprint validation set host.server.hashKey to a non empty string 
 
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
 
+
 Sudo and su Commands:
 --------------
 It is possible to use `sudo [command]`, `sudo su`, `su [username]` and `sudo -u [username] -i`. Sudo commands uses the password for the user that is accessing the server and is handled by SSH2shell. Su on the other hand uses the password of root or the other user (`su seconduser`) and requires you detect the password prompt in onCommandProcessing.
@@ -570,9 +571,14 @@ There are a number of event handlers that enable you to add your own code to be 
 
 There are two ways to add event handlers:
 
-1. Add handller functions to the host object (See Requirments) these event handlers will only be run for that host.
- * Connect, ready and close are not available for definition in the hosts object 
-2. Add handlers to the class instance which will be run every time the event is triggered for all hosts.
+1. Add handller functions to the host object (See requirments at start of readme). 
+ * These event handlers will only be run for that host config. 
+ * They are not bound to the class instance so can't use `this` keyword or `this.emit()`. 
+ * It is possible to run the sshObj.msg.send function directly if the sshObj is passed into the event as a parameter.
+ * Connect, ready and close are not available for definition in the hosts object.
+
+2. Add handlers to the class instance which will be run every time the event is triggered for all hosts. 
+ * Emit can be run using `this.emit('eventName', parameters)`
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
 **Note:** any event handlers you add to the class instance are run as well as any other event handlers defined for the same event.
