@@ -99,7 +99,7 @@ host = {
 ```
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
-* If sshObj is passed into the host config defined event handler as one of the parameters then all its variables, and event handlers are available to the event handler. This includes other event handers defined in the host config. 
+* If sshObj is passed into the host config defined event handler as one of the parameters then all its variables, and event handlers are available to the event handler.
 * onError doesn't have sshObj available to it so can't be added to the host config, it must be added to the instance.
 
 Minimal Example:
@@ -577,8 +577,8 @@ There are two ways to add event handlers:
 1. Add handller functions to the host object (See requirments at start of readme). 
  * These event handlers will only be run for that host config. 
  * They are not bound to the class instance so can't use `this` keyword or `this.emit()`. 
- * It is possible to run the sshObj.msg.send function directly if the sshObj is passed into the event as a parameter.
- * Connect, ready and close are not available for definition in the hosts object.
+ * Variables and functions like `sshObj.msg.send` are available through the sshObj if passed into the event as a parameter.
+ * Connect, ready, error and close are not available for definition in the hosts object.
 
 2. Add handlers to the class instance which will be run every time the event is triggered for all hosts. 
  * Emit can be run using `this.emit('eventName', parameters)`
