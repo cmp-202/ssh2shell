@@ -92,7 +92,7 @@ host = {
    //sessionText is the full text for this hosts session
    //sshObj.msg.send(sessionText);
   },
-  onError:            function(err, type, callback) {
+  onError:            function(err, type, close = false, callback) {
    //optional code to run when an error event is raised
    //sshObj object and sshObj.msg.send() is not available when event handler is defined in the host object.
    //use console.log() to output messages.
