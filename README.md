@@ -96,6 +96,7 @@ host = {
    //optional code to run when an error event is raised
    //sshObj object and sshObj.msg.send() is not available when event handler is defined in the host object.
    //use console.log() to output messages.
+  }
 };
 ```
 * Host.server will also accept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
