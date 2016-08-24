@@ -273,9 +273,13 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', @sshObj.closedMessage
     
     @.on "error", (err, type, close = false, callback) =>
-      @.emit 'msg', "#{type} error: " + err
-      callback(err, type) if callback
-      @connection.end() if close
+      if @sshObj.onError
+        @sshObj.onError(err, type, callback)
+        @connection.end() if close
+      else
+        @.emit 'msg', "#{type} error: " + err
+        callback(err, type) if callback
+        @connection.end() if close
       
   connect: ()=>
     if @sshObj.server and @sshObj.commands
@@ -327,18 +331,7 @@ class SSH2Shell extends EventEmitter
           forceIPv4:        @sshObj.server.forceIPv4
           forceIPv6:        @sshObj.server.forceIPv6
           hostHash:         @sshObj.server.hashMethod
-          hostVerifier:     @sshObj.server.hostVerifier ? (hashedKey)=>
-            clientKey = @sshObj.server.hashKey.replace(/[:]/g,"").toLowerCase()
-            serverKey = hashedKey.replace(/[:]/g,"").toLowerCase()        
-            if  clientKey is ""
-              @.emit 'msg', "#{@sshObj.server.host} verbose: Server hash:" + hashedKey if @sshObj.verbose
-              @sshObj.server.hashKey = hashedKey              
-              return true
-            else if serverKey is clientKey
-              @.emit 'msg', "#{@sshObj.server.host}: Fingerprint verification passed" if @sshObj.debug
-              return true 
-            @.emit "msg", "#{@sshObj.server.host} verbose: Hash values: Server = " + serverKey + " <> Client = " + clientKey  if @sshObj.verbose
-            return false
+          hostVerifier:     @sshObj.server.hostVerifier
           username:         @sshObj.server.userName
           password:         @sshObj.server.password
           agent:            @sshObj.server.agent

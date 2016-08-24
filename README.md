@@ -44,10 +44,6 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-    //hashKey is used to validate the server SSH fingerprint
-    hashKey:      "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e", //optional string default ""
-    //if using SSH fingerprint validation set the next value to either 'md5' or 'sha1'
-    hashMethod:   "md5", //optional "md5" or "sha1" default is "md5"
     other ssh2.connect options
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
@@ -95,7 +91,11 @@ host = {
    //optional code to run at the end of the session
    //sessionText is the full text for this hosts session
    //sshObj.msg.send(sessionText);
-  }
+  },
+  onError:            function(err, type, callback) {
+   //optional code to run when an error event is raised
+   //sshObj object and sshObj.msg.send() is not available when event handler is defined in the host object.
+   //use console.log() to output messages.
 };
 ```
 * Host.server will also accept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
@@ -463,8 +463,43 @@ To use figngerprint validation you first need the server hash string which can b
 * Turn on verbose in the host object, run your script with hashKey unset and check the very start of the text returned for the servers hash value. 
  * The sshObj.server.hashKey will also be set to the servers returned hash so you can access it without having to parse response text.
 
-To turn on fingerprint validation set host.server.hashKey to a non empty string containing your servers hash. Both hash strings will be parsed to remove :'s and converted lowercase prior to validation.
+* To turn on fingerprint validation: 
+```javascript
+//Define the hostValidation function in the host.server config.
+//hashKey needs to be defined at the top level if you want to access the server hash at run time
+var hashKey, host;
 
+host = {
+    server: {
+        //other normal connection params    
+        //hashMethod must be set to either 'md5' or 'sha1'
+        hashMethod:   "md5", //optional "md5" or "sha1" default
+        //hashValidation would be recommended to define as follows.
+        hashVerification: function(hashedKey) {
+            var expectedKey, serverKey;
+            //the hash you are expecting from the server set it to "" if you are determining the server hash
+            expectedKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
+            serverKey = hashedKey.replace(/[:]/g, "").toLowerCase();
+            if (expectedKey === "") {
+              //didn't set a key so save the hash to a top level variable or output it to console.lol()
+              hashKey = hashedKey; //hashKey needs to be defined before host.
+              console.lol("Server hash: " + hashKey);
+              return true;
+            } else if (serverKey === clientKey) {
+              return true;
+            }
+            //Output the failed comparison to the console if you want to see what went wrong
+            console.log("Hash values: Server = ") + serverKey + " <> Client = " + clientKey);
+            return false;
+          };
+    },
+    //Other settings
+};
+
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host1);
+SSH.connect();
+```
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
 
 
@@ -653,5 +688,6 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //type is a string identifying the source of the error
  //close is a bollean value indicating if the error will close the session
  //callback a fuction that will be run by the default handler
+ //when defined in the host object the close option is not available as the main event handler will make the connection changes
 });
 ```
