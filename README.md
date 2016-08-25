@@ -477,28 +477,28 @@ host = {
         hashMethod:   "md5", //optional "md5" or "sha1" default
         //hashValidation would be recommended to define as follows.
         hashVerification: function(hashedKey) {
-            var expectedKey, serverKey;
+            var clientKey, serverKey;
             //the hash you are expecting from the server set it to "" if you are determining the server hash
-            expectedKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
+            clientKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
             serverKey = hashedKey.replace(/[:]/g, "").toLowerCase();
-            if (expectedKey === "") {
-              //didn't set a key so save the hash to a top level variable or output it to console.lol()
+            if (clientKey === "") {
+              //didn't set a key so save the hash to a top level variable or output it to console.log()
               hashKey = hashedKey; //hashKey needs to be defined before host.
-              console.lol("Server hash: " + hashKey);
+              console.log("Server hash: " + hashKey);
               return true;
             } else if (serverKey === clientKey) {
               return true;
             }
             //Output the failed comparison to the console if you want to see what went wrong
-            console.log("Hash values: Server = ") + serverKey + " <> Client = " + clientKey);
+            console.log("Hash values: Server = " + serverKey + " <> Client = " + clientKey);
             return false;
-          };
+          },
     },
     //Other settings
 };
 
 var SSH2Shell = require ('ssh2shell'),
-    SSH       = new SSH2Shell(host1);
+    SSH       = new SSH2Shell(host);
 SSH.connect();
 ```
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
