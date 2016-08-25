@@ -2,36 +2,47 @@
   "name": "ssh2shell",
   "version": "1.5.2",
   "author": "cmp-202",
-  "description": "A wrapper class for node.js ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
+  "description": "A wrapper class for ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
   "engines": {
-    "node": ">=0.8.7"
+    "node": ">=4.5.0"
   },
   "dependencies": {
-    "ssh2": ">=0.3.6"
+    "ssh2": ">=0.5.0"
   },
   "devDependencies": {
-    "coffee-script": ">=1.8.0",
-    "dotenv": ">=0.4.0"
+    "coffee-script": ">=1.10.0",
+    "dotenv": ">=2.0.0"
   },
   "scripts": {
     "prepublish": "coffee -o lib/ src/"
   },
   "keywords": [
-    "ssh",
+    "SSH",
     "ssh2",
-    "secure",
     "shell",
     "server",
+    "client",
     "multiple",
+    "command",
     "commands",
     "tunnel",
-    "tunnelling",
     "deploy",
     "host",
+    "hosts",
     "automation",
-    "nested",
-    "hosts"
+    "fingerprint",
+    "validation",
+    "hash",
+    "cipher",
+    "persistent",
+    "sequential",
+    "console",
+    "sudo",
+    "su",
+    "prompt",
+    "session",
+    "connection"        
   ],
   "repository": {
     "type": "git",
