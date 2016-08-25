@@ -709,7 +709,7 @@ ssh2shell.on ("commandComplete", function onCommandComplete( command, response, 
  //sshObj is the host object
 });
     
-ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, stream, sshObj ) { 
+ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, sshObj, stream ) { 
  //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
  //the error is outputed to the msg event and the connection is closed
  //command is the command that timed out
@@ -739,6 +739,7 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //callback a fuction that will be run by the default handler
  //when defined in the host object the close option is not available as the main event handler will make the connection changes
 });
+
 ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
  //Required if the first host.server.tryKeboard is set to true
  //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
