@@ -19,17 +19,49 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
-* Access to [SSH2.connect variables](https://www.npmjs.com/package/ssh2#client-methods) for a more robust connection control.
+* Access to [SSH2.connect parameters](https://www.npmjs.com/package/ssh2#client-methods) for first host connection.
+
 
 Code:
 -----
 The Class is written in coffee script and can be found here: `./src/ssh2shell.coffee`. It has comments not found in the build output javascript file `./lib/ssh2shell.js`.
+ 
  
 Installation:
 ------------
 ```
 npm install ssh2shell
 ```
+
+
+Minimal Example:
+------------
+```javascript
+var host = {
+ server:        {     
+  host:         "127.0.0.1",
+  userName:     "test",
+  password:     "1234",
+ },
+ commands:      [
+  "msg:Connected",
+  "echo $(pwd)",
+  "ls -l"
+ ],
+ msg: {
+  send: function( message ) {
+   console.log(message);
+  }
+ }
+};
+
+//Create a new instance
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host);
+
+//Start the process
+SSH.connect();
+``` 
 
 Host Configuration:
 ------------
@@ -44,7 +76,8 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-    other ssh2.connect options
+    //other ssh2.connect parameters. See https://www.npmjs.com/package/ssh2#client-methods
+    //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     ">$%#",//optional string
@@ -99,42 +132,42 @@ host = {
   }
 };
 ```
-* Host.server will also accept any other parameter included in [SSH2.connect config options](https://www.npmjs.com/package/ssh2#client-methods).
-* Optional properties do not need to be included if you are not changing them.
+* Host.server will accept current [SSH2.connect parameter options](https://www.npmjs.com/package/ssh2#client-methods).
+* Optional host properties do not need to be included if you are not changing them.
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
 * If sshObj is passed into the event handler as one of the parameters then all the host config and some class variables are available to that event handler even if it was added in the host config.
 * onError doesn't have sshObj available to it so can't be added to the host config, it must be added to the instance.
 
-Minimal Example:
-------------
 
+Test Files:
+-----
 ```javascript
-var host = {
- server:        {     
-  host:         "127.0.0.1",
-  userName:     "test",
-  password:     "1234",
- },
- commands:      [
-  "msg:Connected",
-  "echo $(pwd)",
-  "ls -l"
- ],
- msg: {
-  send: function( message ) {
-   console.log(message);
-  }
- }
-};
+//single host test
+cp .env-example .env
 
-//Create a new instance
-var SSH2Shell = require ('ssh2shell'),
-    SSH       = new SSH2Shell(host);
+//change .env values to valid host settings then run
+node test/devtest.js
 
-//Start the process
-SSH.connect();
-``` 
+//multiple nested hosts
+//requires the additional details added to .env file for each server
+//my tests were done using three VM hosts
+node test/tunneltest.js
+
+//test the command idle time out timer
+node test/timeouttest.js
+
+//Test multiple sudo and su combinations for changing user
+//Issue #10
+//Also test promt detection with no password requested 
+//Issue #14
+node test/sudosutest.js
+
+//test using notification commands as the last command
+//Issue #11
+node test/notificationstest.js
+```
+
 
 Usage:
 ======
@@ -232,34 +265,6 @@ var SSH2Shell = require ('ssh2shell'),
 
 //Start the process
 SSH.connect();
-```
-
-Test Files:
------
-```javascript
-//single host test
-cp .env-example .env
-
-//change .env values to valid host settings then run
-node test/devtest.js
-
-//multiple nested hosts
-//requires the additional details added to .env file for each server
-//my tests were done using three VM hosts
-node test/tunneltest.js
-
-//test the command idle time out timer
-node test/timeouttest.js
-
-//Test multiple sudo and su combinations for changing user
-//Issue #10
-//Also test promt detection with no password requested 
-//Issue #14
-node test/sudosutest.js
-
-//test using notification commands as the last command
-//Issue #11
-node test/notificationstest.js
 ```
 
 Tunnelling nested host objects:
@@ -429,6 +434,7 @@ SSH.connect();
  
 ```
 
+
 Trouble shooting:
 -----------------
 
@@ -441,22 +447,25 @@ Trouble shooting:
 * There is an optional debug setting in the host object that will output progress information when set to true and passwords for failed authentication of sudo commands and tunnelling. `host.debug = true`
 * The class now has an idle time out timer (default:5000ms) to stop unexpected command prompts from causing the process hang without error. The default time out can be changed by setting the host.idleTimeOut with a value in milliseconds. (1000 = 1 sec)
 
+
 Verbose and Debug:
 ------------------
 * When verbose is set to true each command response raises a msg event (calls host.msg.send(message)) when the command completes.
 * When debug is set to true in a host object process messages raises a msg event (calls host.msg.send(message)) to help identify what the internal process of each step was.
+
 
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
 * When using key authentication you may require a valid passphrase if your key was created with one. 
 
+
 Fingerprint Validation:
 ---------------
 At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
 This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now in place. 
 
-*Note:* Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
+*Note:* Fingerprint check doesn't work the same way for tunnelling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
 * Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). Validation will be checked and fail causing the connection to terminate. A verbose message will return both the server hash and client hash values that failed comparison. 
@@ -475,30 +484,30 @@ host = {
         //other normal connection params    
         //hashMethod must be set to either 'md5' or 'sha1'
         hashMethod:   "md5", //optional "md5" or "sha1" default
-        //hashValidation would be recommended to define as follows.
-        hashVerification: function(hashedKey) {
-            var expectedKey, serverKey;
+        //hostVerifier would be recommended to define as follows.
+        hostVerifier: function(hashedKey) {
+            var clientKey, serverKey;
             //the hash you are expecting from the server set it to "" if you are determining the server hash
-            expectedKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
+            clientKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
             serverKey = hashedKey.replace(/[:]/g, "").toLowerCase();
-            if (expectedKey === "") {
-              //didn't set a key so save the hash to a top level variable or output it to console.lol()
+            if (clientKey === "") {
+              //didn't set a key so save the hash to a top level variable or output it to console.log()
               hashKey = hashedKey; //hashKey needs to be defined before host.
-              console.lol("Server hash: " + hashKey);
+              console.log("Server hash: " + hashKey);
               return true;
             } else if (serverKey === clientKey) {
               return true;
             }
             //Output the failed comparison to the console if you want to see what went wrong
-            console.log("Hash values: Server = ") + serverKey + " <> Client = " + clientKey);
+            console.log("Hash values: Server = " + serverKey + " <> Client = " + clientKey);
             return false;
-          };
+          },
     },
     //Other settings
 };
 
 var SSH2Shell = require ('ssh2shell'),
-    SSH       = new SSH2Shell(host1);
+    SSH       = new SSH2Shell(host);
 SSH.connect();
 ```
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
@@ -521,10 +530,9 @@ There are two notification commands that can be added to the command array but a
 2. "\`SessionText notification\`" will add the message between the \` to the sessionText variable that contains all of the session responses and is passed to the end event handler (host.onEnd()). The reason for not using echo or printf commands is that you see both the command and the message in the sessionTest result which is pointless when all you want is the message.
 
 
-
 Prompt detection override:
 -------------------------
-The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
+The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunnelling configuration each host will have its own values based on the configuration you make in you host object. 
 
 These do not need to be altered or even added to the host object because internaly the default will be set to the values below. If it finds you have provided a new value then that value will override the interal default.
 
@@ -546,6 +554,7 @@ host.asciiFilter = "[^\r\n\x20-\x7e]" (default value)
 host.disableColorFilter = false //or true to allow ansi control codes to be returned in the response text
 host.textColorFilter = "(\x1b\[[0-9;]*m)" (default value)
  ```
+
  
 Responding to command prompts:
 ----------------------
@@ -585,6 +594,7 @@ host.onCommandTimeout = function( command, response, sshObj, stream, connection 
 ```
 To terminate the session on such a prompt use connection.end() within the timeout event handler.
 
+
 Bash scripts on the fly:
 ------------------------
 If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate or get the script on the fly. 
@@ -609,6 +619,7 @@ fi",
   "rm myscript.sh"
 ]
 ```
+
 
 Event Handlers:
 ---------------
@@ -690,5 +701,10 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //close is a bollean value indicating if the error will close the session
  //callback a fuction that will be run by the default handler
  //when defined in the host object the close option is not available as the main event handler will make the connection changes
+});
+ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
+ //Required if the first host.server.tryKeboard is set to true
+ //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
+ //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
 });
 ```
