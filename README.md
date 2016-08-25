@@ -475,8 +475,8 @@ host = {
         //other normal connection params    
         //hashMethod must be set to either 'md5' or 'sha1'
         hashMethod:   "md5", //optional "md5" or "sha1" default
-        //hashValidation would be recommended to define as follows.
-        hashVerification: function(hashedKey) {
+        //hostVerifier would be recommended to define as follows.
+        hostVerifier: function(hashedKey) {
             var clientKey, serverKey;
             //the hash you are expecting from the server set it to "" if you are determining the server hash
             clientKey = "85:19:8a:fb:60:4b:94:13:5c:ea:fe:3b:99:c7:a5:4e".replace(/[:]/g, "").toLowerCase();
