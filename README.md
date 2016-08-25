@@ -19,7 +19,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
-* Access to [SSH2.connect parameters](https://www.npmjs.com/package/ssh2#client-methods) for a more robust connection control.
+* Access to [SSH2.connect parameters](https://www.npmjs.com/package/ssh2#client-methods) for first host connection.
 
 
 Code:
@@ -77,6 +77,7 @@ host = {
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
     //other ssh2.connect parameters. See https://www.npmjs.com/package/ssh2#client-methods
+    //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     ">$%#",//optional string
@@ -128,10 +129,6 @@ host = {
    //optional code to run when an error event is raised
    //sshObj object and sshObj.msg.send() is not available when event handler is defined in the host object.
    //use console.log() to output messages.
-  },
-  onKeyboard-interactive: function(name, instructions, instructionsLang, prompts, finish){
-   //Required if host.server.tryKeboard is set to true
-   //see Client events https://github.com/mscdex/ssh2#client-events keyboard-interactive for more information
   }
 };
 ```
@@ -468,7 +465,7 @@ Fingerprint Validation:
 At connection time the hash of the servers public key can be compared with the hash the client had previously recorded for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect to the server you expected to.
 This hash only changes with a reinstall of SSH, a key change on the server or a load balancer is now in place. 
 
-*Note:* Fingerprint check doesn't work the same way for tunneling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
+*Note:* Fingerprint check doesn't work the same way for tunnelling. The first host will vailidate using this method but the subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method that does the validation.
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
 * Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). Validation will be checked and fail causing the connection to terminate. A verbose message will return both the server hash and client hash values that failed comparison. 
@@ -535,7 +532,7 @@ There are two notification commands that can be added to the command array but a
 
 Prompt detection override:
 -------------------------
-The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunneling configuration each host will have its own values based on the configuration you make in you host object. 
+The following objects have been added to the host object making it possable to override Prompt string values used with regular expressions to detect the prompt on the server and what type it is. Being able to change these values enables you to easily manage all sorts of prompt options for any number of servers all configured slightly different or even completely different be it vi one to one connections or a more complex tunnelling configuration each host will have its own values based on the configuration you make in you host object. 
 
 These do not need to be altered or even added to the host object because internaly the default will be set to the values below. If it finds you have provided a new value then that value will override the interal default.
 
@@ -706,8 +703,8 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //when defined in the host object the close option is not available as the main event handler will make the connection changes
 });
 ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
- //Required if host.server.tryKeboard is set to true
- //Recommended to be added as host.onKeyboard-interactive event handler
+ //Required if the first host.server.tryKeboard is set to true
+ //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
  //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
 });
 ```
