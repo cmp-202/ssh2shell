@@ -114,7 +114,7 @@ host = {
    //response is the full response from the command completed
    //sshObj is this object and gives access to the current set of commands
   },
-  onCommandTimeout:    function(command, response, stream, sshObj) {
+  onCommandTimeout:    function(command, response, sshObj, stream) {
    //optional code for responding to command timeout
    //response is the text response from the command up to it timing out
    //sshObj gives access to sshObj.commands and sshOnj.sessionTest
@@ -623,7 +623,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout = function( command, response, sshObj, stream, connection ) {
+host.onCommandTimeout = function( command, response, sshObj, stream ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
    }

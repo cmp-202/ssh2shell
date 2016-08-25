@@ -255,7 +255,7 @@ class SSH2Shell extends EventEmitter
       if @sshObj.onCommandComplete
         @sshObj.onCommandComplete command, response, sshObj
     
-    @.on 'commandTimeout', ( command, response, stream, sshObj ) =>
+    @.on 'commandTimeout', ( command, response, sshObj, stream ) =>
       if @sshObj.onCommandTimeout
         @sshObj.onCommandTimeout command, response, stream, sshObj
       else
