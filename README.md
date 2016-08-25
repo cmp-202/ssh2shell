@@ -468,6 +468,27 @@ host.onCommandTimeout = function( command, response, stream, sshObj ) {
      stream.end();
    }
 }
+
+or 
+
+host.onCommandTimeout = function( command, response, stream, sshObj ) {
+   if (command === "" && response === "you are now connected" ) {
+     stream.write('\n');
+   }else{
+     stream.end();
+   }
+}
+
+or 
+
+host.onCommandTimeout = function( command, response, stream, sshObj ) {
+   if (command === "" && response === "you are now connected" ) {
+     command = sshObj.commands.shift();
+     stream.write(command + '\n');
+   }else{
+     stream.end();
+   }
+}
 ```
 
 Authentication:
