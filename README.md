@@ -468,7 +468,7 @@ host.onCommandTimeout = function( command, response, stream, sshObj ) {
      stream.end();
    }
 }
-
+```
 
 Authentication:
 ---------------
