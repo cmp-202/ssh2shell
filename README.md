@@ -19,7 +19,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
-* Access to [SSH2.connect parameters](https://www.npmjs.com/package/ssh2#client-methods) for first host connection.
+* Access to [SSH2.connect parameters](https://github.com/mscdex/ssh2#client-methods) for first host connection.
 
 
 Code:
@@ -76,8 +76,9 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-    //other ssh2.connect parameters. See https://www.npmjs.com/package/ssh2#client-methods
+    //other ssh2.connect parameters. See https://github.com/mscdex/ssh2#client-methods
     //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
+    debug:        false //optional ssh2 parameter that turns on connection debugging see ssh2 documentation
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     ">$%#",//optional string
@@ -132,7 +133,7 @@ host = {
   }
 };
 ```
-* Host.server will accept current [SSH2.connect parameter options](https://www.npmjs.com/package/ssh2#client-methods).
+* Host.server will accept current [SSH2.connect parameter options](https://github.com/mscdex/ssh2#client-methods).
 * Optional host properties do not need to be included if you are not changing them.
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
@@ -741,8 +742,21 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
 });
 
 ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
- //Required if the first host.server.tryKeboard is set to true
- //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
+ //Required if the first host.server.tryKeyboard is set to true
+ //This cannot be defined as a host event handler because in a tunneling case only the first host connects using ssh2 all other hosts must handle the input request in the host.onCommandProcessing event handler.
+ //See https://github.com/mscdex/ssh2#client-events
+ //prompts is an object of expected prompts and if they are to be showen to the user
+ //finish needs to be set to an array of responses in the same order as the prompts object defined them.
  //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
+    if (debug){console.log("Keyboard-interactive");}
+    if (verbose){
+       console.log("name" + name);
+       console.log("instructions" + instructions);
+       var str = JSON.stringify(prompts, null, 4);
+       console.log("Prompts object" + str);
+    }
+    finish([process.env.PASSWORD] );
+  //if a non standard prompt results from a successfull connection then handle its detection and response in onCommandProcessing
+  //see text/keyboard-interactivetest.js
 });
 ```

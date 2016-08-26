@@ -22,20 +22,22 @@ var sshObj = {
   verbose: true,
   debug: true,
   onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
-     console.log("host Event");
-     console.log(name);
-     console.log(instructions);
-     console.log(prompts);
-     var str = JSON.stringify(prompts, null, 4);
-     console.log(str);
+     if (debug){console.log("Keyboard-interactive");}
+     if (verbose){
+       console.log("name" + name);
+       console.log("instructions" + instructions);
+       var str = JSON.stringify(prompts, null, 4);
+       console.log("Prompts object" + str);
+     }
      finish([process.env.PASSWORD] );
   },
-  standardPrompt:     "abc",//">$%#"
-  /*onCommandProcessing: function( command, response, sshObj, stream ){
-   if ( response.indexOf(“Connected”) != -1 ){
-      stream.write(“\n”);
-   }
-  }*/
+  onCommandProcessing: function( command, response, sshObj, stream ){
+   //Use onCommandProcessing to handle non standard prompts from keyboard-interactive if you keep on getting CimmandTimeout error,
+   //if ( response === "Connected on port 22" ){
+       //if (debug){console.log("Detected keyboard-interactive finished");}
+       //stream.write("\n");
+   //}
+  }
 
 };
 //until npm published use the cloned dir path.
