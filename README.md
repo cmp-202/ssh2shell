@@ -100,8 +100,8 @@ host = {
   readyMessage:        "Ready",     //optional default "Ready"
   closedMessage:       "Closed",    //optional default "Closed"
   
-  //optional event handlers defined for a host that will be called by the default event handlers
-  //of the class
+  //optional event handlers that will set as the default event handlers for the host
+  //event handlers added to the instance will be triggered for every host in a multi host configuration
   onCommandProcessing: function( command, response, sshObj, stream ) {
    //optional code to run during the procesing of a command 
    //command is the command being run
@@ -114,11 +114,11 @@ host = {
    //response is the full response from the command completed
    //sshObj is this object and gives access to the current set of commands
   },
-  onCommandTimeout:    function(command, response, sshObj, stream, connection) {
+  onCommandTimeout:    function(command, response, sshObj, stream) {
    //optional code for responding to command timeout
    //response is the text response from the command up to it timing out
+   //sshObj gives access to sshObj.commands and sshOnj.sessionTest
    //stream object used  to respond to the timeout without having to close the connection
-   //connection object gives access to close the shell using connection.end()
   },
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
@@ -454,6 +454,43 @@ Verbose and Debug:
 * When debug is set to true in a host object process messages raises a msg event (calls host.msg.send(message)) to help identify what the internal process of each step was.
 
 
+Command Timeout
+---------------
+When the program doesn't detect a standard prompt it after host.idleTimeOut value (in ms) the onCommandTimeout event will trigger. This is usually because an unexpected prompt for input has been encountered requiring a response. Detection of the standard prompt for the next command will never happen so the timeout stops the script hanging without ever knowing why. The default action is to add the last response text to the session text and disconnect. Enabling host.verbose would also provide the process path leading upto disconnection which in conjunction with the session text would clarify what command and output triggered the event.
+
+The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
+
+```javascript
+host.onCommandTimeout = function( command, response, stream, sshObj ) {
+   if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
+     stream.write('y\n');
+   }else{
+     stream.end();
+   }
+}
+
+or 
+
+host.onCommandTimeout = function( command, response, stream, sshObj ) {
+   if (command === "" && response === "you are now connected" ) {
+     stream.write('\n');
+   }else{
+     stream.end();
+   }
+}
+
+or 
+
+host.onCommandTimeout = function( command, response, stream, sshObj ) {
+   if (command === "" && response === "you are now connected" ) {
+     command = sshObj.commands.shift();
+     stream.write(command + '\n');
+   }else{
+     stream.end();
+   }
+}
+```
+
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
@@ -586,7 +623,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout = function( command, response, sshObj, stream, connection ) {
+host.onCommandTimeout = function( command, response, sshObj, stream ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
    }
@@ -672,13 +709,13 @@ ssh2shell.on ("commandComplete", function onCommandComplete( command, response, 
  //sshObj is the host object
 });
     
-ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, stream, connection ) { 
+ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, sshObj, stream ) { 
  //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
  //the error is outputed to the msg event and the connection is closed
  //command is the command that timed out
  //response is the text buffer up to the time out
  //stream is the session stream
- //connection is the main ssh2 connection object
+ //sshObj object
 });
 
 ssh2shell.on ("end", function onEnd( sessionText, sshObj ) { 
@@ -702,6 +739,7 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //callback a fuction that will be run by the default handler
  //when defined in the host object the close option is not available as the main event handler will make the connection changes
 });
+
 ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
  //Required if the first host.server.tryKeboard is set to true
  //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
