@@ -465,7 +465,7 @@ When the program doesn't detect a standard prompt it after host.idleTimeOut valu
 The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
 
 ```javascript
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
+host.onCommandTimeout = function( command, response, sshObj, stream ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
      stream.write('y\n');
    }else{
@@ -475,7 +475,7 @@ host.onCommandTimeout = function( command, response, stream, sshObj ) {
 
 or 
 
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
+host.onCommandTimeout = function( command, response, sshObj, stream ) {
    if (command === "" && response === "you are now connected" ) {
      stream.write('\n');
    }else{
