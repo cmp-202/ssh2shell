@@ -164,9 +164,12 @@ node test/timeouttest.js
 //Issue #14
 node test/sudosutest.js
 
-//test using notification commands as the last command
+//Test using notification commands as the last command
 //Issue #11
 node test/notificationstest.js
+
+//Test keyboard-interactivs authentication on the host that has it enabled 
+node test/keyboard-interactivetest.js
 ```
 
 
