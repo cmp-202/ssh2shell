@@ -100,14 +100,14 @@ host = {
   readyMessage:        "Ready",     //optional default "Ready"
   closedMessage:       "Closed",    //optional default "Closed"
   
-  //optional event handlers that will set as the default event handlers for the host
+  //optional event handlers which define the default event handlers for the host
   //event handlers added to the instance will be triggered for every host in a multi host configuration
   onCommandProcessing: function( command, response, sshObj, stream ) {
    //optional code to run during the procesing of a command 
    //command is the command being run
    //response is the text buffer that is still being loaded with each data event
    //sshObj is this object and gives access to the current set of commands
-   //stream object allows strea.write access if a command requires a response
+   //stream object allows stream.write() access if a command requires a response outside the normal command flow.
   },
   onCommandComplete:   function( command, response, sshObj ) {
    //optional code to run on the completion of a command
@@ -118,7 +118,7 @@ host = {
    //optional code for responding to command timeout
    //response is the text response from the command up to it timing out
    //sshObj gives access to sshObj.commands and sshOnj.sessionTest
-   //stream object used  to respond to the timeout without having to close the connection
+   //stream object used to respond to the timeout without having to close the connection
   },
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
@@ -127,8 +127,7 @@ host = {
   },
   onError:            function(err, type, close = false, callback) {
    //optional code to run when an error event is raised
-   //sshObj object and sshObj.msg.send() is not available when event handler is defined in the host object.
-   //use console.log() to output messages.
+   //sshObj object and sshObj.msg.send() is not available use console.log() to output messages.
   }
 };
 ```
@@ -137,7 +136,6 @@ host = {
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
 * If sshObj is passed into the event handler as one of the parameters then all the host config and some class variables are available to that event handler even if it was added in the host config.
-* onError doesn't have sshObj available to it so can't be added to the host config, it must be added to the instance.
 
 
 Test Files:
@@ -148,6 +146,7 @@ cp .env-example .env
 
 //change .env values to valid host settings then run
 node test/devtest.js
+
 
 //multiple nested hosts
 //requires the additional details added to .env file for each server
