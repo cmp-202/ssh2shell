@@ -7,25 +7,7 @@ var sshObj = {
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD,
-    algorithms: {
-        kex: [
-            'diffie-hellman-group1-sha1',
-            'ecdh-sha2-nistp256',
-            'ecdh-sha2-nistp384',
-            'ecdh-sha2-nistp521',
-            'diffie-hellman-group-exchange-sha256',
-            'diffie-hellman-group14-sha1'],
-        cipher: [
-            'aes128-ctr',
-            'aes192-ctr',
-            'aes256-ctr',
-            'aes128-gcm',
-            'aes128-gcm@openssh.com',
-            'aes256-gcm',
-            'aes256-gcm@openssh.com',
-            'aes256-cbc'
-        ]
-    }
+    tryKeyboard:  true
   },
   commands:           [
     "`Test session text message: passed`",
@@ -37,8 +19,24 @@ var sshObj = {
       console.log(message);
     }
   },  
-  verbose: false,
-  debug: false
+  verbose: true,
+  debug: true,
+  onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
+     console.log("host Event");
+     console.log(name);
+     console.log(instructions);
+     console.log(prompts);
+     var str = JSON.stringify(prompts, null, 4);
+     console.log(str);
+     finish([process.env.PASSWORD] );
+  },
+  standardPrompt:     "abc",//">$%#"
+  /*onCommandProcessing: function( command, response, sshObj, stream ){
+   if ( response.indexOf(“Connected”) != -1 ){
+      stream.write(“\n”);
+   }
+  }*/
+
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');

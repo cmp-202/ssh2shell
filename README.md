@@ -19,7 +19,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
-* Access to [SSH2.connect parameters](https://www.npmjs.com/package/ssh2#client-methods) for first host connection.
+* Access to [SSH2.connect parameters](https://github.com/mscdex/ssh2#client-methods) for first host connection.
 
 
 Code:
@@ -76,8 +76,9 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-    //other ssh2.connect parameters. See https://www.npmjs.com/package/ssh2#client-methods
+    //other ssh2.connect parameters. See https://github.com/mscdex/ssh2#client-methods
     //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
+    debug:        false //optional ssh2 parameter that turns on connection debugging see ssh2 documentation
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     ">$%#",//optional string
@@ -114,11 +115,15 @@ host = {
    //response is the full response from the command completed
    //sshObj is this object and gives access to the current set of commands
   },
-  onCommandTimeout:    function(command, response, sshObj, stream) {
+  onCommandTimeout:    function(command, response, stream, connection) {
    //optional code for responding to command timeout
+   //command is the last command run or "" if no prompt has been detected yet
    //response is the text response from the command up to it timing out
-   //sshObj gives access to sshObj.commands and sshOnj.sessionTest
-   //stream object used to respond to the timeout without having to close the connection
+   //stream object used  to respond to the timeout without having to close the connection
+   //connection gives access to close the connection
+   //If no response from the server results from you handling the timeout the script will hang 
+   //Set this handler to empty and add an event handler to the instance to gain access to the timeout timer
+   //See test/keyboard-interactivetest.js for and example of multiple commandTimeout triggers.
   },
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
@@ -131,7 +136,7 @@ host = {
   }
 };
 ```
-* Host.server will accept current [SSH2.connect parameter options](https://www.npmjs.com/package/ssh2#client-methods).
+* Host.server will accept current [SSH2.connect parameter options](https://github.com/mscdex/ssh2#client-methods).
 * Optional host properties do not need to be included if you are not changing them.
 * See the end of the readme for event handles available to the instance.
 * Emit and this are not available within host config defined event handlers.
@@ -147,7 +152,6 @@ cp .env-example .env
 //change .env values to valid host settings then run
 node test/devtest.js
 
-
 //multiple nested hosts
 //requires the additional details added to .env file for each server
 //my tests were done using three VM hosts
@@ -162,9 +166,12 @@ node test/timeouttest.js
 //Issue #14
 node test/sudosutest.js
 
-//test using notification commands as the last command
+//Test using notification commands as the last command
 //Issue #11
 node test/notificationstest.js
+
+//Test keyboard-interactivs authentication on the host that has it enabled 
+node test/keyboard-interactivetest.js
 ```
 
 
@@ -455,39 +462,67 @@ Verbose and Debug:
 
 Command Timeout
 ---------------
-When the program doesn't detect a standard prompt it after host.idleTimeOut value (in ms) the onCommandTimeout event will trigger. This is usually because an unexpected prompt for input has been encountered requiring a response. Detection of the standard prompt for the next command will never happen so the timeout stops the script hanging without ever knowing why. The default action is to add the last response text to the session text and disconnect. Enabling host.verbose would also provide the process path leading upto disconnection which in conjunction with the session text would clarify what command and output triggered the event.
+When the program doesn't detect a standard prompt after host.idleTimeOut value (in ms) the onCommandTimeout event will trigger. 
+This is usually because an unexpected prompt on the server is requiring a response it won't get. 
+Detection of the standard prompt for the next command will never happen so the timeout stops the script hanging without ever knowing why. 
+The default action is to add the last response text to the session text and disconnect. 
+Enabling host.verbose would also provide the process path leading upto disconnection which in conjunction with the session text would clarify what command and output triggered the event.
 
-The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
+The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. 
+It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
 
 ```javascript
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
      stream.write('y\n');
    }else{
+     //run the end event to return the the sessionText
      stream.end();
+     //close the connection
+     connection.end();
    }
 }
 
 or 
 
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "" && response === "you are now connected" ) {
      stream.write('\n');
    }else{
+     //run the end event to return the the sessionText
      stream.end();
+     //close the connection
+     connection.end();
    }
 }
 
 or 
 
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
-   if (command === "" && response === "you are now connected" ) {
-     command = sshObj.commands.shift();
-     stream.write(command + '\n');
-   }else{
-     stream.end();
+//reset the default handler to do nothing
+host.onCommandTimeout = function( command, response, stream, connection ) {};
+
+//Create the new instance
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host);
+
+    //Add the new timeout handler
+SSH.on ('commandTimeout',function( command, response, stream, connection ){
+  //first test should only pass once to stop a loop
+  if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 && this.sshObj.firstRun != true) {
+     this.sshObj.firstRun = true;
+     stream.write('y\n');
+     return true;
    }
-}
+   this.sshObj.sessionText += response;
+   this.emit("error", this.sshObj.server.host + ": Command `" + command + "` timed out after " + (this._idleTime / 1000) + " seconds", "Command Timeout", true);
+});
+
+SSH.on ('end', function( sessionText, sshObj ) {
+  //show the full session output. This could be emailed or saved to a log file.
+  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+ });
+ 
+SSH.connect();
 ```
 
 Authentication:
@@ -547,6 +582,40 @@ var SSH2Shell = require ('ssh2shell'),
 SSH.connect();
 ```
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
+
+
+Keyboard-interactive
+----------------------
+Keyboard-interactive authentication is available throught SSH2 connect.tryKeyboard and the required event handler connect.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish)
+Below is an example of how to define your keyboard-interactive handler and attach it to the ssh2shell instance.
+
+* Note: host.server.tryKeyboard = true for keyboard-interactive to be attempted and the event handler must be defined
+
+Also see test/keyboard-interactivetest.js for the full example 
+
+```javascript
+//this is required
+host.server.tryKeyboard = true;
+
+var SSH2Shell = require ('../lib/ssh2shell');
+var SSH = new SSH2Shell(host);
+  
+//Add the keyboard-interactive handler
+SSH.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish){
+     if (this.sshObj.debug) {
+       this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");
+     }
+     if (this.sshObj.verbose){
+       this.emit('msg', "name: " + name);
+       this.emit('msg', "instructions: " + instructions);
+       var str = JSON.stringify(prompts, null, 4);
+       this.emit('msg', "Prompts object: " + str);
+     }
+     finish([this.sshObj.server.password] );
+  });
+  
+SSH.connect();
+```
 
 
 Sudo and su Commands:
@@ -622,7 +691,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout = function( command, response, sshObj, stream ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
    }
@@ -665,12 +734,13 @@ There are two ways to add event handlers:
 
 1. Add handller functions to the host object (See requirments at start of readme). 
  * These event handlers will only be run for that host config. 
- * They are not bound to the class instance so can't use `this` keyword or `this.emit()`. 
+ * They are not bound to the class instance so can't use `this` keyword and are limited in use of other params like sshObj. 
  * Variables and functions like `sshObj.msg.send` are available through the sshObj if passed into the event as a parameter.
  * Connect, ready, error and close are not available for definition in the hosts object.
+ * Defining a host event in mose cases replaces the default event handler while that host is being processed.
 
-2. Add handlers to the class instance which will be run every time the event is triggered for all hosts. 
- * Emit can be run using `this.emit('eventName', parameters)`
+2. Handlers added to the class instance which will be run every time the event is triggered for all hosts in parrallel with any other event handlers defined. 
+ * Emit can be run using `this.emit('eventName', parameters)` and other instance properties like thisshhObj are also available.
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
 **Note:** any event handlers you add to the class instance are run as well as any other event handlers defined for the same event.
@@ -708,13 +778,13 @@ ssh2shell.on ("commandComplete", function onCommandComplete( command, response, 
  //sshObj is the host object
 });
     
-ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, sshObj, stream ) { 
- //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
+ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, stream,connection ) { 
+ //default: runs host.onCommandTimeout function if defined, if not the buffer is added to sessionText
  //the error is outputed to the msg event and the connection is closed
  //command is the command that timed out
  //response is the text buffer up to the time out
  //stream is the session stream
- //sshObj object
+ //connection object
 });
 
 ssh2shell.on ("end", function onEnd( sessionText, sshObj ) { 
@@ -740,8 +810,13 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
 });
 
 ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
- //Required if the first host.server.tryKeboard is set to true
- //This cannot be defined as a tunnelling host event handler because only the first host connects using ssh2 all other hosts must handle the input requeat in the host.onCommandProcessing event handler.
+ //Required if the first host.server.tryKeyboard is set to true
+ //This cannot be defined as a host event handler because in a tunneling case only the first host connects using ssh2 all other hosts must handle the input request in the host.onCommandProcessing event handler.
+ //See https://github.com/mscdex/ssh2#client-events
+ //prompts is an object of expected prompts and if they are to be showen to the user
+ //finish needs to be set to an array of responses in the same order as the prompts object defined them.
  //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
+  //if a non standard prompt results from a successfull connection then handle its detection and response in onCommandProcessing
+  //see text/keyboard-interactivetest.js
 });
 ```

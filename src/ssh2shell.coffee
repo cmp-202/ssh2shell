@@ -39,8 +39,8 @@ class SSH2Shell extends EventEmitter
     #command still processing
     else
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
-      clearTimeout @_idleTimer if @_idleTimer
-      @_idleTimer = setTimeout(@_timedout, @_idleTime)
+      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+      @sshObj.idleTimer = setTimeout(@_timedout, @_idleTime)
 
   _processPasswordPrompt: =>
     #First test for password prompt
@@ -233,9 +233,7 @@ class SSH2Shell extends EventEmitter
     @connection = new require('ssh2')()
     
     #event handlers
-    @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
-      if @sshObj.keyboard-interactive
-        @sshObj.keyboard-interactive name, instructions, instructionsLang, prompts, finish
+    @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>      
         
     @.on "connect", =>
       @.emit 'msg', @sshObj.connectedMessage ? "Connected"
@@ -254,10 +252,10 @@ class SSH2Shell extends EventEmitter
     @.on 'commandComplete', ( command, response, sshObj ) =>
       if @sshObj.onCommandComplete
         @sshObj.onCommandComplete command, response, sshObj
-    
-    @.on 'commandTimeout', ( command, response, sshObj, stream ) =>
+        
+    @.on 'commandTimeout', ( command, response, stream, connection ) =>
       if @sshObj.onCommandTimeout
-        @sshObj.onCommandTimeout command, response, stream, sshObj
+        @sshObj.onCommandTimeout command, response, stream, connection
       else
         @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@_idleTime/1000} seconds", "Timeout", true, (err, type)=>
           @sshObj.sessionText += @_buffer
@@ -274,7 +272,7 @@ class SSH2Shell extends EventEmitter
     
     @.on "error", (err, type, close = false, callback) =>
       if @sshObj.onError
-        @sshObj.onError(err, type, close, callback)
+        @sshObj.onError err, type, close, callback 
         @connection.end() if close
       else
         @.emit 'msg', "#{type} error: " + err
@@ -316,7 +314,7 @@ class SSH2Shell extends EventEmitter
               @.emit 'end', @sshObj.sessionText, @sshObj
             
             @_stream.on "close", (code, signal) =>
-              clearTimeout @_idleTimer if @_idleTimer
+              clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
               @connection.end()
           
         @connection.on "error", (err) =>
