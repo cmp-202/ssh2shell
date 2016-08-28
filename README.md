@@ -554,6 +554,40 @@ SSH.connect();
 *Note:* host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion and is set to md5 by default anything else may produce undesired results.
 
 
+Keyboard-interactive
+----------------------
+Keyboard-interactive authentication is available throught SSH2 connect.tryKeyboard and the required event handler connect.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish)
+Below is an example of how to define your keyboard-interactive handler and attach it to the ssh2shell instance.
+
+* Note: host.server.tryKeyboard = true for keyboard-interactive to be attempted and the event handler must be defined
+
+Also see test/keyboard-interactivetest.js for the full example 
+
+```javascript
+//this is required
+host.server.tryKeyboard = true;
+
+var SSH2Shell = require ('../lib/ssh2shell');
+var SSH = new SSH2Shell(host);
+  
+//Add the keyboard-interactive handler
+SSH.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish){
+     if (this.sshObj.debug) {
+       this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");
+     }
+     if (this.sshObj.verbose){
+       this.emit('msg', "name: " + name);
+       this.emit('msg', "instructions: " + instructions);
+       var str = JSON.stringify(prompts, null, 4);
+       this.emit('msg', "Prompts object: " + str);
+     }
+     finish([this.sshObj.server.password] );
+  });
+  
+SSH.connect();
+```
+
+
 Sudo and su Commands:
 --------------
 It is possible to use `sudo [command]`, `sudo su`, `su [username]` and `sudo -u [username] -i`. Sudo commands uses the password for the user that is accessing the server and is handled by SSH2shell. Su on the other hand uses the password of root or the other user (`su seconduser`) and requires you detect the password prompt in onCommandProcessing.
@@ -751,14 +785,6 @@ ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, inst
  //prompts is an object of expected prompts and if they are to be showen to the user
  //finish needs to be set to an array of responses in the same order as the prompts object defined them.
  //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
-    if (debug){console.log("Keyboard-interactive");}
-    if (verbose){
-       console.log("name" + name);
-       console.log("instructions" + instructions);
-       var str = JSON.stringify(prompts, null, 4);
-       console.log("Prompts object" + str);
-    }
-    finish([process.env.PASSWORD] );
   //if a non standard prompt results from a successfull connection then handle its detection and response in onCommandProcessing
   //see text/keyboard-interactivetest.js
 });
