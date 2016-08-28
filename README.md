@@ -740,7 +740,7 @@ There are two ways to add event handlers:
  * Defining a host event in mose cases replaces the default event handler while that host is being processed.
 
 2. Handlers added to the class instance which will be run every time the event is triggered for all hosts in parrallel with any other event handlers defined. 
- * Emit can be run using `this.emit('eventName', parameters)` and other instance properties like thisshhObj are also available.
+ * Emit can be run using `this.emit('eventName', parameters)` and other instance properties like this.shhObj are also available.
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
 **Note:** any event handlers you add to the class instance are run as well as any other event handlers defined for the same event.
