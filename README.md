@@ -115,11 +115,15 @@ host = {
    //response is the full response from the command completed
    //sshObj is this object and gives access to the current set of commands
   },
-  onCommandTimeout:    function(command, response, sshObj, stream) {
+  onCommandTimeout:    function(command, response, stream, connection) {
    //optional code for responding to command timeout
+   //command is the last command run or "" if no prompt has been detected yet
    //response is the text response from the command up to it timing out
-   //sshObj gives access to sshObj.commands and sshOnj.sessionTest
    //stream object used  to respond to the timeout without having to close the connection
+   //connection gives access to close the connection
+   //If no response from the server results from you handling the timeout the script will hang 
+   //Set this handler to empty and add an event handler to the instance to gain access to the timeout timer
+   //See test/keyboard-interactivetest.js for and example of multiple commandTimeout triggers.
   },
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
@@ -460,39 +464,67 @@ Verbose and Debug:
 
 Command Timeout
 ---------------
-When the program doesn't detect a standard prompt it after host.idleTimeOut value (in ms) the onCommandTimeout event will trigger. This is usually because an unexpected prompt for input has been encountered requiring a response. Detection of the standard prompt for the next command will never happen so the timeout stops the script hanging without ever knowing why. The default action is to add the last response text to the session text and disconnect. Enabling host.verbose would also provide the process path leading upto disconnection which in conjunction with the session text would clarify what command and output triggered the event.
+When the program doesn't detect a standard prompt after host.idleTimeOut value (in ms) the onCommandTimeout event will trigger. 
+This is usually because an unexpected prompt on the server is requiring a response it won't get. 
+Detection of the standard prompt for the next command will never happen so the timeout stops the script hanging without ever knowing why. 
+The default action is to add the last response text to the session text and disconnect. 
+Enabling host.verbose would also provide the process path leading upto disconnection which in conjunction with the session text would clarify what command and output triggered the event.
 
-The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
+The onCommandTimeout event can enable you to handle such timeouts without having to disconnect by identifying the prompt and providing the response enabling the standard prompt detection to continue. 
+It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
 
 ```javascript
-host.onCommandTimeout = function( command, response, sshObj, stream ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
      stream.write('y\n');
    }else{
+     //run the end event to return the the sessionText
      stream.end();
+     //close the connection
+     connection.end();
    }
 }
 
 or 
 
-host.onCommandTimeout = function( command, response, sshObj, stream ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "" && response === "you are now connected" ) {
      stream.write('\n');
    }else{
+     //run the end event to return the the sessionText
      stream.end();
+     //close the connection
+     connection.end();
    }
 }
 
 or 
 
-host.onCommandTimeout = function( command, response, stream, sshObj ) {
-   if (command === "" && response === "you are now connected" ) {
-     command = sshObj.commands.shift();
-     stream.write(command + '\n');
-   }else{
-     stream.end();
+//reset the default handler to do nothing
+host.onCommandTimeout = function( command, response, stream, connection ) {};
+
+//Create the new instance
+var SSH2Shell = require ('ssh2shell'),
+    SSH       = new SSH2Shell(host);
+
+    //Add the new timeout handler
+SSH.on ('commandTimeout',function( command, response, stream, connection ){
+  //first test should only pass once to stop a loop
+  if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 && this.sshObj.firstRun != true) {
+     this.sshObj.firstRun = true;
+     stream.write('y\n');
+     return true;
    }
-}
+   this.sshObj.sessionText += response;
+   this.emit("error", this.sshObj.server.host + ": Command `" + command + "` timed out after " + (this._idleTime / 1000) + " seconds", "Command Timeout", true);
+});
+
+SSH.on ('end', function( sessionText, sshObj ) {
+  //show the full session output. This could be emailed or saved to a log file.
+  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+ });
+ 
+SSH.connect();
 ```
 
 Authentication:
@@ -661,7 +693,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout = function( command, response, sshObj, stream ) {
+host.onCommandTimeout = function( command, response, stream, connection ) {
    if (response.indexOf("[y/N]?") != -1 ) {
      stream.write('n\n');
    }
@@ -704,12 +736,13 @@ There are two ways to add event handlers:
 
 1. Add handller functions to the host object (See requirments at start of readme). 
  * These event handlers will only be run for that host config. 
- * They are not bound to the class instance so can't use `this` keyword or `this.emit()`. 
+ * They are not bound to the class instance so can't use `this` keyword and are limited in use of other params like sshObj. 
  * Variables and functions like `sshObj.msg.send` are available through the sshObj if passed into the event as a parameter.
  * Connect, ready, error and close are not available for definition in the hosts object.
+ * Defining a host event in mose cases replaces the default event handler while that host is being processed.
 
-2. Add handlers to the class instance which will be run every time the event is triggered for all hosts. 
- * Emit can be run using `this.emit('eventName', parameters)`
+2. Handlers added to the class instance which will be run every time the event is triggered for all hosts in parrallel with any other event handlers defined. 
+ * Emit can be run using `this.emit('eventName', parameters)` and other instance properties like thisshhObj are also available.
  * The default event handlers of the class will call the host object event handler functions if they are defined.
 
 **Note:** any event handlers you add to the class instance are run as well as any other event handlers defined for the same event.
@@ -747,13 +780,13 @@ ssh2shell.on ("commandComplete", function onCommandComplete( command, response, 
  //sshObj is the host object
 });
     
-ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, sshObj, stream ) { 
- //default: runs host.onCommandTimeout function if defined if not the buffer is added to sessionText
+ssh2shell.on ("commandTimeout", function onCommandTimeout( command, response, stream,connection ) { 
+ //default: runs host.onCommandTimeout function if defined, if not the buffer is added to sessionText
  //the error is outputed to the msg event and the connection is closed
  //command is the command that timed out
  //response is the text buffer up to the time out
  //stream is the session stream
- //sshObj object
+ //connection object
 });
 
 ssh2shell.on ("end", function onEnd( sessionText, sshObj ) { 
