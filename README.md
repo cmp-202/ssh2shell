@@ -809,7 +809,7 @@ ssh2shell.on ("error", function onError(err, type, close, callback) {
  //when defined in the host object the close option is not available as the main event handler will make the connection changes
 });
 
-ssh2shell.on ("keyboard-interactive", function onKeyboard-interactive(name, instructions, instructionsLang, prompts, finish){
+ssh2shell.on ("keyboard-interactive", function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
  //Required if the first host.server.tryKeyboard is set to true
  //This cannot be defined as a host event handler because in a tunneling case only the first host connects using ssh2 all other hosts must handle the input request in the host.onCommandProcessing event handler.
  //See https://github.com/mscdex/ssh2#client-events
