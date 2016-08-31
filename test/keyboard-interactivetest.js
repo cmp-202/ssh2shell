@@ -18,8 +18,7 @@ var host = {
     send: function( message ) {
       console.log(message);
     }
-  }, 
-  idleTimeOut: 3000,
+  },
   verbose: false,
   debug: false,
   onEnd: function( sessionText, sshObj ){

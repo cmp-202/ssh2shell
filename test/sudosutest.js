@@ -83,5 +83,5 @@ SSH.on ('end', function onEnd( sessionText, sshObj ) {
     //show the full session output. This could be emailed or saved to a log file.
     sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
   });
-console.log(sshObj);
+  
 SSH.connect();
