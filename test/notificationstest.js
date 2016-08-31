@@ -6,9 +6,7 @@ var sshObj = {
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
-    passPhrase:   "",
-    privateKey:   ""
+    password:     process.env.PASSWORD
   },
   commands: [
     "ls -l",

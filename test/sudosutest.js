@@ -10,9 +10,7 @@ var sshObj = {
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
-    passPhrase:   "",
-    privateKey:   ""
+    password:     process.env.PASSWORD
   },
   commands:           [
     "msg:Showing current directory",
@@ -57,9 +55,6 @@ var sshObj = {
   debug:              false,
   verbose:            false,
   suPassSent:         false, //used by commandProcessing to only send password once
-  connectedMessage:   "Connected",
-  readyMessage:       "Running commands Now",
-  closedMessage:      "Completed"
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');

@@ -5,25 +5,19 @@ var conParamsHost1 = {
   host:         process.env.SERVER1_HOST,
   port:         process.env.PORT,
   userName:     process.env.SERVER1_USER_NAME,
-  password:     process.env.SERVER1_PASSWORD,
-  passPhrase:   process.env.SERVER1_PASS_PHRASE,
-  privateKey:   ""
+  password:     process.env.SERVER1_PASSWORD
  },
  conParamsHost2 = {
   host:         process.env.SERVER2_HOST,
   port:         process.env.PORT,
   userName:     process.env.SERVER2_USER_NAME,
-  password:     process.env.SERVER2_PASSWORD,
-  passPhrase:   process.env.SERVER2_PASS_PHRASE,
-  privateKey:   ''
+  password:     process.env.SERVER2_PASSWORD
  },
  conParamsHost3 = {
   host:         process.env.SERVER3_HOST,
   port:         process.env.PORT,
   userName:     process.env.SERVER3_USER_NAME,
-  password:     process.env.SERVER3_PASSWORD,
-  passPhrase:   process.env.SERVER3_PASS_PHRASE,
-  privateKey:   ''
+  password:     process.env.SERVER3_PASSWORD
  }
 
 //Host objects:
@@ -38,7 +32,7 @@ var host1 = {
   closedMessage:       "Completed",
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
-    if (command == "ls -l"){      
+    if (command === "ls -l"){      
       sshObj.msg.send(response);
     }
   }
@@ -54,7 +48,7 @@ host2 = {
   ],
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
-    if (command == "sudo su"){      
+    if (command === "sudo su"){      
       sshObj.msg.send("Just ran a sudo su command");
     }
   }

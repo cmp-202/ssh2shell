@@ -15,14 +15,12 @@ this.sshObj.idleTimer = setTimeout(function(){
 var dotenv = require('dotenv');
 dotenv.load();
 
-var sshObj = {
+var host = {
   server:             {     
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
-    passPhrase:   process.env.PASS_PHRASE,
-    privateKey:   require('fs').readFileSync(process.env.PRIV_KEY_PATH)
+    password:     process.env.PASSWORD
   },
   commands:           [
     "msg:Testing idle time out",
@@ -36,9 +34,6 @@ var sshObj = {
   verbose:            false,
   debug:              false,
   idleTimeOut:        10000,
-  connectedMessage:   "Connected",
-  readyMessage:       "Running commands Now",
-  closedMessage:      "Completed",
   onCommandTimeout: function( command, response, stream, connection ){
     //The host handler replaces the default handler so we set this to nothing making the 
     //instance definition the primary handler.
@@ -55,7 +50,7 @@ var sshObj = {
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
-var SSH = new SSH2Shell(sshObj);
+var SSH = new SSH2Shell(host);
 
 SSH.on ('commandTimeout', function( command, response, stream, connection ){
    //Here we are trying to handle a timeout from not getting a standard prompt from the host.
@@ -85,12 +80,13 @@ SSH.on ('commandTimeout', function( command, response, stream, connection ){
      if(this.sshObj.debug){this.emit("msg","timeout second pass");}
      //second failure so we set the error messages because we probably can't do anything more
      //or add code to try something else 
-     errorMessage = "keyboarb-interactive prompt"
-     errorType = "keyboarb-interactive Timeout";
-   } //else if ( command === "some-command" and response.indexOf("who am I?") != -1){
+     errorMessage = "No prompt error"
+     errorType = "No prompt timeout";
+   } else if ( response.indexOf("(y,n):") != -1){
        //This would be better to handle in onCommandProcessing but can be handled here
-       //Do something to respond to the timeout or bail to the error.
-   //}
+       //response from server will trigger a reset of the timeer
+       stream.write("y\n");
+   }
    //everything failed so update sessionText and raise an error event that closes the connection
    this.sshObj.sessionText += response;
    if(!errorMessage){errorMessage = "Command";}
