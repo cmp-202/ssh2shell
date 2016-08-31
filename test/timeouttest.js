@@ -1,3 +1,17 @@
+//Every data response from the server resets the command timeout timer
+//So if you use stream.write() to send something to the server from within the timeout function
+//and the server responds then the timer is reset and the normal process starts again
+//If you are using the host.onCommandTimeout to send something to the host and it doesn't
+//respond then the script will hang. there is no way to reset the timeout timer.
+//If you set the host onCommandTimeout to do nothing an attach commandTimeout to the instance
+//you will be able to tigger a new timeout timer by using 
+/*
+this.sshObj.idleTimer = setTimeout(function(){
+         this.emit('commandTimeout', command, response, stream, connection )
+     }, this._idleTime);
+*/
+//commandTimeout is actually a `didn't detect a defined prompt` timeout
+
 var dotenv = require('dotenv');
 dotenv.load();
 
