@@ -20,7 +20,7 @@ var sshObj = {
   debug:              true,
   onEnd: function( sessionText, sshObj, self ){
      //show the full session output. This could be emailed or saved to a log file.
-    self.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+    self.emit("msg", "\nThis is the full session response:\n\n" + sessionText);
   }
 };
 

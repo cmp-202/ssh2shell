@@ -80,7 +80,7 @@ var host = {
   },
   onEnd: function( sessionText, sshObj, self ) {
     //show the full session output. self could be emailed or saved to a log file.
-    self.emit("msg", "\nself is the full session responses:\n" + sessionText);
+    self.emit("msg", "\nThis is the full session response:\n\n" + sessionText + "\n");
   }
 };
 //until npm published use the cloned dir path.
