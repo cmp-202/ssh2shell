@@ -21,8 +21,8 @@ var host = {
   },
   verbose: false,
   debug: false,
-  onEnd: function( sessionText, sshObj ){
-    sshObj.msg.send (sessionText);
+  onEnd: function( sessionText, sshObj, self ){
+    self.emit("msg", sessionText);
   }
 
 };

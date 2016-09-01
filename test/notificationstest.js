@@ -18,23 +18,16 @@ var sshObj = {
     }
   },
   debug:              true,
-  connectedMessage:   "Connected",
-  readyMessage:       "Running commands Now",
-  closedMessage:      "Completed"
-  };
+  onEnd: function( sessionText, sshObj, self ){
+     //show the full session output. This could be emailed or saved to a log file.
+    self.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+  }
+};
 
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(sshObj);
-
-SSH.on ('end', function onEnd( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  });
-
-//debug: show content of sshObj
-//console.log (sshObj);
 
 SSH.connect();

@@ -20,6 +20,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Create bash scripts on the fly, run them and then remove them.
 * Server SSH fingerprint validation.
 * Access to [SSH2.connect parameters](https://github.com/mscdex/ssh2#client-methods) for first host connection.
+* Keyboard-interactive authentication
 
 
 Code:
@@ -47,17 +48,13 @@ var host = {
   "msg:Connected",
   "echo $(pwd)",
   "ls -l"
- ],
- msg: {
-  send: function( message ) {
-   console.log(message);
-  }
- }
+ ]
 };
 
 //Create a new instance
 var SSH2Shell = require ('ssh2shell'),
-    SSH       = new SSH2Shell(host);
+
+SSH = new SSH2Shell(host);
 
 //Start the process
 SSH.connect();
@@ -78,7 +75,6 @@ host = {
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
     //other ssh2.connect parameters. See https://github.com/mscdex/ssh2#client-methods
     //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
-    debug:        false //optional ssh2 parameter that turns on connection debugging see ssh2 documentation
   },
   hosts:              [Array, of, nested, host, configs, objects], //optional array()
   standardPrompt:     ">$%#",//optional string
@@ -88,6 +84,7 @@ host = {
   diableColorFilter:  false, //optional bollean 
   textColorFilter:    "(\x1b\[[0-9;]*m)", //optional regular exression string
   commands:           ["Array", "of", "strings", "command"], //array() of command strings
+  //msg declaration is optional. The default value is this.on ("msg", funtion(message){console.log(message)}) 
   msg:                {
     send: function( message ) {
       //message handler code
@@ -101,21 +98,25 @@ host = {
   readyMessage:        "Ready",     //optional default "Ready"
   closedMessage:       "Closed",    //optional default "Closed"
   
-  //optional event handlers which define the default event handlers for the host
-  //event handlers added to the instance will be triggered for every host in a multi host configuration
-  onCommandProcessing: function( command, response, sshObj, stream ) {
-   //optional code to run during the procesing of a command 
-   //command is the command being run
-   //response is the text buffer that is still being loaded with each data event
-   //sshObj is this object and gives access to the current set of commands
-   //stream object allows stream.write() access if a command requires a response outside the normal command flow.
+  //optional event handlers which replace the default event handlers for the host
+  //event handlers added to the only apply to that host object
+  onCommandProcessing: function( command, response, sshObj, stream, self ) {
+   //onCommandProcessing is triggered with every data received event (one character) from the host until a prompt is detected.
+   //command is the command being run if there is one
+   //response is the text buffer that is being loaded with each data event
+   //sshObj is this object and gives access to the current set of commands and other settings
+   //stream object allows stream.write() access if a responce test identifies a response outside the normal command flow is required.
+   //self gives access to the instance object and its api. Replaces `this` in host functions
   },
-  onCommandComplete:   function( command, response, sshObj ) {
+  
+  onCommandComplete:   function( command, response, sshObj, self ) {
    //optional code to run on the completion of a command
-   //response is the full response from the command completed
-   //sshObj is this object and gives access to the current set of commands
+   //response is the full response from the host
+   //sshObj is this object and gives access to the current set of commands and other settings
+   //self gives access to the instance object and its api. Replaces `this` in host functions
   },
-  onCommandTimeout:    function(command, response, stream, connection) {
+  
+  onCommandTimeout:    function(command, response, stream, connection, self) {
    //optional code for responding to command timeout
    //command is the last command run or "" if no prompt has been detected yet
    //response is the text response from the command up to it timing out
@@ -124,23 +125,43 @@ host = {
    //If no response from the server results from you handling the timeout the script will hang 
    //Set this handler to empty and add an event handler to the instance to gain access to the timeout timer
    //See test/keyboard-interactivetest.js for and example of multiple commandTimeout triggers.
+   //self gives access to the instance object and its api. Replaces `this` in host functions
   },
+  
   onEnd:               function( sessionText, sshObj ) {
    //optional code to run at the end of the session
    //sessionText is the full text for this hosts session
    //sshObj.msg.send(sessionText);
   },
-  onError:            function(err, type, close = false, callback) {
-   //optional code to run when an error event is raised
-   //sshObj object and sshObj.msg.send() is not available use console.log() to output messages.
+  
+  onError:            function(err, type, close = false, callback, self) {
+   //optional code to run when an error event is raised.
+   //self gives access to the instance object and its api. Replaces `this` in host functions
   }
 };
 ```
 * Host.server will accept current [SSH2.connect parameter options](https://github.com/mscdex/ssh2#client-methods).
 * Optional host properties do not need to be included if you are not changing them.
-* See the end of the readme for event handles available to the instance.
-* Emit and this are not available within host config defined event handlers.
-* If sshObj is passed into the event handler as one of the parameters then all the host config and some class variables are available to that event handler even if it was added in the host config.
+* See the end of the readme for event handlers available to the instance.
+* `this` is not available within host event handlers instead it is replaced with `self` giving access to self.emit() and other api functions.
+* `self.sshObj` provides access to all the host config and some class variables.
+
+
+ssh2shell API
+-------------
+SSH2Shell extends events.EventEmitter
+
+*Methods*
+* Constructor requires a host object as defined above. `SSH = new SSH2Shell(host);`
+
+* .connect() Is the main function to establish the connection and handle data events from the server which triggers the rest of the process.
+
+* .emit("eventName", function, parms,... ). raises the event based on the name in the first string and takes input parameters based on the handler function definition.
+
+*variables*
+* .sshObj is the host object as defined above along with some instance variables.
+
+* .command is the current command being run until a new peompt is detected and the next command replaces it or a commandTimeout event is raised which may cause a disconnection. 
 
 
 Test Files:
@@ -231,12 +252,7 @@ var host = {
   "ls -l",
   "`All done!`"
  ],
- msg: {
-  send: function( message ) {
-   console.log(message);
-  }
- },
- onCommandComplete: function( command, response, sshObj ) {
+ onCommandComplete: function( command, response, sshObj, self ) {
   //confirm it is the root home dir and change to root's .ssh folder
   if (command === "echo $(pwd)" && response.indexOf("/root") != -1 ) {
    //unshift will add the command as the next command, use push to add command as the last command
@@ -245,10 +261,10 @@ var host = {
   }
   //we are listing the dir so output it to the msg handler
   else if (command === "ls -l"){      
-   sshObj.msg.send(response);
+   self.emit("msg", response);
   }
  },
- onEnd: function( sessionText, sshObj ) {
+ onEnd: function( sessionText, sshObj, self ) {
   //email the session text instead of outputting it to the console
   var sessionEmail = new Email({ 
     from: "me@example.com", 
@@ -256,7 +272,7 @@ var host = {
     subject: "Automated SSH Session Response",
     body: "\nThis is the full session responses for " + sshObj.server.host + ":\n\n" + sessionText
   });
-  sshObj.msg.send("Sending session response email");
+  self.emit("msg", "Sending session response email");
   //same as sshObj.msg.send("Sending session response email");
   
   // if callback is provided, errors will be passed into it
@@ -341,17 +357,13 @@ var conParamsHost1 = {
   host:         process.env.SERVER2_HOST,
   port:         process.env.SERVER2_PORT,
   userName:     process.env.SERVER2_USER_NAME,
-  password:     process.env.SERVER2_PASSWORD,
-  passPhrase:   process.env.SERVER2_PASS_PHRASE,
-  privateKey:   ''
+  password:     process.env.SERVER2_PASSWORD
  },
  conParamsHost3 = {
   host:         process.env.SERVER3_HOST,
   port:         process.env.SERVER3_PORT,
   userName:     process.env.SERVER3_USER_NAME,
-  password:     process.env.SERVER3_PASSWORD,
-  passPhrase:   process.env.SERVER3_PASS_PHRASE,
-  privateKey:   ''
+  password:     process.env.SERVER3_PASSWORD
  }
  
 //functions used by all hosts
@@ -372,10 +384,10 @@ var host1 = {
   connectedMessage:    "Connected to Primary host1",
   readyMessage:        "Running commands Now",
   closedMessage:       "Completed",
-  onCommandComplete:   function( command, response, sshObj ) {
+  onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command == "ls -l"){      
-      sshObj.msg.send(response);
+      self.emit("msg", response);
     }
   }
 },
@@ -391,10 +403,10 @@ host2 = {
     "ls -l"
   ],
   msg:                 msg,
-  onCommandComplete:   function( command, response, sshObj ) {
+  onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command == "sudo su"){      
-      sshObj.msg.send("Just ran a sudo su command");
+      self.emit("msg", "Just ran a sudo su command");
     }
   }
 },
@@ -409,11 +421,11 @@ host3 = {
     "ls -l"
   ],
   msg:                 msg,
-  onCommandComplete:   function( command, response, sshObj ) {
+  onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command.indexOf("cd") != -1){  
-      sshObj.msg.send("Just ran a cd command:");    
-      sshObj.msg.send(response);
+      self.emit("msg", "Just ran a cd command:");    
+      self.emit("msg", response);
     }
   }
 }
@@ -432,7 +444,7 @@ var SSH2Shell = require ('ssh2shell'),
 //Add an on end event handler used by all hosts
 SSH.on ('end', function( sessionText, sshObj ) {
   //show the full session output. This could be emailed or saved to a log file.
-  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+  this.emit ("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText);
  });
 
 //Start the process
@@ -474,40 +486,42 @@ It is recommended to close the connection if all checks fail so you are not left
 ```javascript
 host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
-     stream.write('y\n');
+     stream.write('y\n')
    }else{
      //run the end event to return the the sessionText
-     stream.end();
+     stream.end()
      //close the connection
-     connection.end();
+     connection.end()
    }
 }
 
 or 
 
-host.onCommandTimeout = function( command, response, stream, connection ) {
-   if (command === "" && response === "you are now connected" ) {
-     stream.write('\n');
-   }else{
-     //run the end event to return the the sessionText
-     stream.end();
-     //close the connection
-     connection.end();
+host.onCommandTimeout = function( command, response, stream, connection, self ) {
+   if (command === "" && response === "you are now connected" && self.sshObj.firstRun != true) {
+     //setting the first run flag stops response loop
+     self.sshObj.firstRun = true
+     stream.write('\n')
+     return true
    }
+   //emit an error that passes true for the close parameter and callback the loads the last of session text
+   self.emit ("error", "#{self.sshObj.server.host}: Command timed out after #{self._idleTime/1000} seconds", "Timeout", true, function(err, type){
+      self.sshObj.sessionText += response
+   })
 }
 
 or 
 
 //reset the default handler to do nothing
-host.onCommandTimeout = function( command, response, stream, connection ) {};
+host.onCommandTimeout = function( command, response, stream, connection, self ) {};
 
 //Create the new instance
 var SSH2Shell = require ('ssh2shell'),
-    SSH       = new SSH2Shell(host);
+    SSH       = new SSH2Shell(host)
 
-    //Add the new timeout handler
+//And do it all in the instance event handler
 SSH.on ('commandTimeout',function( command, response, stream, connection ){
-  //first test should only pass once to stop a loop
+  //first test should only pass once to stop a response loop
   if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 && this.sshObj.firstRun != true) {
      this.sshObj.firstRun = true;
      stream.write('y\n');
@@ -586,13 +600,12 @@ SSH.connect();
 
 Keyboard-interactive
 ----------------------
-Keyboard-interactive authentication is available throught SSH2 connect.tryKeyboard and the required event handler connect.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish)
-Below is an example of how to define your keyboard-interactive handler and attach it to the ssh2shell instance.
-
-* Note: host.server.tryKeyboard = true for keyboard-interactive to be attempted and the event handler must be defined
+Keyboard-interactive authentication is available when both host.server.tryKeyboard is set to true and the event handler keyboard-interactive is defined as below.
+The keyboard-interactive event handler must be added to the instance rather than through the host config because it can only be called on the first connection.
 
 Also see test/keyboard-interactivetest.js for the full example 
 
+keyboard-interactive event handler definition
 ```javascript
 //this is required
 host.server.tryKeyboard = true;
@@ -601,7 +614,7 @@ var SSH2Shell = require ('../lib/ssh2shell');
 var SSH = new SSH2Shell(host);
   
 //Add the keyboard-interactive handler
-SSH.on ('keyboardInteractive', function(name, instructions, instructionsLang, prompts, finish){
+SSH.on ('keyboard-interactive', function(name, instructions, instructionsLang, prompts, finish){
      if (this.sshObj.debug) {
        this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");
      }
@@ -611,6 +624,7 @@ SSH.on ('keyboardInteractive', function(name, instructions, instructionsLang, pr
        var str = JSON.stringify(prompts, null, 4);
        this.emit('msg', "Prompts object: " + str);
      }
+     //presumes only the password is required
      finish([this.sshObj.server.password] );
   });
   
@@ -669,35 +683,41 @@ The stream object is available in the host.onCommandProcessing event handler to 
 
 ```javascript
 //in the host object definition that will be used only for that host
-host.onCommandProcessing = function( command, response, sshObj, stream ) {
-   //Check the command and prompt exits and respond with a 'y'
-   if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
-     sshObj.msg.send('Sending install nano response');
+host.onCommandProcessing = function( command, response, sshObj, stream, self ) {
+   //Check the command and prompt exits and respond with a 'y' but only does it once
+   if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 && sshObj.firstRun != true) {
+     sshObj.firstRun = true
+     self.emit("msg", 'Sending install nano response');
      stream.write('y\n');
    }
  };
  
- //To handle all hosts the same add an event handler to the class instance
- //This will be run in addition to any other handlers defined for this event
- ssh2shell.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
+//To handle all hosts the same add an event handler to the class instance
+//This will be run in parrallel to other events commandProcessing defined
+var SSH2Shell = require ('../lib/ssh2shell');
+var SSH = new SSH2Shell(host);
+
+SSH.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
    //Check the command and prompt exits and respond with a 'y'
-   if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 ) {
-     sshObj.msg.send('Sending install nano response');
+   if (command == "apt-get install nano" && response.indexOf("[y/N]?") != -1 && sshObj.firstRun != true ) {
+     sshObj.firstRun = true
+     this.emit("msg", 'Sending install nano response');
      stream.write('y\n');
    }
- };
+};
 
 ```
 The other alternative is to use the host.onCommandTimeout event handler but it will be delayed by the idleTimout value
 
 ```javascript
-host.onCommandTimeout = function( command, response, stream, connection ) {
+host.onCommandTimeout = function( command, response, stream, connection, self ) {
    if (response.indexOf("[y/N]?") != -1 ) {
-     stream.write('n\n');
+     stream.write('y\n');
+     //The server outputting a response to this output will restart to command prompt detection and timeout timer
    }
  }
 ```
-To terminate the session on such a prompt use connection.end() within the timeout event handler.
+To terminate the session emit an error event with close parameter set to true and define the callback function to run sshObj.sessionText += response.
 
 
 Bash scripts on the fly:

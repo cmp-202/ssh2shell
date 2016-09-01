@@ -234,8 +234,6 @@ class SSH2Shell extends EventEmitter
     
     #event handlers
     @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => 
-      if @sshObj.onKeyboardInteractive
-        @sshObj.onKeyboardInteractive name, instructions, instructionsLang, prompts, finish, this
       
     @.on "connect",  =>
       @.emit 'msg', @sshObj.connectedMessage ? "Connected"

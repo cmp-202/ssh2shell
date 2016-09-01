@@ -55,33 +55,30 @@ var sshObj = {
   debug:              false,
   verbose:            false,
   suPassSent:         false, //used by commandProcessing to only send password once
+  onCommandProcessing: function( command, response, sshObj, stream, self ) {
+    //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
+
+    if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
+      sshObj.commands.unshift("msg:Using secondary user password");
+      //this is required to stop "bounce" without this the password would be sent multiple times
+      sshObj.suPassSent = true;
+      stream.write(process.env.secondUserPassword + "\n");
+    } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
+      sshObj.commands.unshift("msg:Using root user password");
+      //this is required to stop "bounce" without this the password would be sent multiple times
+      sshObj.rootPassSent = true;
+      stream.write(process.env.rootPassword + "\n");
+    }
+  },
+  onEnd: function ( sessionText, sshObj, self ) {
+    //show the full session output. This could be emailed or saved to a log file.
+    self.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+  }
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(sshObj);
-//console.log (sshObj);
-
-SSH.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
-    //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
-
-  if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
-    sshObj.commands.unshift("msg:Using secondary user password");
-    //this is required to stop "bounce" without this the password would be sent multiple times
-    sshObj.suPassSent = true;
-      stream.write(process.env.secondUserPassword + "\n");
-    } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
-      sshObj.commands.unshift("msg:Using root user password");
-    //this is required to stop "bounce" without this the password would be sent multiple times
-    sshObj.rootPassSent = true;
-      stream.write(process.env.rootPassword + "\n");
-    }
-  });
-  
-SSH.on ('end', function onEnd( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  });
   
 SSH.connect();

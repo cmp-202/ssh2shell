@@ -35,11 +35,7 @@ var host = {
   debug:              true,
   idleTimeOut:        5000,
   onCommandTimeout: function( command, response, stream, connection, self ){
-      //self = self
-      //console.log(JSON.stringify(self, null, 4))
-      //console.log(JSON.stringify(self, null, 4))
-      //exit
-      self.emit("msg","new timmer");
+   if(self.sshObj.debug){self.emit("msg","new timmer")};
    //Here we are trying to handle a timeout from not getting a standard prompt from the host.
    //The first check makes sure there is no command and the first try flag has not been set.   
    //a second timeout timer is set to stop the script hanging.
@@ -47,10 +43,11 @@ var host = {
    //The final code adds the text received so far to the session text and closes the connection with an error.
    var errorMessage, errorSource;
    if(self.sshObj.debug){self.emit("msg","timeout");}
+   
    //first we are checking for the timeout coming after connection before a prompt is detected and before a command is loaded
    //on the first try self.sshObj.sentN is not true as it hasn't been set yet
-   if ( command === "" && self.sshObj.sentN != true){
-     if(self.sshObj.debug){self.emit("msg","Keyboard-interactive timeout first pass");}
+   if ( command === "" && response.indexOf("Connected on port 22") != -1 && self.sshObj.sentNL != true){
+     if(self.sshObj.debug){self.emit("msg","Unusual connection prompt timeout first pass");}
      //first attemp so set the flag we will use to ignor another timeout attempt
      self.sshObj.sentN = true
      if(self.sshObj.debug){self.emit("msg","new timmer");} 
@@ -63,26 +60,27 @@ var host = {
      stream.write("\n");
      //we want to skip the last part so return     
      return true;
-   } else if (command === "" && self.sshObj.sentN === true){
-     if(self.sshObj.debug){self.emit("msg","timeout second pass");}
+   } else if (command === "" && response.indexOf("Connected on port 22") != -1 && self.sshObj.sentNL === true){
+     if(self.sshObj.debug){self.emit("msg","Unusual connection prompt timeout second pass");}
      //second failure so we set the error messages because we probably can't do anything more
      //or add code to try something else 
      errorMessage = "No prompt error"
      errorType = "No prompt timeout";
-   } /*else if ( response.indexOf("(y,n):") != -1){
-       //self would be better to handle in onCommandProcessing but can be handled here
+   } else if ( response.indexOf("(y,n):") != -1 && self.sshObj.sentY != true){
+       self.sshObj.sentY === true
+       //This would be better to handle in onCommandProcessing but can be handled here
        //response from server will trigger a reset of the timeer
        stream.write("y\n");
-   }*/
+   }
    //everything failed so update sessionText and raise an error event that closes the connection
    self.sshObj.sessionText += response;
    if(!errorMessage){errorMessage = "Command";}
    if(!errorSource){errorSource = "Command Timeout";}
    self.emit("error", self.sshObj.server.host + ": " + errorMessage + " timed out after " + (self._idleTime / 1000) + " seconds", errorSource, true);   
   },
-  onEnd:              function( sessionText, sshObj ) {
+  onEnd: function( sessionText, sshObj, self ) {
     //show the full session output. self could be emailed or saved to a log file.
-    sshObj.msg.send("\nself is the full session responses:\n" + sessionText);
+    self.emit("msg", "\nself is the full session responses:\n" + sessionText);
   }
 };
 //until npm published use the cloned dir path.
@@ -90,7 +88,5 @@ var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(host);
-
-//SSH.on ('commandTimeout', );
   
 SSH.connect();
