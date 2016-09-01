@@ -128,10 +128,10 @@ host = {
    //self gives access to the instance object and its api. Replaces `this` in host functions
   },
   
-  onEnd:               function( sessionText, sshObj ) {
+  onEnd:               function( sessionText, sshObj, self ) {
    //optional code to run at the end of the session
    //sessionText is the full text for this hosts session
-   //sshObj.msg.send(sessionText);
+   //self.emit("msg", sessionText);
   },
   
   onError:            function(err, type, close = false, callback, self) {
