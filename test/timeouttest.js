@@ -65,7 +65,7 @@ var host = {
      //second failure so we set the error messages because we probably can't do anything more
      //or add code to try something else 
      errorMessage = "No prompt error"
-     errorType = "No prompt timeout";
+     errorSource = "No prompt timeout";
    } else if ( response.indexOf("(y,n):") != -1 && self.sshObj.sentY != true){
        self.sshObj.sentY === true
        //This would be better to handle in onCommandProcessing but can be handled here
