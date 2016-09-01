@@ -14,7 +14,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Ability to check the last command and conditions within the response text before the next command is run.
 * Performing actions based on command/response tests like adding or removing commands, sending notifications or processing of command response text.
 * See progress messages handled by msg.send: either static (on events) or dynamic (from event handlers) or verbose (each command response) and debug output (progress logic output).
-* Use full session response text in the end event (calling host.onEnd function) triggered when each host connection is closed.
+* Acces to full session response text by defining the .end() event triggered when each host connection is closed.
 * Run commands that are processed as notification messages to either the full session text or the msg.send function and not run in the shell.
 * Add event handlers either to the class or within host object definitions.
 * Create bash scripts on the fly, run them and then remove them.
@@ -158,10 +158,10 @@ SSH2Shell extends events.EventEmitter
 
 * .emit("eventName", function, parms,... ). raises the event based on the name in the first string and takes input parameters based on the handler function definition.
 
-*variables*
+*Variables*
 * .sshObj is the host object as defined above along with some instance variables.
 
-* .command is the current command being run until a new peompt is detected and the next command replaces it or a commandTimeout event is raised which may cause a disconnection. 
+* .command is the current command being run until a new prompt is detected and the next command replaces it or a commandTimeout event is raised which may cause a disconnection. 
 
 
 Test Files:
@@ -381,9 +381,6 @@ var host1 = {
     "ls -l"
   ],
   msg:                 msg,
-  connectedMessage:    "Connected to Primary host1",
-  readyMessage:        "Running commands Now",
-  closedMessage:       "Completed",
   onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command == "ls -l"){      
@@ -403,6 +400,7 @@ host2 = {
     "ls -l"
   ],
   msg:                 msg,
+  connectedMessage:    "Connected to host2",
   onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command == "sudo su"){      
@@ -421,6 +419,7 @@ host3 = {
     "ls -l"
   ],
   msg:                 msg,
+  connectedMessage:    "Connected to host3",
   onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command.indexOf("cd") != -1){  
@@ -488,10 +487,10 @@ host.onCommandTimeout = function( command, response, stream, connection ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
      stream.write('y\n')
    }else{
-     //run the end event to return the the sessionText
-     stream.end()
-     //close the connection
-     connection.end()
+     //emit an error that passes true for the close parameter and callback the loads the last response into sessionText
+     self.emit ("error", "#{self.sshObj.server.host}: Command timed out after #{self._idleTime/1000} seconds", "Timeout", true, function(err, type){
+       self.sshObj.sessionText += response
+     })
    }
 }
 
@@ -512,7 +511,7 @@ host.onCommandTimeout = function( command, response, stream, connection, self ) 
 
 or 
 
-//reset the default handler to do nothing
+//reset the default handler to do nothing so it doesn't close the connection
 host.onCommandTimeout = function( command, response, stream, connection, self ) {};
 
 //Create the new instance
@@ -533,7 +532,7 @@ SSH.on ('commandTimeout',function( command, response, stream, connection ){
 
 SSH.on ('end', function( sessionText, sshObj ) {
   //show the full session output. This could be emailed or saved to a log file.
-  sshObj.msg.send("\nSession text for " + sshObj.server.host + ":\n" + sessionText);
+  this.emit("msg","\nSession text for " + sshObj.server.host + ":\n" + sessionText);
  });
  
 SSH.connect();
