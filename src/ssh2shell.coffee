@@ -221,58 +221,58 @@ class SSH2Shell extends EventEmitter
     @sshObj.sshAuth = false
     @sshObj.server.hashKey = @sshObj.server.hashKey ? ""
     @_idleTime = @sshObj.idleTimeOut ? 5000
-    @asciiFilter = new RegExp(@sshObj.asciiFilter,"g");
-    @textColorFilter = new RegExp(@sshObj.textColorFilter,"g");
-    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i");
-    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i");
-    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$");
-
+    @asciiFilter = new RegExp(@sshObj.asciiFilter,"g")
+    @textColorFilter = new RegExp(@sshObj.textColorFilter,"g")
+    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i")
+    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i")
+    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$")
+    
   constructor: (@sshObj) ->
     @_loadDefaults()
     
     @connection = new require('ssh2')()
     
     #event handlers
-    @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>      
-        
-    @.on "connect", =>
+    @.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => 
+      if @sshObj.onKeyboardInteractive
+        @sshObj.onKeyboardInteractive name, instructions, instructionsLang, prompts, finish, this
+      
+    @.on "connect",  =>
       @.emit 'msg', @sshObj.connectedMessage ? "Connected"
-
-    @.on "ready", =>
+      
+    @.on "ready",  =>
       @.emit 'msg', @sshObj.readyMessage ? "Ready"
-    
-    @.on "msg", ( message ) =>
-      if @sshObj.msg
-        @sshObj.msg.send message
-        
+      
+    @.on "msg", @sshObj.msg.send ? ( message ) =>
+      console.log message
+      
     @.on 'commandProcessing', ( command, response, sshObj, stream ) =>
       if @sshObj.onCommandProcessing
-        @sshObj.onCommandProcessing command, response, sshObj, stream
-    
+        @sshObj.onCommandProcessing command, response, sshObj, stream, this
+      
     @.on 'commandComplete', ( command, response, sshObj ) =>
       if @sshObj.onCommandComplete
-        @sshObj.onCommandComplete command, response, sshObj
-        
+        @sshObj.onCommandComplete command, response, sshObj, this
+      
     @.on 'commandTimeout', ( command, response, stream, connection ) =>
       if @sshObj.onCommandTimeout
-        @sshObj.onCommandTimeout command, response, stream, connection
+        @sshObj.onCommandTimeout command, response, stream, connection, this
       else
         @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@_idleTime/1000} seconds", "Timeout", true, (err, type)=>
           @sshObj.sessionText += @_buffer
-    
     @.on 'end', ( sessionText, sshObj ) =>
       if @sshObj.onEnd
-        @sshObj.onEnd sessionText, sshObj
-
+        @sshObj.onEnd sessionText, sshObj, this      
+      
     @.on "close", (had_error) =>
       if had_error
         @.emit "error", had_error, "Close"
       else
-        @.emit 'msg', @sshObj.closedMessage
-    
+        @.emit 'msg', @sshObj.closedMessage 
+      
     @.on "error", (err, type, close = false, callback) =>
       if @sshObj.onError
-        @sshObj.onError err, type, close, callback 
+        @sshObj.onError err, type, close, callback, this
         @connection.end() if close
       else
         @.emit 'msg', "#{type} error: " + err
