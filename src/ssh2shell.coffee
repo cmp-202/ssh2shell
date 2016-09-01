@@ -260,6 +260,7 @@ class SSH2Shell extends EventEmitter
       else
         @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@_idleTime/1000} seconds", "Timeout", true, (err, type)=>
           @sshObj.sessionText += @_buffer
+
     @.on 'end', ( sessionText, sshObj ) =>
       if @sshObj.onEnd
         @sshObj.onEnd sessionText, sshObj, this      
