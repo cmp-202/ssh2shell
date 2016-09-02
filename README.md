@@ -116,7 +116,7 @@ host = {
    //self gives access to the instance object and its api. Replaces `this` in host functions
   },
   
-  onCommandTimeout:    function(command, response, stream, connection, self) {
+  onCommandTimeout:    function( command, response, stream, connection, self ) {
    //optional code for responding to command timeout
    //command is the last command run or "" if no prompt has been detected yet
    //response is the text response from the command up to it timing out
@@ -134,7 +134,7 @@ host = {
    //self.emit("msg", sessionText);
   },
   
-  onError:            function(err, type, close = false, callback, self) {
+  onError:            function( err, type, close = false, callback, self ) {
    //optional code to run when an error event is raised.
    //self gives access to the instance object and its api. Replaces `this` in host functions
   }
@@ -483,7 +483,7 @@ The onCommandTimeout event can enable you to handle such timeouts without having
 It is recommended to close the connection if all checks fail so you are not left with a hanging script again.
 
 ```javascript
-host.onCommandTimeout = function( command, response, stream, connection ) {
+host.onCommandTimeout = function( command, response, stream, connection, self ) {
    if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 ) {
      stream.write('y\n')
    }else{
