@@ -7,24 +7,31 @@
 EventEmitter = require('events').EventEmitter
 
 class SSH2Shell extends EventEmitter
-  sshObj:        {}
-  command:       ""
-  _stream:       {}
-  _data:         ""
-  _buffer:       ""
-  _connections:  [] 
-  _timedout: =>
-    @.emit 'commandTimeout', @command, @_buffer, @_stream, @connection
-
+  sshObj:         {}
+  command:        ""
+  _stream:        {}
+  _data:          ""
+  _buffer:        ""
+  _connections:   []
+  idleTime:       5000
+  asciiFilter:    ""
+  textColorFilter:""
+  passwordPromt:  ""
+  passphrasePromt:""
+  standardPromt:  ""
+  
+  _setCommandTimer: =>
+    
+    
   _processData: ( data )=>
     #remove non-standard ascii from terminal responses
     data = data.replace(@asciiFilter, "")
     #remove test coloring from responses like [32m[31m
     unless @sshObj.disableColorFilter
       data = data.replace(@textColorFilter, "")
-    @_buffer += data
     
-    #@.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.debug
+    #add host response data to buffer
+    @_buffer += data
 
     #check if sudo password is needed
     if @command and @command.indexOf("sudo ") isnt -1    
@@ -35,12 +42,17 @@ class SSH2Shell extends EventEmitter
     #Command prompt so run the next command
     else if @standardPromt.test(@_buffer)
       @.emit 'msg', "#{@sshObj.server.host}: normal prompt detected" if @sshObj.debug
+      @sshObj.pwSent = false #reset sudo prompt checkable
       @_processNextCommand()
     #command still processing
     else
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
+      #@_setCommandTimer() 
+      #self = @
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-      @sshObj.idleTimer = setTimeout(@_timedout, @_idleTime)
+      @sshObj.idleTimer = setTimeout( =>
+        @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
+      , @idleTime)
 
   _processPasswordPrompt: =>
     #First test for password prompt
@@ -140,9 +152,10 @@ class SSH2Shell extends EventEmitter
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
       @sshObj.sessionText += @_buffer
-      @.emit 'commandComplete', @command, @_buffer, @sshObj
+    
+    @.emit 'commandComplete', @command, @_buffer, @sshObj
       
-    @.emit 'msg', "#{@sshObj.server.host}: #{@_buffer}" if @sshObj.verbose 
+    @.emit 'msg', "#{@sshObj.server.host}:command: #{@command}\nresponse: #{@_buffer}" if @sshObj.verbose 
     @_buffer = ""
     
     #process the next command if there are any
@@ -201,6 +214,7 @@ class SSH2Shell extends EventEmitter
     #Nothing more to do so end the stream with last exit
     else
       @.emit 'msg', "#{@sshObj.server.host}: Exit and close connection" if @sshObj.debug
+      @.command = "exit"
       @_stream.end "exit\n"
       
   _loadDefaults: =>
@@ -223,7 +237,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.pwSent = false
     @sshObj.sshAuth = false
     @sshObj.server.hashKey = @sshObj.server.hashKey ? ""
-    @_idleTime = @sshObj.idleTimeOut ? 5000
+    @idleTime = @sshObj.idleTimeOut ? 5000
     @asciiFilter = new RegExp(@sshObj.asciiFilter,"g")
     @textColorFilter = new RegExp(@sshObj.textColorFilter,"g")
     @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i")
@@ -248,27 +262,19 @@ class SSH2Shell extends EventEmitter
     @.on "msg", @sshObj.msg.send ? ( message ) =>
       console.log message
       
-    @.on 'commandProcessing', ( command, response, sshObj, stream ) =>
-      if @sshObj.onCommandProcessing
-        @sshObj.onCommandProcessing command, response, sshObj, stream, this
+    @.on 'commandProcessing', @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
       
-    @.on 'commandComplete', ( command, response, sshObj ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: this.onCommandComplete command: #{command}, response: #{response}" if @sshObj.debug
-      if @sshObj.onCommandComplete
-        @sshObj.onCommandComplete command, response, sshObj, this
+    @.on 'commandComplete', @sshObj.onCommandComplete ? ( command, response, sshObj ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: this.onCommandComplete" if @sshObj.debug
       
-    @.on 'commandTimeout', ( command, response, stream, connection ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: this.onCommandTimeout command: #{command}, response: #{response}" if @sshObj.debug
-      if @sshObj.onCommandTimeout
-        @sshObj.onCommandTimeout command, response, stream, connection, this
-      else
-        @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@_idleTime/1000} seconds", "Timeout", true, (err, type)=>
-          @sshObj.sessionText += @_buffer
+    @.on 'commandTimeout',  @sshObj.onCommandTimeout ? ( command, response, stream, connection ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: this.onCommandTimeout" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}:Timeout command: #{command} response: #{response}" if @sshObj.verbose
+      @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@.idleTime/1000} seconds", "Timeout", true, (err, type)=>
+        @sshObj.sessionText += @_buffer
 
-    @.on 'end', ( sessionText, sshObj ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: this.onEnd" if @sshObj.debug
-      if @sshObj.onEnd
-        @sshObj.onEnd sessionText, sshObj, this      
+    @.on 'end', @sshObj.onEnd ? ( sessionText, sshObj ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: this.onEnd" if @sshObj.debug      
       
     @.on "close", (had_error) =>
       @.emit 'msg', "#{@sshObj.server.host}: this.onClose" if @sshObj.debug
@@ -277,18 +283,14 @@ class SSH2Shell extends EventEmitter
       else
         @.emit 'msg', @sshObj.closedMessage 
       
-    @.on "error", (err, type, close = false, callback) =>
+    @.on "error", @sshObj.onError ? (err, type, close = false, callback) =>
       @.emit 'msg', "#{@sshObj.server.host}: this.onError" if @sshObj.debug
-      if @sshObj.onError
-        @sshObj.onError err, type, close, callback, this
-        @connection.end() if close
+      if ( err instanceof Error )
+        @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
       else
-        if ( err instanceof Error )
-          @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
-        else
-          @.emit 'msg', "#{type} error: " + err
-        callback(err, type) if callback
-        @connection.end() if close
+        @.emit 'msg', "#{type} error: " + err
+      callback(err, type) if callback
+      @connection.end() if close
         
     @.on "stderr", (data, type) =>
         @.emit 'msg', "stdError: " + type + ", data: " + data
@@ -309,7 +311,7 @@ class SSH2Shell extends EventEmitter
           #open a shell
           @connection.shell { pty: true }, (err, @_stream) =>
             if err then @.emit 'error', err, "Shell", true
-            @.emit 'msg', "#{@sshObj.server.host}: Ready Connection.shell" if @sshObj.debug
+            @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}\n"
             
             @_stream.on "error", (err) =>
@@ -317,8 +319,9 @@ class SSH2Shell extends EventEmitter
               @.emit 'error', err, "Stream"
 
             @_stream.stderr.on 'data', (data) =>
-              err = new Error("data: #{data}")
+              err = new Error("stderr data: #{data}")
               err.level = "stderr"
+              @.emit 'msg', "#{@sshObj.server.host}: stderr.onData" if @sshObj.debug
               @.emit 'error', err, "Stream STDERR"
               
             @_stream.on "readable", =>
@@ -331,7 +334,6 @@ class SSH2Shell extends EventEmitter
                 @.emit 'error', err, "Data processing", true
                 
             @_stream.on "finish", =>
-              clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onFinish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
             
@@ -344,8 +346,8 @@ class SSH2Shell extends EventEmitter
           @.emit "error", err, "Connection", true
           
         @connection.on "close", (had_error) =>
-          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
           @.emit 'msg', "#{@sshObj.server.host}: Connection.onClose" if @sshObj.debug
+          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
           @.emit "close", had_error
 
         @connection.connect
@@ -373,7 +375,7 @@ class SSH2Shell extends EventEmitter
           compress:         @sshObj.server.compress
           debug:            @sshObj.server.debug
       catch e
-        @.emit 'error', "#{e} #{e.stack}", "Connect:", true
+        @.emit 'error', "#{e} #{e.stack}", "Connect", true
         
     else
       @.emit 'error', "Missing connection parameters", "Parameters", false, missingParameters( err, type, close ) ->

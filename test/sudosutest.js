@@ -14,38 +14,26 @@ var sshObj = {
   },
   commands:           [
     "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:Checking no password for sudo ls",
-    "sudo ls",
-    "msg:using su root then connecting to another user",
-    "msg:Changing to root via su root",
-    "su root",
+    //"echo \$(pwd)",
+    "ls -al",
     "msg:Changing to " + process.env.secondaryUser + " via su [username]",
     "su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:exiting user and root",
+    "msg:Showing user home directory",
+    "cd \~",
+    //"echo \$(pwd)",
+    "ls -al",
+    "msg:exiting user ",
     "exit",
-    "exit",
-    "ls -la",
-    "msg:Changing user via su [username]",
-    "su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "exit",
-    "ls -la",
-    "msg:Changing user via sudo su [username]",
-    "sudo su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:Exiting from current user",
-    "exit",
-    "ls -la",
+    //"echo \$(pwd)",
+    "ls -al",
     "msg:Changing user via sudo -u [username] -i",
     "sudo -u " + process.env.secondaryUser + " -i",
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "ls -la"
+    "msg:Showing user directory",
+    "cd \~",
+    //"echo \$(pwd)",
+    "ls -la",
+    "msg: exit user",
+    "exit"
   ],
   msg: {
     send: function( message ) {
@@ -58,7 +46,7 @@ var sshObj = {
   onCommandProcessing: function( command, response, sshObj, stream, self ) {
     //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
 
-    if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
+    if (command === "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
       sshObj.commands.unshift("msg:Using secondary user password");
       //this is required to stop "bounce" without this the password would be sent multiple times
       sshObj.suPassSent = true;
