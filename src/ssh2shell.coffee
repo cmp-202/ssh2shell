@@ -283,12 +283,15 @@ class SSH2Shell extends EventEmitter
         @sshObj.onError err, type, close, callback, this
         @connection.end() if close
       else
-        @.emit 'msg', "#{type} error: " + err
+        if ( err instanceof Error )
+          @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
+        else
+          @.emit 'msg', "#{type} error: " + err
         callback(err, type) if callback
         @connection.end() if close
         
     @.on "stderr", (data, type) =>
-       
+        @.emit 'msg', "stdError: " + type + ", data: " + data
         
   connect: ()=>
     if @sshObj.server and @sshObj.commands
@@ -314,23 +317,26 @@ class SSH2Shell extends EventEmitter
               @.emit 'error', err, "Stream"
 
             @_stream.stderr.on 'data', (data) =>
-              @.emit 'error', "data: #{data}", "Stream STDERR"
+              err = new Error("data: #{data}")
+              err.level = "stderr"
+              @.emit 'error', err, "Stream STDERR"
               
             @_stream.on "readable", =>
               try
                 while (data = @_stream.read())
                   @_processData( "#{data}" )
               catch e
-                @.emit 'error', "#{e} #{e.stack}", "Processing response:", true
+                err = new Error("#{e} #{e.stack}")
+                err.level = "Data handling"
+                @.emit 'error', err, "Data processing", true
                 
             @_stream.on "finish", =>
+              clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onFinish" if @sshObj.debug
-              #run the on end callback function
               @.emit 'end', @sshObj.sessionText, @sshObj
             
             @_stream.on "close", (code, signal) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onClose" if @sshObj.debug
-              clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
               @connection.end()
           
         @connection.on "error", (err) =>
@@ -338,6 +344,7 @@ class SSH2Shell extends EventEmitter
           @.emit "error", err, "Connection", true
           
         @connection.on "close", (had_error) =>
+          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
           @.emit 'msg', "#{@sshObj.server.host}: Connection.onClose" if @sshObj.debug
           @.emit "close", had_error
 
