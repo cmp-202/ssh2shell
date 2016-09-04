@@ -85,11 +85,13 @@ host = {
     //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
   },
   //Array of host object for multiple host connections optional
-  hosts:              [Array, of, nested, host, configs, objects], 
+  hosts:              [Array, of, nested, host, configs, objects],  
   //Prompt detection values optional
   standardPrompt:     ">$%#",//string
   passwordPrompt:     ":",//string
   passphrasePrompt:   ":",//string
+  //Enter key character to send as end of line.
+  enter:              "\n" //windows = "\r\n" | "\x0d\x0a", Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
   //Text output filters to clean server response optional
   asciiFilter:        "[^\r\n\x20-\x7e]", //regular exression string
   diableColorFilter:  false, //optional bollean 

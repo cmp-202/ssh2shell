@@ -62,7 +62,7 @@ class SSH2Shell extends EventEmitter
       if @passwordPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: Send password [#{@sshObj.server.password}]" if @sshObj.debug
         @sshObj.pwSent = true
-        @_stream.write "#{@sshObj.server.password}\n"        
+        @_stream.write "#{@sshObj.server.password}#{@sshObj.enter}"        
       #normal prompt so continue with next command
       else if @standardPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: Standard prompt after password sent" if @sshObj.debug
@@ -92,17 +92,17 @@ class SSH2Shell extends EventEmitter
       if @passwordPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh password prompt" if @sshObj.debug
         @sshObj.sshAuth = true
-        @_stream.write "#{@sshObj.server.password}\n"
+        @_stream.write "#{@sshObj.server.password}#{@sshObj.enter}"
       #provide passphrase
       else if @passphrasePromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh passphrase prompt" if @sshObj.debug
         @sshObj.sshAuth = "true"
-        @_stream.write "#{@sshObj.server.passPhrase}\n"
+        @_stream.write "#{@sshObj.server.passPhrase}#{@sshObj.enter}"
       #normal prompt so continue with next command
       else if @standardPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh auth normal prompt" if @sshObj.debug
         @sshObj.sshAuth = true        
-        @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
+        @sshObj.sessionText += "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
         @_processNextCommand()
     else 
       #detect failed authentication
@@ -122,7 +122,7 @@ class SSH2Shell extends EventEmitter
       #normal prompt so continue with next command
       else if @passwordPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: ssh normal prompt" if @sshObj.debug
-        @sshObj.sessionText += "Connected to #{@sshObj.server.host}\n"
+        @sshObj.sessionText += "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
         @_processNextCommand()
         
   _processNotifications: =>
@@ -130,7 +130,7 @@ class SSH2Shell extends EventEmitter
     while @command and ((sessionNote = @command.match(/^`(.*)`$/)) or (msgNote = @command.match(/^msg:(.*)$/)))
       #this is a message for the sessionText like an echo command in bash
       if sessionNote
-        @sshObj.sessionText += "#{@sshObj.server.host}: #{sessionNote[1]}\n"
+        @sshObj.sessionText += "#{@sshObj.server.host}: #{sessionNote[1]}#{@sshObj.enter}"
         @.emit 'msg', sessionNote[1] if @sshObj.verbose
 
       #this is a message to output in process
@@ -155,7 +155,7 @@ class SSH2Shell extends EventEmitter
     
     @.emit 'commandComplete', @command, @_buffer, @sshObj
       
-    @.emit 'msg', "#{@sshObj.server.host}:command: #{@command}\nresponse: #{@_buffer}" if @sshObj.verbose 
+    @.emit 'msg', "#{@sshObj.server.host}:command: #{@command}#{@sshObj.enter}response: #{@_buffer}" if @sshObj.verbose 
     @_buffer = ""
     
     #process the next command if there are any
@@ -176,7 +176,7 @@ class SSH2Shell extends EventEmitter
          
   _runCommand: =>
     @.emit 'msg', "#{@sshObj.server.host}: next command: #{@command}" if @sshObj.debug
-    @_stream.write "#{@command}\n"
+    @_stream.write "#{@command}#{@sshObj.enter}"
     
   _nextHost: =>
     @_buffer = ""
@@ -203,7 +203,7 @@ class SSH2Shell extends EventEmitter
       @_nextHost()
     #Leaving last host so load previous host 
     else if @_connections and @_connections.length > 0
-      @.emit 'msg', "\nParked hosts:" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.enter}Parked hosts:" if @sshObj.debug
       @.emit 'msg', @_connections if @sshObj.debug
       @.emit 'end', @sshObj.sessionText, @sshObj
       @sshObj = @_connections.pop()
@@ -215,34 +215,35 @@ class SSH2Shell extends EventEmitter
     else
       @.emit 'msg', "#{@sshObj.server.host}: Exit and close connection" if @sshObj.debug
       @.command = "exit"
-      @_stream.end "exit\n"
+      @_stream.end "exit#{@sshObj.enter}"
       
   _loadDefaults: =>
     @sshObj.msg = { send: ( message ) =>
       console.log message
     } unless @sshObj.msg
-    @sshObj.connectedMessage = "Connected" unless @sshObj.connectedMessage
-    @sshObj.readyMessage = "Ready" unless @sshObj.readyMessage
-    @sshObj.closedMessage = "Closed" unless @sshObj.closedMessage
-    @sshObj.verbose = false unless @sshObj.verbose
-    @sshObj.debug = false unless @sshObj.debug
-    @sshObj.hosts = [] unless @sshObj.hosts 
-    @sshObj.standardPrompt = ">$%#" unless @sshObj.standardPrompt
-    @sshObj.passwordPromt = ":" unless @sshObj.passwordPromt
-    @sshObj.passphrasePromt = ":" unless @sshObj.passphrasePromt
-    @sshObj.asciiFilter = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.connectedMessage  = "Connected" unless @sshObj.connectedMessage
+    @sshObj.readyMessage      = "Ready" unless @sshObj.readyMessage
+    @sshObj.closedMessage     = "Closed" unless @sshObj.closedMessage
+    @sshObj.verbose           = false unless @sshObj.verbose
+    @sshObj.debug             = false unless @sshObj.debug
+    @sshObj.hosts             = [] unless @sshObj.hosts 
+    @sshObj.standardPrompt    = ">$%#" unless @sshObj.standardPrompt
+    @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
+    @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
+    @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
+    @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter
-    @sshObj.textColorFilter = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
-    @sshObj.exitCommands = []
-    @sshObj.pwSent = false
-    @sshObj.sshAuth = false
-    @sshObj.server.hashKey = @sshObj.server.hashKey ? ""
-    @idleTime = @sshObj.idleTimeOut ? 5000
-    @asciiFilter = new RegExp(@sshObj.asciiFilter,"g")
-    @textColorFilter = new RegExp(@sshObj.textColorFilter,"g")
-    @passwordPromt = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i")
-    @passphrasePromt = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i")
-    @standardPromt = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$")
+    @sshObj.textColorFilter   = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
+    @sshObj.exitCommands      = []
+    @sshObj.pwSent            = false
+    @sshObj.sshAuth           = false
+    @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
+    @idleTime                 = @sshObj.idleTimeOut ? 5000
+    @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g")
+    @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g")
+    @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i")
+    @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i")
+    @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$")
     
   constructor: (@sshObj) ->
     @_loadDefaults()
@@ -312,7 +313,7 @@ class SSH2Shell extends EventEmitter
           @connection.shell { pty: true }, (err, @_stream) =>
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
-            @sshObj.sessionText = "Connected to #{@sshObj.server.host}\n"
+            @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
             
             @_stream.on "error", (err) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onError" if @sshObj.debug
