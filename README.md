@@ -376,9 +376,9 @@ server3.hosts = []
 6. As all sessions are closed the process ends.
 
 
-__*Note:* 
+**_Note:_** 
 * A host object needs to be defined before it is added to another host.hosts array.
-* Only the primary host objects connected, ready and closed messages will be used by ssh2shell.__
+* Only the primary host objects connected, ready and closed messages will be used by ssh2shell.
 
 *How to:*
 * Define nested hosts
@@ -668,7 +668,7 @@ To use figngerprint validation you first need the server hash string which can b
  * The servers hash value can be saved to a variable outside the host or class so you can access it without having to
    parse response text.
 
-* Fingerprint validation example: 
+Fingerprint validation example: 
 ```javascript
 //Define the hostValidation function in the host.server config.
 //hashKey needs to be defined at the top level if you want to access the server hash at run time
