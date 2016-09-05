@@ -95,7 +95,7 @@ host = {
   //Text output filters to clean server response optional
   asciiFilter:        "[^\r\n\x20-\x7e]", //regular exression string
   diableColorFilter:  false, //optional bollean 
-  textColorFilter:    "(\x1b\[[0-9;]*m)", /regular exression string
+  textColorFilter:    "(\[[0-9;]*m)", /regular exression string
   //array of commands
   commands:           ["Array", "of", "strings", "command"], //array() of command strings
   //msg functional is optional. Used by this.emit("msg", "my message")  
