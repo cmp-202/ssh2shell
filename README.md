@@ -748,7 +748,7 @@ These are optional settings
 ```javascript
 host.asciiFilter = "[^\r\n\x20-\x7e]"
 host.disableColorFilter = false //or true
-host.textColorFilter = "(\x1b\[[0-9;]*m)"
+host.textColorFilter = "(\[[0-9;]*m)"
  ```
 
  
