@@ -82,7 +82,8 @@ host = {
     passPhrase:   "privateKeyPassphrase", //optional string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
     //other ssh2.connect parameters. See https://github.com/mscdex/ssh2#client-methods
-    //These other ssh2.connect parameters are only valid for the first host connection which uses ssh2.connect.
+    //These other ssh2.connect parameters are only valid for the first host connection which uses
+    //ssh2.connect.
   },
   //Array of host object for multiple host connections optional
   hosts:              [Array, of, nested, host, configs, objects],  
@@ -141,8 +142,9 @@ host = {
    //response is the text response from the command up to the time out
    //stream object is used to send text to the host without having to close the connection.
    //connection gives access to close the connection if all else fails
-   //The connection will hang if you send text to the host but get no response and you don't close the connection 
-   //The timer can be reset from within this event in case a stream write get no response
+   //The connection will hang if you send text to the host but get no response and you don't close the
+   //connection. 
+   //The timer can be reset from within this event in case a stream write gets no response
    //Set this to empty if you want the instance event handler to be the default action.
    //See test/timeouttest.js for and example of multiple commandTimeout triggers.
   },
@@ -293,7 +295,9 @@ var host = {
  ],
  onCommandComplete: function( command, response, sshObj ) {
   //confirm it is the root home dir and change to root's .ssh folder
-  if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete event, command: " + command);}
+  if(sshObj.debug){
+    this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete event, command: " + command);
+  }
   if (command === "echo $(pwd)" && response.indexOf("/root") != -1 ) {
    //unshift will add the command as the next command, use push to add command as the last command
    sshObj.commands.unshift("msg:The command and response check worked. Added another cd command.");
@@ -563,13 +567,17 @@ the session text would clarify what command and output triggered the event.
 ```javascript
 host.onCommandTimeout = function( command, response, stream, connection ) {
    if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onCommandTimeout");}
-   if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 && this.sshObj.nodePrompt != true) {
+   if (command === "atp-get install node" 
+       && response.indexOf("[Y/n]?") != -1 
+       && this.sshObj.nodePrompt != true) {
      //Setting this.sshObj.nodePrompt stops a response loop
      this.sshObj.nodePrompt = true
      stream.write('y\n')
    }else{
-     //emit an error that passes true for the close parameter and callback that loads the last response into sessionText
-     this.emit ("error", "#{this.sshObj.server.host}: Command timed out after #{this._idleTime/1000} seconds. command: " 
+     //emit an error that passes true for the close parameter and callback that loads the last response
+     //into sessionText
+     this.emit ("error", this.sshObj.server.host 
+       + ": Command timed out after #{this._idleTime/1000} seconds. command: " 
        + command, "Timeout", true, function(err, type){
          this.sshObj.sessionText += response
        })
@@ -587,7 +595,8 @@ host.onCommandTimeout = function( command, response, stream, connection ) {
      return true
    }
    //emit an error that passes true for the close parameter and callback the loads the last of session text
-   this.emit ("error", "#{this.sshObj.server.host}: Command timed out after #{this._idleTime/1000} seconds. command: "
+   this.emit ("error", this.sshObj.server.host 
+     + ": Command timed out after #{this._idleTime/1000} seconds. command: "
      + command, "Timeout", true, function(err, type){
        this.sshObj.sessionText += response
      })
@@ -606,14 +615,16 @@ var SSH2Shell = require ('ssh2shell'),
 SSH.on ('commandTimeout',function( command, response, stream, connection ){
   if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": instance.onCommandTimeout");}
   //first test should only pass once to stop a response loop
-  if (command === "atp-get install node" && response.indexOf("[Y/n]?") != -1 && this.sshObj.nodePrompt != true) {
-     this.sshObj.nodePrompt = true;
-     stream.write('y\n');
-     return true;
-   }
-   this.sshObj.sessionText += response;
-   this.emit("error", this.sshObj.server.host + ": Command `" + command + "` timed out after " + (this._idleTime / 1000)
-     + " seconds. command: " + command, "Command Timeout", true);
+  if (command === "atp-get install node" 
+     && response.indexOf("[Y/n]?") != -1 
+     && this.sshObj.nodePrompt != true) {
+    this.sshObj.nodePrompt = true;
+    stream.write('y\n');
+    return true;
+  }
+  this.sshObj.sessionText += response;
+  this.emit("error", this.sshObj.server.host + ": Command `" + command + "` timed out after " 
+    + (this._idleTime / 1000) + " seconds. command: " + command, "Command Timeout", true);
 });
 
 SSH.on ('end', function( sessionText, sshObj ) {
@@ -720,7 +731,8 @@ var SSH2Shell = require ('../lib/ssh2shell');
 var SSH = new SSH2Shell(host);
   
 //Add the keyboard-interactive handler
-//Function event must call finish() with an array of responses in the same order as prompts recieved in the prompts array
+//The event function must call finish() with an array of responses in the same order as prompts recieved
+// in the prompts array
 SSH.on ('keyboard-interactive', function(name, instructions, instructionsLang, prompts, finish){
      if (this.sshObj.debug) {this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");}
      if (this.sshObj.verbose){
@@ -955,10 +967,11 @@ ssh2shell.on ("error", function onError(err, type, close = false, callback(err, 
  //callback a fuction that will be run by the handler
 });
 
-ssh2shell.on ("keyboard-interactive", function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
+ssh2shell.on ("keyboard-interactive", 
+  function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
  //Required if the first host.server.tryKeyboard is set to true
- //This cannot be defined as a host event handler because in a tunneling case only the first host connects using ssh2 all 
- //other hosts must handle the input request in the host.onCommandProcessing event handler. 
+ //This cannot be defined as a host event handler because in a tunneling case only the first host connects
+ //using ssh2 all other hosts must handle the input request in the host.onCommandProcessing event handler. 
  //default:
  //See https://github.com/mscdex/ssh2#client-events
  //name
@@ -966,7 +979,7 @@ ssh2shell.on ("keyboard-interactive", function onKeyboardInteractive(name, instr
  //instructionsLang
  //prompts is an object of expected prompts and if they are to be showen to the user
  //finish needs to be set to an array of responses in the same order as the prompts object defined them.
- //see [Client events](https://github.com/mscdex/ssh2#client-events) keyboard-interactive for more information
+ //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
  //if a non standard prompt results from a successfull connection then handle its detection and response in
  //onCommandProcessing.
  //see text/keyboard-interactivetest.js
