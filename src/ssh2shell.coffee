@@ -233,7 +233,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter
-    @sshObj.textColorFilter   = "(\[[0-9;]*m)" unless @sshObj.textColorFilter
+    @sshObj.textColorFilter   = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
     @sshObj.exitCommands      = []
     @sshObj.pwSent            = false
     @sshObj.sshAuth           = false
