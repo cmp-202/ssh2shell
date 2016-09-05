@@ -376,9 +376,9 @@ server3.hosts = []
 6. As all sessions are closed the process ends.
 
 
-**_Note:_ 
+__*Note:* 
 * A host object needs to be defined before it is added to another host.hosts array.
-* Only the primary host objects connected, ready and closed messages will be used by ssh2shell.**
+* Only the primary host objects connected, ready and closed messages will be used by ssh2shell.__
 
 *How to:*
 * Define nested hosts
@@ -536,8 +536,8 @@ Verbose and Debug:
 * When host.debug is set to true each process step raises a msg event to help identify what the internal process of
   each step was.
 
-**_Note:_
-Do not add these to the commandProccessing event which is called every time a character is received from the host**
+__*Note:*
+Do not add these to the commandProccessing event which is called every time a character is received from the host__
 
 Add your own verbose messages as follows:
 `if(this.sshObj.verbose){this.emit("msg", this.sshObj.server.host + ": response: " + response);}` //response might need
@@ -653,10 +653,10 @@ for that server. This stops "man in the middle" attacks where you are redirected
 to the server you expected to. This hash only changes with a reinstall of SSH, a key change on the server or a load
 balancer is now in place. 
 
-**_Note:_
+__*Note:*
  Fingerprint check doesn't work the same way for tunnelling. The first host will vailidate using this method but the
  subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method
- that does the validation.**
+ that does the validation.__
 
 To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
 * Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). 
@@ -709,9 +709,9 @@ var SSH2Shell = require ('ssh2shell'),
     SSH       = new SSH2Shell(host);
 SSH.connect();
 ```
-**_Note:_ 
+__*Note:* 
 host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion anything else may produce
-undesired results.**
+undesired results.__
 
 
 Keyboard-interactive
@@ -843,8 +843,8 @@ SSH.on ('commandProcessing', function onCommandProcessing( command, response, ss
 };
 ```
 
-**_Note:_
-If there is no response from the server the commandTimeout will be triggered after the idleTimeOut period.**
+__*Note:*
+If there is no response from the server the commandTimeout will be triggered after the idleTimeOut period.__
 
 Bash scripts on the fly:
 ------------------------
