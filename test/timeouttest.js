@@ -6,9 +6,9 @@
 //If you set the host onCommandTimeout to do nothing an attach commandTimeout to the instance
 //you will be able to tigger a new timeout timer by using 
 /*
-this.sshObj.idleTimer = setTimeout(function(){
-         this.emit('commandTimeout', command, response, stream, connection )
-     }, this._idleTime);
+self.sshObj.idleTimer = setTimeout(function(){
+         self.emit('commandTimeout', command, response, stream, connection )
+     }, self._idleTime);
 */
 //commandTimeout is actually a `didn't detect a defined prompt` timeout
 
@@ -24,7 +24,7 @@ var host = {
   },
   commands:           [
     "msg:Testing idle time out",
-    "read -n 1 -p \"Creating a prompt to trigger time out (y,n): \" test;"
+    "read -n 1 -p \"Creating a prompt to trigger time out (y,n): \" test"
   ],
   msg: {
     send: function( message ) {
@@ -32,57 +32,45 @@ var host = {
     }
   },
   verbose:            false,
-  debug:              false,
-  idleTimeOut:        10000,
+  debug:              true,
+  idleTimeOut:        5000,
   onCommandTimeout: function( command, response, stream, connection ){
-    //The host handler replaces the default handler so we set this to nothing making the 
-    //instance definition the primary handler.
-    //Attaching an event handler to the instance will run in parrallel to the default handler that is why we set this one to do nothing
-    //I did not define the handler here because access is required to the instance 'this', sshObj and emitters
-    //which are not available here.    
-  },
-  onEnd:              function( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  }
-};
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
-
-//run the commands in the shell session
-var SSH = new SSH2Shell(host);
-
-SSH.on ('commandTimeout', function( command, response, stream, connection ){
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onCommandTimeout")};
    //Here we are trying to handle a timeout from not getting a standard prompt from the host.
    //The first check makes sure there is no command and the first try flag has not been set.   
    //a second timeout timer is set to stop the script hanging.
    //If that fails (no data response from host) then error messages are set. 
    //The final code adds the text received so far to the session text and closes the connection with an error.
    var errorMessage, errorSource;
-   if(this.sshObj.debug){this.emit("msg","timeout");}
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": timeout");}
+   
    //first we are checking for the timeout coming after connection before a prompt is detected and before a command is loaded
    //on the first try this.sshObj.sentN is not true as it hasn't been set yet
-   if ( command === "" && this.sshObj.sentN != true){
-     if(this.sshObj.debug){this.emit("msg","Keyboard-interactive timeout first pass");}
+   if ( command === "" && response.indexOf("Connected on port 22") != -1 && this.sshObj.sentNL != true){
+     if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": Unusual connection prompt timeout first pass");}
      //first attemp so set the flag we will use to ignor another timeout attempt
      this.sshObj.sentN = true
-     if(this.sshObj.debug){this.emit("msg","new timmer");} 
+     if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": new timmer");} 
      //reset the timeout timer to catch a timeout from sending \n
-     clearTimeout(this.sshObj.idleTimer);
-     this.sshObj.idleTimer = setTimeout(function(){
-         this.emit('commandTimeout', command, response, stream, connection )
-     }, this._idleTime);
+     if (this.sshObj.idleTimer) {
+        clearTimeout(this.sshObj.idleTimer);
+     }
+     var self = this
+     this.sshObj.idleTimer = setTimeout(function() {
+        self.emit('commandTimeout', self.command, self._buffer, self.stream, self.connection);
+     }, this.idleTime);
      //send whatever is required to trigger a response
      stream.write("\n");
      //we want to skip the last part so return     
      return true;
-   } else if (command === "" && this.sshObj.sentN === true){
-     if(this.sshObj.debug){this.emit("msg","timeout second pass");}
+   } else if (command === "" && response.indexOf("Connected on port 22") != -1 && this.sshObj.sentNL === true){
+     if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": Unusual connection prompt timeout second pass");}
      //second failure so we set the error messages because we probably can't do anything more
      //or add code to try something else 
      errorMessage = "No prompt error"
-     errorType = "No prompt timeout";
-   } else if ( response.indexOf("(y,n):") != -1){
+     errorSource = "No prompt timeout";
+   } else if ( response.indexOf("(y,n):") != -1 && this.sshObj.sentY != true){
+       this.sshObj.sentY === true
        //This would be better to handle in onCommandProcessing but can be handled here
        //response from server will trigger a reset of the timeer
        stream.write("y\n");
@@ -91,7 +79,19 @@ SSH.on ('commandTimeout', function( command, response, stream, connection ){
    this.sshObj.sessionText += response;
    if(!errorMessage){errorMessage = "Command";}
    if(!errorSource){errorSource = "Command Timeout";}
-   this.emit("error", this.sshObj.server.host + ": " + errorMessage + " timed out after " + (this._idleTime / 1000) + " seconds", errorSource, true);   
-  });
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": Timeout details:" + this.sshObj.enter + "Command: " + command + " " + this.sshObj.enter + "Response: " + response);}
+   this.emit("error", this.sshObj.server.host + ": " + errorMessage + " timed out after " + (this.idleTime / 1000) + " seconds", errorSource, true);   
+  },
+  onEnd: function( sessionText, sshObj ) {
+    if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};
+    //show the full session output. self could be emailed or saved to a log file.
+    this.emit("msg", "\nThis is the full session response:\n\n" + sessionText + "\n");
+  }
+};
+//until npm published use the cloned dir path.
+var SSH2Shell = require ('../lib/ssh2shell');
+
+//run the commands in the shell session
+var SSH = new SSH2Shell(host);
   
 SSH.connect();

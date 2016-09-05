@@ -14,74 +14,60 @@ var sshObj = {
   },
   commands:           [
     "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:Checking no password for sudo ls",
-    "sudo ls",
-    "msg:using su root then connecting to another user",
-    "msg:Changing to root via su root",
-    "su root",
+    //"echo \$(pwd)",
+    "ls -al",
     "msg:Changing to " + process.env.secondaryUser + " via su [username]",
     "su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:exiting user and root",
+    "msg:Showing user home directory",
+    "cd \~",
+    //"echo \$(pwd)",
+    "ls -al",
+    "msg:exiting user ",
     "exit",
-    "exit",
-    "ls -la",
-    "msg:Changing user via su [username]",
-    "su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "exit",
-    "ls -la",
-    "msg:Changing user via sudo su [username]",
-    "sudo su " + process.env.secondaryUser,
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "msg:Exiting from current user",
-    "exit",
-    "ls -la",
+    //"echo \$(pwd)",
+    "ls -al",
     "msg:Changing user via sudo -u [username] -i",
     "sudo -u " + process.env.secondaryUser + " -i",
-    "msg:Showing current directory",
-    "echo $(pwd)",
-    "ls -la"
+    "msg:Showing user directory",
+    "cd \~",
+    //"echo \$(pwd)",
+    "ls -la",
+    "msg: exit user",
+    "exit"
   ],
   msg: {
     send: function( message ) {
       console.log(message);
     }
   },
-  debug:              false,
+  debug:              true,
   verbose:            false,
   suPassSent:         false, //used by commandProcessing to only send password once
+  onCommandProcessing: function( command, response, sshObj, stream ) {
+    //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
+
+    if (command === "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
+      sshObj.commands.unshift("msg:Using secondary user password");
+      //this is required to stop "bounce" without this the password would be sent multiple times
+      sshObj.suPassSent = true;
+      stream.write(process.env.secondUserPassword + "\n");
+    } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
+      sshObj.commands.unshift("msg:Using root user password");
+      //this is required to stop "bounce" without this the password would be sent multiple times
+      sshObj.rootPassSent = true;
+      stream.write(process.env.rootPassword + "\n");
+    }
+  },
+  onEnd: function ( sessionText, sshObj ) {
+    if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};
+    //show the full session output. This could be emailed or saved to a log file.
+    this.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+  }
 };
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(sshObj);
-//console.log (sshObj);
-
-SSH.on ('commandProcessing', function onCommandProcessing( command, response, sshObj, stream ) {
-    //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
-
-  if (command == "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
-    sshObj.commands.unshift("msg:Using secondary user password");
-    //this is required to stop "bounce" without this the password would be sent multiple times
-    sshObj.suPassSent = true;
-      stream.write(process.env.secondUserPassword + "\n");
-    } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
-      sshObj.commands.unshift("msg:Using root user password");
-    //this is required to stop "bounce" without this the password would be sent multiple times
-    sshObj.rootPassSent = true;
-      stream.write(process.env.rootPassword + "\n");
-    }
-  });
-  
-SSH.on ('end', function onEnd( sessionText, sshObj ) {
-    //show the full session output. This could be emailed or saved to a log file.
-    sshObj.msg.send("\nThis is the full session responses:\n" + sessionText);
-  });
   
 SSH.connect();
