@@ -40,10 +40,10 @@ var sshObj = {
       console.log(message);
     }
   },
-  debug:              false,
+  debug:              true,
   verbose:            false,
   suPassSent:         false, //used by commandProcessing to only send password once
-  onCommandProcessing: function( command, response, sshObj, stream, self ) {
+  onCommandProcessing: function( command, response, sshObj, stream ) {
     //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
 
     if (command === "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
@@ -58,9 +58,10 @@ var sshObj = {
       stream.write(process.env.rootPassword + "\n");
     }
   },
-  onEnd: function ( sessionText, sshObj, self ) {
+  onEnd: function ( sessionText, sshObj ) {
+    if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};
     //show the full session output. This could be emailed or saved to a log file.
-    self.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+    this.emit("msg", "\nThis is the full session responses:\n" + sessionText);
   }
 };
 //until npm published use the cloned dir path.

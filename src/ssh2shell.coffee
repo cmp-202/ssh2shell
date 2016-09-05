@@ -24,12 +24,7 @@ class SSH2Shell extends EventEmitter
     
     
   _processData: ( data )=>
-    #remove non-standard ascii from terminal responses
-    data = data.replace(@asciiFilter, "")
-    #remove test coloring from responses like [32m[31m
-    unless @sshObj.disableColorFilter
-      data = data.replace(@textColorFilter, "")
-    
+            
     #add host response data to buffer
     @_buffer += data
 
@@ -151,6 +146,11 @@ class SSH2Shell extends EventEmitter
     if @command isnt "" and @command isnt "exit" and @command.indexOf("ssh ") is -1
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
+      #remove non-standard ascii from terminal responses
+      @_buffer = @_buffer.replace(@asciiFilter, "")
+      #remove test coloring from responses like [32m[31m
+      unless @sshObj.disableColorFilter
+        @_buffer = @_buffer.replace(@textColorFilter, "")
       @sshObj.sessionText += @_buffer
     
     @.emit 'commandComplete', @command, @_buffer, @sshObj
@@ -214,8 +214,8 @@ class SSH2Shell extends EventEmitter
     #Nothing more to do so end the stream with last exit
     else
       @.emit 'msg', "#{@sshObj.server.host}: Exit and close connection" if @sshObj.debug
-      @.command = "exit"
-      @_stream.end "exit#{@sshObj.enter}"
+      @.command = "stream.end()"
+      @_stream.close() #"exit#{@sshObj.enter}"
       
   _loadDefaults: =>
     @sshObj.msg = { send: ( message ) =>
@@ -233,7 +233,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter
-    @sshObj.textColorFilter   = "(\x1b\[[0-9;]*m)" unless @sshObj.textColorFilter
+    @sshObj.textColorFilter   = "(\x1b\[[[0-9;]*m)" unless @sshObj.textColorFilter
     @sshObj.exitCommands      = []
     @sshObj.pwSent            = false
     @sshObj.sshAuth           = false
@@ -337,8 +337,8 @@ class SSH2Shell extends EventEmitter
             @_stream.on "finish", =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onFinish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
-            
-            @_stream.on "close", (code, signal) =>
+              
+            @_stream.on "close", (code, signal) =>                          
               @.emit 'msg', "#{@sshObj.server.host}: Stream.onClose" if @sshObj.debug
               @connection.end()
           

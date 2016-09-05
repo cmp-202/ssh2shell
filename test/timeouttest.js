@@ -24,7 +24,7 @@ var host = {
   },
   commands:           [
     "msg:Testing idle time out",
-    "read -n 1 -p \"Creating a prompt to trigger time out (y,n): \" test;"
+    "read -n 1 -p \"Creating a prompt to trigger time out (y,n): \" test"
   ],
   msg: {
     send: function( message ) {
@@ -35,22 +35,22 @@ var host = {
   debug:              true,
   idleTimeOut:        5000,
   onCommandTimeout: function( command, response, stream, connection ){
-   if(this.sshObj.debug){this.emit("msg","onCommandTimeout")};
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onCommandTimeout")};
    //Here we are trying to handle a timeout from not getting a standard prompt from the host.
    //The first check makes sure there is no command and the first try flag has not been set.   
    //a second timeout timer is set to stop the script hanging.
    //If that fails (no data response from host) then error messages are set. 
    //The final code adds the text received so far to the session text and closes the connection with an error.
    var errorMessage, errorSource;
-   if(this.sshObj.debug){this.emit("msg","timeout");}
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": timeout");}
    
    //first we are checking for the timeout coming after connection before a prompt is detected and before a command is loaded
    //on the first try this.sshObj.sentN is not true as it hasn't been set yet
    if ( command === "" && response.indexOf("Connected on port 22") != -1 && this.sshObj.sentNL != true){
-     if(this.sshObj.debug){this.emit("msg","Unusual connection prompt timeout first pass");}
+     if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": Unusual connection prompt timeout first pass");}
      //first attemp so set the flag we will use to ignor another timeout attempt
      this.sshObj.sentN = true
-     if(this.sshObj.debug){this.emit("msg","new timmer");} 
+     if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": new timmer");} 
      //reset the timeout timer to catch a timeout from sending \n
      if (this.sshObj.idleTimer) {
         clearTimeout(this.sshObj.idleTimer);
@@ -64,7 +64,7 @@ var host = {
      //we want to skip the last part so return     
      return true;
    } else if (command === "" && response.indexOf("Connected on port 22") != -1 && this.sshObj.sentNL === true){
-     if(this.sshObj.debug){this.emit("msg","Unusual connection prompt timeout second pass");}
+     if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": Unusual connection prompt timeout second pass");}
      //second failure so we set the error messages because we probably can't do anything more
      //or add code to try something else 
      errorMessage = "No prompt error"
@@ -79,10 +79,11 @@ var host = {
    this.sshObj.sessionText += response;
    if(!errorMessage){errorMessage = "Command";}
    if(!errorSource){errorSource = "Command Timeout";}
-   if(this.sshObj.debug){this.emit("msg","Timeout command: " + command + ", response: " + response);}
+   if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": Timeout details:" + this.sshObj.enter + "Command: " + command + " " + this.sshObj.enter + "Response: " + response);}
    this.emit("error", this.sshObj.server.host + ": " + errorMessage + " timed out after " + (this.idleTime / 1000) + " seconds", errorSource, true);   
   },
   onEnd: function( sessionText, sshObj ) {
+    if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};
     //show the full session output. self could be emailed or saved to a log file.
     this.emit("msg", "\nThis is the full session response:\n\n" + sessionText + "\n");
   }
