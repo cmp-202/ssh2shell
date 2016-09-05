@@ -853,7 +853,7 @@ or get the script on the fly. You can echo/printf the script content into a file
 run it and then delete it. The other option is to curl or wget the script from a remote location and do the same but
 this has some risks associated with it. I like to know what is in the script I am running.
 
-```javascript
+```
  host.commands = [ "some commands here",
   "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
  #\n
