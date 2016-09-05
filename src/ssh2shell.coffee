@@ -344,7 +344,7 @@ class SSH2Shell extends EventEmitter
           
         @connection.on "error", (err) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.onError" if @sshObj.debug
-          @.emit "error", err, "Connection", true
+          @.emit "error", err, "Connection"
           
         @connection.on "close", (had_error) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.onClose" if @sshObj.debug
