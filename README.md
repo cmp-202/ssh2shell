@@ -119,6 +119,20 @@ host = {
   //These event handlers only apply to that current host object being used.
   //All host event handler definitions are optional 
   
+  //Keyboard interactive authentication event handler
+  //Required if the first host.server.tryKeyboard is set to true. 
+  onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
+    //See https://github.com/mscdex/ssh2#client-events
+    //name, instructions, instructionsLang don't seem to be of interest for authenticating
+    //prompts is an object of expected prompts and if they are to be showen to the user
+    //finish is the function to be called with an array of responses in the same order as 
+    //the prompts parameter defined them.
+    //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
+    //if a non standard prompt results from a successfull connection then handle its detection and response in
+    //onCommandProcessing or commandTimeout.
+    //see text/keyboard-interactivetest.js
+  },
+  
   //onCommandProcessing is triggered on every data received event (one character) until a 
   //prompt is detected. Optional
   onCommandProcessing: function( command, response, sshObj, stream ) {
@@ -991,17 +1005,14 @@ ssh2shell.on ("error", function onError(err, type, close = false, callback(err, 
 
 ssh2shell.on ("keyboard-interactive", 
   function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
- //Required if the first host.server.tryKeyboard is set to true. 
- //default:
  //See https://github.com/mscdex/ssh2#client-events
- //name
- //instructions
- //instructionsLang
+ //name, instructions, instructionsLang don't seem to be of interest for authenticating
  //prompts is an object of expected prompts and if they are to be showen to the user
- //finish needs to be set to an array of responses in the same order as the prompts object defined them.
+ //finish is the function to be called with an array of responses in the same order as 
+ //the prompts parameter defined them.
  //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
  //if a non standard prompt results from a successfull connection then handle its detection and response in
- //onCommandProcessing.
+ //onCommandProcessing or commandTimeout.
  //see text/keyboard-interactivetest.js
 });
 ```
