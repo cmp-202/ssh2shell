@@ -16,6 +16,7 @@ var sshObj = {
     "msg:Showing current directory",
     //"echo \$(pwd)",
     "ls -al",
+    "sudo ls -al",
     "msg:Changing to " + process.env.secondaryUser + " via su [username]",
     "su " + process.env.secondaryUser,
     "msg:Showing user home directory",

@@ -548,20 +548,22 @@ Add your own debug messages as follows:
 identifying what happened
 
 
-Command Timeout
+Command Timeout Event Handler
 ---------------
 When the program doesn't detect a standard prompt and doesn't recieve any more data the onCommandTimeout event triggers
-after host.idleTimeOut value (in ms). This is usually because an unexpected prompt on the server is requiring a response
-that isn't handled or the host is not responding at all. In either case detection of the standard prompt will never
-happen and no more data will be recieved causeing the program to hang perpetuley waiting. The commandTimeout stops this.
-The onCommandTimeout event can enable you to handle such prompts without having to disconnect by providing the response
+after the host.idleTimeOut value (in ms). This is usually because an unexpected prompt on the server is requiring a 
+response that isn't handled or the host is not responding at all. In either case detection of the standard prompt will
+never happen causeing the program to hang, perpetuley waiting for a response it wont get. The commandTimeout stops this.
+The commandTimeout event can enable you to handle such prompts without having to disconnect by providing the response
 the host requires. The host then replies with more text triggering a data recieved event resetting the timer and
 enabling the process to continue. It is recommended to close the connection as a default action if all else fails so you
 are not left with a hanging script again. The default action is to add the last response text to the session text and
 disconnect. Enabling host.debug would also provide the process path leading upto disconnection which in conjunction with
 the session text would clarify what command and output triggered the event.
 
- 
+**Note: If you receive garble back before the clear response you may need to save the previous response text to the 
+  sessionText and clear the buffer before using stream.write() in commandTimeout. 
+  `this.sshObj.sessionText = response` and `this._buffer = ""`
 
 
 ```javascript
@@ -643,7 +645,7 @@ Authentication:
 * When using fingerprint falidation both host.server.hashMethod property and host.server.hostVerifier function must be
   set.
 * When using keyboard-interactive authentication both host.server.tryKeyboard and instance.on ("keayboard-interactive",
-  function...) must be defined.
+  function...) or host.onKeyboardInteractive() must be defined.
 
 
 Fingerprint Validation:
@@ -717,8 +719,7 @@ undesired results.__
 Keyboard-interactive
 ----------------------
 Keyboard-interactive authentication is available when both host.server.tryKeyboard is set to true and the event handler
-keyboard-interactive is defined as below. The keyboard-interactive event handler must be added to the instance rather
-than through the host config because it can only be called on the first connection.
+keyboard-interactive is defined as below. The keyboard-interactive event handler can only be used on the first connection.
 
 Also see test/keyboard-interactivetest.js for the full example 
 
@@ -747,6 +748,25 @@ SSH.on ('keyboard-interactive', function(name, instructions, instructionsLang, p
   
 SSH.connect();
 ```
+
+Or
+
+```javascript
+host = {
+    ...,
+    keyboard-interactive: function(name, instructions, instructionsLang, prompts, finish){
+      if (this.sshObj.debug) {this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");}
+      if (this.sshObj.verbose){
+      this.emit('msg', "name: " + name);
+      this.emit('msg', "instructions: " + instructions);
+      var str = JSON.stringify(prompts, null, 4);
+      this.emit('msg', "Prompts object: " + str);
+      }
+      //The example presumes only the password is required
+      finish([this.sshObj.server.password] );
+    },
+    ...
+}
 
 
 Sudo and su Commands:
@@ -853,19 +873,21 @@ or get the script on the fly. You can echo/printf the script content into a file
 run it and then delete it. The other option is to curl or wget the script from a remote location and do the same but
 this has some risks associated with it. I like to know what is in the script I am running.
 
+**Note** # and > in the following commands with conflict with the host.standardPrompt definition ">$%#" change it to "$%"
+
 ```
  host.commands = [ "some commands here",
-  "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n
- #\n
- current=$(pwd);\n
- cd ..;\n
- if [ -f myfile ]; then
-  sed \"/^[ \\t]*$/d\" ${current}/myfile | while read line; do\n
-    printf \"Doing some stuff\";\n
-    printf $line;\n
-  done\n
- fi\n' > myscript.sh; 
-fi",
+  "if [ ! -f myscript.sh ]; then printf '#!/bin/bash\n" +
+  " #\n" +
+  "  current=$(pwd);\n" +
+ "cd ..;\n" +
+ "if [ -f myfile ]; then" +
+  "sed \"/^[ \\t]*$/d\" ${current}/myfile | while read line; do\n" +
+    "printf \"Doing some stuff\";\n" +
+    "printf $line;\n" +
+  "done\n" +
+ "fi\n' > myscript.sh;" + 
+"fi",
   "sudo chmod 700 myscript.sh",
   "./myscript.sh",
   "rm myscript.sh"
@@ -969,9 +991,7 @@ ssh2shell.on ("error", function onError(err, type, close = false, callback(err, 
 
 ssh2shell.on ("keyboard-interactive", 
   function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
- //Required if the first host.server.tryKeyboard is set to true
- //This cannot be defined as a host event handler because in a tunneling case only the first host connects
- //using ssh2 all other hosts must handle the input request in the host.onCommandProcessing event handler. 
+ //Required if the first host.server.tryKeyboard is set to true. 
  //default:
  //See https://github.com/mscdex/ssh2#client-events
  //name
