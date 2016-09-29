@@ -117,7 +117,7 @@ class SSH2Shell extends EventEmitter
         @_stream.write '\x03'
  
       #normal prompt so continue with next command
-      else if @passwordPromt.test(@_buffer)
+      else if @standardPromt.test(@_buffer)
         @.emit 'msg', "#{@sshObj.server.host}: SSH normal prompt" if @sshObj.debug
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
         @_processNextCommand()
