@@ -189,7 +189,7 @@ class SSH2Shell extends EventEmitter
     @_loadDefaults()
     if @sshObj.hosts and @sshObj.hosts.length is 0
       @sshObj.exitCommands.push "exit"
-    @sshObj.commands.unshift("#{@sshObj.server.host}: SSH -oStrictHostKeyChecking=no #{@sshObj.server.userName}")
+    @sshObj.commands.unshift("ssh -oStrictHostKeyChecking=no #{@sshObj.server.userName}@#{@sshObj.server.host}")
     @_processNextCommand()
  
   _runExit: =>
