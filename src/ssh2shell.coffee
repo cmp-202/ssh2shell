@@ -205,18 +205,21 @@ class SSH2Shell extends EventEmitter
       @_nextHost()
     #Leaving last host so load previous host 
     else if @_connections and @_connections.length > 0
-      @.emit 'msg', "#{@sshObj.enter}Parked hosts:" if @sshObj.debug
-      @.emit 'msg', @_connections if @sshObj.debug
+      host = @sshObj.server.host
       @.emit 'end', @sshObj.sessionText, @sshObj
+      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
       @sshObj = @_connections.pop()
-      @.emit 'msg', "#{@sshObj.server.host}: Loaded previous host object" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.enter}Previous host object:" if @sshObj.debug
+      @.emit 'msg', @sshObj if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: Reload previous host object" if @sshObj.debug
       if @_connections.length > 0
+        @.emit 'msg', "#{@sshObj.server.host}: Pushed exit command to disconnect SSH session for #{host}" if @sshObj.debug
         @sshObj.exitCommands.push "exit"
       @_processNextCommand()
     #Nothing more to do so end the stream with last exit
     else
       @.emit 'msg', "#{@sshObj.server.host}: Exit command: Stream: close" if @sshObj.debug
-      @.command = "stream.end()"
+      #@.command = "stream.end()"
       @_stream.close() #"exit#{@sshObj.enter}"
       
   _loadDefaults: =>
@@ -240,6 +243,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.pwSent            = false
     @sshObj.sshAuth           = false
     @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
+    @sshObj.sessionText       = ""
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g")
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g")
