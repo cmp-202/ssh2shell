@@ -138,7 +138,7 @@ class SSH2Shell extends EventEmitter
       if @sshObj.commands.length > 0
         @command = @sshObj.commands.shift()
       else
-        @command = false
+        @_runExit()
 
   _processNextCommand: =>
     #check sudo su has been authenticated and add an extra exit command
