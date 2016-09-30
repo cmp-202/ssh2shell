@@ -28,8 +28,6 @@ var host1 = {
     "ls -la"
   ],
   connectedMessage:    "Connected to Primary host1",
-  readyMessage:        "Running commands Now",
-  closedMessage:       "Completed",
   onCommandComplete:   function( command, response, sshObj, self ) {
     //we are listing the dir so output it to the msg handler
     if (command === "ls -l"){      
@@ -83,9 +81,9 @@ var SSH2Shell = require ('../lib/ssh2shell'),
 SSH = new SSH2Shell(host1);
 
 //default on end event handler used by all hosts
-SSH.on ('end', function onEnd( sessionText, sshObj, self ) {
+SSH.on ('end', function onEnd( sessionText, sshObj ) {
   //show the full session output. This could be emailed or saved to a log file.
-  self.emit("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText + "\nThe End\n\n");
+  this.emit("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText + "\nThe End\n\n");
 });
 
 //Start the process
