@@ -7,21 +7,22 @@
 EventEmitter = require('events').EventEmitter
 
 class SSH2Shell extends EventEmitter
-  sshObj:         {}
-  command:        ""
-  _stream:        {}
-  _data:          ""
-  _buffer:        ""
-  _connections:   []
-  idleTime:       5000
-  asciiFilter:    ""
-  textColorFilter:""
-  passwordPromt:  ""
-  passphrasePromt:""
-  standardPromt:  ""
-  
-  _setCommandTimer: =>
-    
+  sshObj:           {}
+  command:          ""
+  _stream:          {}
+  _data:            ""
+  _buffer:          ""
+  _connections:     []
+  idleTime:         5000
+  asciiFilter:      ""
+  textColorFilter:  ""
+  passwordPromt:    ""
+  passphrasePromt:  ""
+  standardPromt:    ""
+  onCommandProcessing:=>
+  onCommandComplete:  =>
+  onCommandTimeout:   =>
+  onEnd:              =>
     
   _processData: ( data )=>
             
@@ -183,7 +184,8 @@ class SSH2Shell extends EventEmitter
   _nextHost: =>
     @_buffer = ""
     @nextHost = @sshObj.hosts.shift()
-    @.emit 'msg', "#{@sshObj.server.host}: SSH to #{@nextHost.server.host}" if @sshObj.debug  
+    @.emit 'msg', "#{@sshObj.server.host}: SSH to #{@nextHost.server.host}" if @sshObj.debug
+    @_removeEvents()
     @_connections.push @sshObj
     @sshObj = @nextHost
     @_loadDefaults()
@@ -208,7 +210,9 @@ class SSH2Shell extends EventEmitter
       host = @sshObj.server.host
       @.emit 'end', @sshObj.sessionText, @sshObj
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+      @_removeEvents()
       @sshObj = @_connections.pop()
+      @_loadDefaults()
       @.emit 'msg', "#{@sshObj.enter}Previous host object:" if @sshObj.debug
       @.emit 'msg', @sshObj if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Reload previous host object" if @sshObj.debug
@@ -222,6 +226,13 @@ class SSH2Shell extends EventEmitter
       #@.command = "stream.end()"
       @_stream.close() #"exit#{@sshObj.enter}"
       
+  _removeEvents: =>     
+    @.emit 'msg', "#{@sshObj.server.host}: Clearing previous event handlers" if @sshObj.debug    
+    @.removeListener 'commandProcessing', @onCommandProcessing
+    @.removeListener 'commandComplete', @onCommandComplete
+    @.removeListener 'commandTimeout',  @onCommandTimeout
+    @.removeListener 'end', @onEnd
+    
   _loadDefaults: =>
     @sshObj.msg = { send: ( message ) =>
       console.log message
@@ -239,19 +250,43 @@ class SSH2Shell extends EventEmitter
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter
     @sshObj.textColorFilter   = "(\[{1}[0-9;]+m{1})" unless @sshObj.textColorFilter
-    @sshObj.exitCommands      = []
-    @sshObj.pwSent            = false
-    @sshObj.sshAuth           = false
+    @sshObj.exitCommands      = [] unless @sshObj.exitCommands
+    @sshObj.pwSent            = false unless @sshObj.pwSent
+    @sshObj.sshAuth           = false unless @sshObj.sshAuth
     @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
-    @sshObj.sessionText       = ""
+    @sshObj.sessionText       = "" unless @sshObj.sessionText
     @idleTime                 = @sshObj.idleTimeOut ? 5000
-    @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g")
-    @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g")
-    @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i")
-    @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i")
-    @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$")
+    @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
+    @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
+    @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
+    @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i") unless @passphrasePromt
+    @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPromt
+
+    @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
     
-    #event handlers    
+    @onCommandComplete        = @sshObj.onCommandComplete ? ( command, response, sshObj ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.commandComplete" if @sshObj.debug
+      
+    @onCommandTimeout         = @sshObj.onCommandTimeout ? ( command, response, stream, connection ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.commandTimeout" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: Timeout command: #{command} response: #{response}" if @sshObj.verbose
+      @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@.idleTime/1000} seconds", "Timeout", true, (err, type)=>
+        @sshObj.sessionText += @_buffer
+    
+    @onEnd                   = @sshObj.onEnd ? ( sessionText, sshObj ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.end" if @sshObj.debug
+      
+    @.on "commandProcessing", @onCommandProcessing
+    @.on "commandComplete", @onCommandComplete  
+    @.on "commandTimeout", @onCommandTimeout  
+    @.on "end", @onEnd
+    
+  constructor: (@sshObj) ->
+    @_loadDefaults()
+    
+    @connection = new require('ssh2')()    
+    
+    #event handlers        
     @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Keyboard-interactive: finish([response, array]) not called in class event handler." if @sshObj.debug
@@ -264,25 +299,6 @@ class SSH2Shell extends EventEmitter
       
     @.on "msg", @sshObj.msg.send ? ( message ) =>
       console.log message
-      
-    @.on 'commandProcessing', @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
-      
-    @.on 'commandComplete', @sshObj.onCommandComplete ? ( command, response, sshObj ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.commandComplete" if @sshObj.debug
-      
-    @.on 'commandTimeout',  @sshObj.onCommandTimeout ? ( command, response, stream, connection ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.commandTimeout" if @sshObj.debug
-      @.emit 'msg', "#{@sshObj.server.host}: Timeout command: #{command} response: #{response}" if @sshObj.verbose
-      @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@.idleTime/1000} seconds", "Timeout", true, (err, type)=>
-        @sshObj.sessionText += @_buffer
-
-    @.on 'end', @sshObj.onEnd ? ( sessionText, sshObj ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.end" if @sshObj.debug   
-    
-  constructor: (@sshObj) ->
-    @_loadDefaults()
-    
-    @connection = new require('ssh2')()    
       
     @.on "error", @sshObj.onError ? (err, type, close = false, callback) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.error" if @sshObj.debug
