@@ -376,7 +376,7 @@ server3.hosts = []
 1. The primary host (server1) is connected and all its commands completed. 
 2. Server1.hosts array is checked for other hosts and the next host popped off the array.
 3. Server1 is stored for use later and server2's host object is loaded as the current host.
-4. A connection to server2 is made using its server parameters
+4. A connection to server2 is made using its server parameters via running the ssh command on the primary.
 5. Server2's commands are completed and server2.hosts array is checked for other hosts.
 6. With no hosts found the connection to server2 is closed triggering an end event (calling server2.onEnd function if
    defined).
@@ -386,13 +386,16 @@ server3.hosts = []
 8. Server3 is connected to and it completes its process.
 9. Server3.hosts is checked and with no hosts found the connection is closed and the end event is triggered.
 9. Server1 is loaded for the last time.
-10. With no further hosts to load the connection is closed triggering an end event for the last time.
-6. As all sessions are closed the process ends.
+10 Thw session text for each connection is appended to the session text for the primary host.
+11. With no further hosts to load the connection is closed triggering an end event for the last time.
+12. As all sessions are closed the process ends.
 
 
 **_Note:_** 
 * A host object needs to be defined before it is added to another host.hosts array.
 * Only the primary host objects connected, ready and closed messages will be used by ssh2shell.
+* Connection events only apply to the primary host. Keyboard-interactive event handler is one of these.
+
 
 *How to:*
 * Define nested hosts
@@ -401,6 +404,9 @@ server3.hosts = []
 * Sharing duplicate functions between host objects
 * What host object attributes you can leave out of primary and secondary host objects
 * Unique event handlers set in host objects, common event handler set on class instance
+
+**_Note:_** 
+* Change debug to true to see the full process for each host.
 
 ```javascript
 var dotenv = require('dotenv');
@@ -428,12 +434,6 @@ var conParamsHost1 = {
   password:     process.env.SERVER3_PASSWORD
  }
  
-//functions used by all hosts
-var msg = {
-  send: function( message ) {
-    console.log(message);
-  }
- }
 
 //Host objects:
 var host1 = {
@@ -442,37 +442,41 @@ var host1 = {
     "msg:connected to host: passed. Listing dir.",
     "ls -l"
   ],
-  msg:                 msg,
+  debug: false,
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if(sshObj.debug){
       this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete host1, command: " + command);
     }
-    if (command == "ls -l"){      
-      this.emit("msg", response);
-    }
-  }
+  },
+  onEnd:    function( sessionText, sshObj ) {
+    //show the full session output for all hosts.
+    if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": primary host.onEnd all sessiontText");}  
+    this.emit ("msg", "\nAll Hosts SessiontText ---------------------------------------\n");
+    this.emit ("msg", sshObj.server.host + ":\n" + sessionText);
+    this.emit ("msg", "\nEnd sessiontText ---------------------------------------------\n");
+  })
 },
 
 host2 = {
   server:              conParamsHost2,
   commands:            [
     "msg:connected to host: passed",
-    "sudo su",
     "msg:Changing to root dir",
     "cd ~/",
     "msg:Listing dir",
     "ls -l"
   ],
-  msg:                 msg,
+  debug: false,
   connectedMessage:    "Connected to host2",
   onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if(sshObj.debug){
       this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete host2, command: " + command);
     }
-    if (command == "sudo su"){      
-      this.emit("msg", "Just ran a sudo su command");
+    if (command.indexOf("cd") != -1){  
+      this.emit("msg", this.sshObj.server.host + ": Just ran a cd command:\n");    
+      this.emit("msg", response);
     }
   }
 },
@@ -481,12 +485,9 @@ host3 = {
   server:              conParamsHost3,
   commands:            [
     "msg:connected to host: passed",
-    "sudo su",
-    "cd ~/",
-    "msg:Listing root dir",
-    "ls -l"
+    "hostname"
   ],
-  msg:                 msg,
+  debug: false,
   connectedMessage:    "Connected to host3",
   onCommandComplete:   function( command, response, sshObj) {
     //we are listing the dir so output it to the msg handler
@@ -494,7 +495,7 @@ host3 = {
       this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete host3, command: " + command);
     }
     if (command.indexOf("cd") != -1){  
-      this.emit("msg", "Just ran a cd command:");    
+      this.emit("msg", "this.sshObj.server.host + ": Just ran hostname command:\n");    
       this.emit("msg", response);
     }
   }
@@ -511,12 +512,26 @@ host1.hosts = [ host2, host3 ];
 var SSH2Shell = require ('ssh2shell'),
     SSH       = new SSH2Shell(host1);
 
+//Add a commandComplete handler used by all hosts 
+SSH.on ('commandComplete', function onCommandComplete( command, response, sshObj ) {
+  //we are listing the dir so output it to the msg handler
+  if(sshObj.debug){
+    this.emit("msg", this.sshObj.server.host + ": instance.onCommandComplete, command: " + command);
+  }
+  if (command == "ls -l"){      
+    this.emit("msg", this.sshObj.server.host + ":\n" + response);
+  }
+}
+  
 //Add an on end event handler used by all hosts
 SSH.on ('end', function( sessionText, sshObj ) {
   //show the full session output. This could be emailed or saved to a log file.
   if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": instanse.onEnd all hosts");}
-  this.emit ("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText);
- });
+  
+  this.emit ("msg", "\nSessiontText -------------------------------------------------\n");
+  this.emit ("msg", sshObj.server.host + ":\n" + sessionText);
+  this.emit ("msg", "\nEnd sessiontText ---------------------------------------------\n");
+});
 
 //Start the process
 SSH.connect();
