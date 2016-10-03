@@ -251,13 +251,7 @@ class SSH2Shell extends EventEmitter
     @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i")
     @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$")
     
-  constructor: (@sshObj) ->
-    @_loadDefaults()
-    
-    @connection = new require('ssh2')()
-    
-    #event handlers
-    
+    #event handlers    
     @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Keyboard-interactive: finish([response, array]) not called in class event handler." if @sshObj.debug
@@ -283,7 +277,12 @@ class SSH2Shell extends EventEmitter
         @sshObj.sessionText += @_buffer
 
     @.on 'end', @sshObj.onEnd ? ( sessionText, sshObj ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.end" if @sshObj.debug       
+      @.emit 'msg', "#{@sshObj.server.host}: Class.end" if @sshObj.debug   
+    
+  constructor: (@sshObj) ->
+    @_loadDefaults()
+    
+    @connection = new require('ssh2')()    
       
     @.on "error", @sshObj.onError ? (err, type, close = false, callback) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.error" if @sshObj.debug
