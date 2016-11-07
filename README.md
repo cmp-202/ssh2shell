@@ -495,7 +495,7 @@ host3 = {
       this.emit("msg", this.sshObj.server.host + ": host.onCommandComplete host3, command: " + command);
     }
     if (command.indexOf("cd") != -1){  
-      this.emit("msg", "this.sshObj.server.host + ": Just ran hostname command:\n");    
+      this.emit("msg", this.sshObj.server.host + ": Just ran hostname command:\n");    
       this.emit("msg", response);
     }
   }
@@ -675,7 +675,46 @@ Authentication:
   set.
 * When using keyboard-interactive authentication both host.server.tryKeyboard and instance.on ("keayboard-interactive",
   function...) or host.onKeyboardInteractive() must be defined.
+* Set the default cyphers and keys.
 
+Default Cyphers:
+---------------
+Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.alogrithms through the host.server.alogrithms option. As with this property all ssh2.connect properties are set in the host.server object.
+
+Example:
+```javascript
+var host = {
+    server:        {  
+            host:           "<host IP>",
+            port:           "22",
+            userName:       "<username>",
+            password:       "<password>",
+            hashMethod:     "md5", //optional "md5" or "sha1" default is "md5"
+            //other ssh2.connect options
+            algorithms: {
+                kex: [
+                    'diffie-hellman-group1-sha1',
+                    'ecdh-sha2-nistp256',
+                    'ecdh-sha2-nistp384',
+                    'ecdh-sha2-nistp521',
+                    'diffie-hellman-group-exchange-sha256',
+                    'diffie-hellman-group14-sha1'],
+                cipher: [
+                    'aes128-ctr',
+                    'aes192-ctr',
+                    'aes256-ctr',
+                    'aes128-gcm',
+                    'aes128-gcm@openssh.com',
+                    'aes256-gcm',
+                    'aes256-gcm@openssh.com',
+                    'aes256-cbc'
+                ]
+            }
+
+        },
+    ......
+}
+```
 
 Fingerprint Validation:
 ---------------
@@ -796,7 +835,7 @@ host = {
     },
     ...
 }
-
+```
 
 Sudo and su Commands:
 --------------
