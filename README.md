@@ -822,7 +822,7 @@ Or
 ```javascript
 host = {
     ...,
-    keyboard-interactive: function(name, instructions, instructionsLang, prompts, finish){
+    onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
       if (this.sshObj.debug) {this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");}
       if (this.sshObj.verbose){
       this.emit('msg', "name: " + name);
