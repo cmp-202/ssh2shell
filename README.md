@@ -210,8 +210,8 @@ SSH2Shell extends events.EventEmitter
 *Methods*
 * .constructor(sshObj) requires a host object as defined above. `SSH = new SSH2Shell(host);`
 
-* .connect() Is the main function to establish the connection and handle data events from the server which triggers
-  the rest of the process.
+* .connect(callback(sessionText){}) Is the main function to establish the connection and handle data events from the server which triggers
+  the rest of the process. It take in an optional callback funtion that receives the full session text as its parameter.
 
 * .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
@@ -240,6 +240,8 @@ Test Files:
 ```javascript
 //single host test
 cp .env-example .env
+//set the env variables to match your test host/vm username and password.
+node text/simple.js
 
 //multiple nested hosts
 //requires the additional details added to .env file for each server
@@ -354,12 +356,20 @@ var host = {
  }
 };
 
+
 //Create a new instance
 var SSH2Shell = require ('ssh2shell'),
     SSH       = new SSH2Shell(host);
 
 //Start the process
 SSH.connect();
+
+or
+//use a callback
+var callback = function (sessionText){
+        console.log (sessionText);
+    }
+SSH.connect(callback);
 ```
 
 Tunnelling nested host objects:
