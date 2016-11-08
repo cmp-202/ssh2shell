@@ -309,7 +309,7 @@ class SSH2Shell extends EventEmitter
       callback(err, type) if callback
       @connection.end() if close
         
-  connect: ()=>
+  connect: (callback)=>
     if @sshObj.server and @sshObj.commands
       try
         @connection.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
@@ -352,6 +352,7 @@ class SSH2Shell extends EventEmitter
             @_stream.on "finish", =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.finish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
+              callback @sshObj.sessionText if callback
               
             @_stream.on "close", (code, signal) =>                          
               @.emit 'msg', "#{@sshObj.server.host}: Stream.close" if @sshObj.debug
