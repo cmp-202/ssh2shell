@@ -145,7 +145,7 @@ host = {
   //Optional: data is triggered on every stream data event providing the raw stream output 
   //without SSH2shell interacting with it.
   onData: function( data ) {
-    data is a string chunk recieved from the connected host
+    //data is a string chunk recieved from the connected host
   },
   
   //Optional: The pipe event is raised when readStream.pipe() adds a writable stream to 
