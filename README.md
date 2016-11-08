@@ -1,6 +1,6 @@
 ssh2shell
 =========
-[![NPM](https://nodei.co/npm/ssh2shell.png?downloads=true&&downloadRank=true&stars=true)](https://nodei.co/npm/ssh2shell/)
+[![NPM](https://nodei.co/npm/ssh2shell.png?downloads=true&stars=true)](https://nodei.co/npm/ssh2shell/)
 
 Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 
@@ -11,17 +11,17 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * When tunnelling each host has its own connection parameters, commands, command handlers,
   event handlers and debug or verbose settings.
 * Supports `sudo`, `sudo su` and `su user` commands.
-* Supports changeing default promt matching regular expressions for different prompt requiements
+* Supports changing default prompt matching regular expressions for different prompt requirements
 * Ability to respond to prompts resulting from a command as it is being run.
 * Ability to check the last command and conditions within the response text before the 
   next command is run.
 * Performing actions based on a command run and the response received. 
   Things like adding or removing commands, responding using stream.write() or processing the command response text.
-* See progress messages, messages you define, error messages, debug messages of script process 
+* See progress messages, messages you define, error messages and debug messages of script process 
   or verbose output of responses from the host.
-* Acces to full session response text in the end event triggered when each host connection is closed.
+* Access to full session response text in the end event triggered when each host connection is closed.
 * Run notification commands that are processed either as messages to the full session text only or 
-  messages outputed to your console only.
+  messages outputted to your console only.
 * Add event handlers either to the class instance or define them within host object.
 * Create bash scripts on the fly, run them and remove them.
 * Server SSH fingerprint validation.
@@ -32,7 +32,7 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 Code:
 -----
 The Class is written in coffee script which can be found here: `./src/ssh2shell.coffee`. 
-It has comments not found in the build output javascript file `./lib/ssh2shell.js`.
+It has comments not found in the build output JavaScript file `./lib/ssh2shell.js`.
  
  
 Installation:
@@ -73,121 +73,134 @@ SSH2Shell expects an object with the following structure to be passed to its con
 ```javascript
 //Host object
 host = {
-  //ssh2.connection.connect properties
-  server:              {       
+  server:              { 
+    //required connection settings
     host:         "IP Address",
     port:         "external port number",
     userName:     "user name",
+    //optional or required settings subject to authentication method used
     password:     "user password",
-    passPhrase:   "privateKeyPassphrase", //optional string
-    privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'), //optional string
-    //other ssh2.connect parameters. See https://github.com/mscdex/ssh2#client-methods
-    //These other ssh2.connect parameters are only valid for the first host connection which uses
-    //ssh2.connect.
+    passPhrase:   "privateKeyPassphrase", string
+    privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'),
+    //Optional: ssh2.connect config parameters
+    //See https://github.com/mscdex/ssh2#client-methods
+    //ssh2.connect parameters are only valid for the first host connection.
+    //Other host connections use the ssh command within the current host.
   },
-  //Array of host object for multiple host connections optional
-  hosts:              [Array, of, nested, host, configs, objects],  
-  //Prompt detection values optional
-  standardPrompt:     ">$%#",//string
-  passwordPrompt:     ":",//string
-  passphrasePrompt:   ":",//string
-  //Enter key character to send as end of line.
-  enter:              "\n", //windows = "\r\n" | "\x0d\x0a", Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
-  //Text output filters to clean server response optional
-  asciiFilter:        "[^\r\n\x20-\x7e]", //regular exression string
-  diableColorFilter:  false, //optional bollean 
-  textColorFilter:    "(\[{1}[0-9;]+m{1})", /regular exression string
-  //array of commands
-  commands:           ["Array", "of", "command", "strings"], //array() of command strings
-  //msg functional is optional. Used by this.emit("msg", "my message")  
+  //Optional: Array of host object for multiple host connections
+  hosts:              [host2, host3, host4, host5],
+  
+  //Optional: Characters used in prompt detection
+  standardPrompt:     ">$%#",
+  passwordPrompt:     ":",
+  passphrasePrompt:   ":",
+  //Optional: Enter key character to send as end of line.
+  enter:              "\n", Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
+  
+  //Optional: Regular expressions to clean output text
+  asciiFilter:        "[^\r\n\x20-\x7e]", //removes non-standard ASCII
+  diableColorFilter:  false, //turns colour filtering on and off
+  textColorFilter:    "(\[{1}[0-9;]+m{1})", //removes colour formatting codes
+  
+  //Required: array of commands
+  commands:           ["cd /var/logs", "ls -al", "msg:Listed dir", "cd /home/user"],
+  //Optional: Used by this.emit("msg", "my message") to output a message
   msg:                {
     send: function( message ) {
-	  console.log(message);
+      console.log(message);
     }
   }, 
-  //debug options optional
-  verbose:             false,  //boolean
-  debug:               false,  //boolean
-  //onCommandTimeout setting optional
+  //Optional: Trouble shooting options
+  verbose:             false,  //outputs all received content
+  debug:               false,  //outputs information about each process step.
+  //Optional: Command timeout timer max interval
   idleTimeOut:         5000,        //integer
-  //connection messages optional
-  connectedMessage:    "Connected", //string
-  readyMessage:        "Ready",     //string
-  closedMessage:       "Closed",    //string
   
-  //Host event handlers replace the default class event handlers.
-  //These event handlers only apply to that current host object being used.
-  //All host event handler definitions are optional 
+  //Optional: Messages returned on each connection event.
+  connectedMessage:    "Connected",
+  readyMessage:        "Ready",
+  closedMessage:       "Closed",
   
-  //Keyboard interactive authentication event handler
+  //Optional: Host event handlers 
+  //These event handlers only apply to the host object they are defined within.
+  //Host event function definitions replace the default event handlers defined 
+  //in the class instead of adding another handler to the listeners.
+  //`this` is correctly linked to the instance within host defined event handlers
+  
+  //Optional: Keyboard interactive authentication event handler
+  //This event is only used for the first host connecting through ssh2.connect
   //Required if the first host.server.tryKeyboard is set to true. 
   onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
     //See https://github.com/mscdex/ssh2#client-events
     //name, instructions, instructionsLang don't seem to be of interest for authenticating
-    //prompts is an object of expected prompts and if they are to be showen to the user
+    //prompts is an object of expected prompts and if they are to be shown to the user
     //finish is the function to be called with an array of responses in the same order as 
     //the prompts parameter defined them.
     //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
-    //if a non standard prompt results from a successfull connection then handle its detection and response in
+    //if a nonstandard prompt results from a successful connection then handle its detection and response in
     //onCommandProcessing or commandTimeout.
     //see text/keyboard-interactivetest.js
   },
   
-  //onCommandProcessing is triggered on every data received event (one character) until a 
-  //prompt is detected. Optional
+  //Optional: Command processing is triggered on every data read event (one character at a time) 
+  //until prompt is detected.
   onCommandProcessing: function( command, response, sshObj, stream ) {
    //command is the last command run. This is "" just after connection before the first prompt
-   //response is the buffer that is being loaded with each data event
-   //sshObj is the current host object and gives access to the current set of commands and other settings
-   //stream object allows stream.write() access if a responce is required outside the normal command flow.
+   //response is the buffer that is being loaded with each data event not the char received.
+   //sshObj is the current host object.
+   //stream gives stream.write() access if a response is required outside the normal command flow.
   },
   
-  //onCommandComplete is triggered after a command is run and a standard prompt is detected. optional
+  //Optional: Command complete is raised when a standard prompt is detected.
   onCommandComplete:   function( command, response, sshObj ) {
-   //response is the full response from the host
-   //sshObj is this object and gives access to the current set of commands and other settings
+   //response is the full response from the host for the last command
+   //sshObj is the current host object.
   },
   
-  //onCommandTimeout is triggered when no standard prompt after host.idleTimeout. Optional
-  //This allows responding to an imput requiest that hasn't been handles or 
-  //disconnect to stop the connection hanging.
+  //Optional: Command timeout is raised when a standard prompt is not detected and no data is 
+  //received from the hostafter host.idleTimeout value.
+  //This stops the connection from hanging when no prompt is detected usually because the host is requiring
+  //a response it will never get. This event 
   onCommandTimeout:    function( command, response, stream, connection ) {
    //command is the last command run or "" if no prompt after connection
-   //response is the text response from the command up to the time out
+   //response is the text received up to the time out.
    //stream object is used to send text to the host without having to close the connection.
    //connection gives access to close the connection if all else fails
    //The connection will hang if you send text to the host but get no response and you don't close the
    //connection. 
-   //The timer can be reset from within this event in case a stream write gets no response
-   //Set this to empty if you want the instance event handler to be the default action.
+   //The timer can be reset from within this event in case a stream write gets no response.
    //See test/timeouttest.js for and example of multiple commandTimeout triggers.
   },
   
-  //onEnd is run when the stream.on ("finish") event is triggered. 
+  //Recommended: The end event is raised when the stream.on ("finish") event is triggered as the 
+  //connection is closed or when any nested host connection is closed. 
+  //This is where you handle the full session text for a host connection.
+  //When connecting to multiple hosts the primary host end event receives the full concatenated 
+  //session text for all hosts, including its own, to process.
   onEnd:               function( sessionText, sshObj ) {
    //SessionText is the full text for this hosts session   
-   //sshObj is the host object and gives access to the current settings
+   //sshObj is the host object
   },
-  
-  
-   //onError is run when an error event is raised. Optional
+    
+  //Optional: Run when an error event is raised be it connection or otherwise.
   onError:            function( err, type, close = false, callback ) {
    //err is either an Error object or a string containing the error message
    //type is a string containing the error type
-   //close is a boolean value indicating if the connection should be closed or not
+   //close is a Boolean value indicating if the connection should be closed or not
    //callback is the function to run with handling the error in the form of function(err,type)
-   //To close the connection us connection.close()
+   //if overwriting the default definition remember to handle closing the connection based on close
+   //To close the connection us this.connection.close()
   }
 };
 ```
-* Host.server will accept current [SSH2.connection.connect parameters](https://github.com/mscdex/ssh2#client-methods).
-* Optional host properties do not need to be included if you are not changing them.
-* See the end of the readme for event handlers available to the instance.
-* Host event handlers completly replace the default event handlers if defined.
+* Host.server will accept current [SSH2.client.connect parameters](https://github.com/mscdex/ssh2#client-methods).
+* Optional host properties or event handlers do not need to be included if you are not changing them.
+* See the end of the readme for event handlers available to be added to the instance listeners.
+* Host event handlers completely replace the default event handler definitions in the class when defined.
 * The instance `this` keyword is available within host event handlers to give access to ssh2shell object api like
   this.emit() and other functions.
-* `this.sshObj` or sshObj variable passed into a function provides access to all the host config and some instance
-  variables.
+* `this.sshObj` or sshObj variable passed into a function provides access to all the host config, some instance
+  variables and the current array of commands for the host. The sshObj.commands array changes with host connection.
 
 
 ssh2shell API
@@ -200,7 +213,7 @@ SSH2Shell extends events.EventEmitter
 * .connect() Is the main function to establish the connection and handle data events from the server which triggers
   the rest of the process.
 
-* .emit("eventName", function, parms,... ). raises the event based on the name in the first string and takes input
+* .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
 
 *Variables*
@@ -246,7 +259,7 @@ node test/sudosutest.js
 //Issue #11
 node test/notificationstest.js
 
-//Test keyboard-interactivs authentication on the host that has it enabled 
+//Test keyboard-interactive authentication on the host that has it enabled 
 node test/keyboard-interactivetest.js
 ```
 
@@ -307,6 +320,7 @@ var host = {
   "ls -l",
   "`All done!`"
  ],
+ 
  onCommandComplete: function( command, response, sshObj ) {
   //confirm it is the root home dir and change to root's .ssh folder
   if(sshObj.debug){
@@ -322,6 +336,7 @@ var host = {
    this.emit("msg", response);
   }
  },
+ 
  onEnd: function( sessionText, sshObj ) {
   //email the session text instead of outputting it to the console
   if(sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onEnd event");}
@@ -386,7 +401,7 @@ server3.hosts = []
 8. Server3 is connected to and it completes its process.
 9. Server3.hosts is checked and with no hosts found the connection is closed and the end event is triggered.
 9. Server1 is loaded for the last time.
-10 Thw session text for each connection is appended to the session text for the primary host.
+10 The session text for each connection is appended to the session text for the primary host.
 11. With no further hosts to load the connection is closed triggering an end event for the last time.
 12. As all sessions are closed the process ends.
 
@@ -543,13 +558,13 @@ Trouble shooting:
 -----------------
 
 * Adding msg command `"msg:Doing something"` to your commands array at key points will help you track the sequence of
-  what has been done as the process runs. (see examples)
+  what has been done as the process runs. (See examples)
 * `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase
   being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate
   that it could not decrypt the private key. 
  * Recheck your passphrase for typos or missing chars.
- * Try connecting manually to the host using the exact passhrase used by the code to confirm it works.
- * I did read of people having problems with the the passphrase or password having an \n added when used from an
+ * Try connecting manually to the host using the exact passphrase used by the code to confirm it works.
+ * I did read of people having problems with the passphrase or password having an \n added when used from an
    external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
 * There is an optional debug setting in the host object that will output process information when set to true and
@@ -579,12 +594,12 @@ identifying what happened
 
 Command Timeout Event Handler
 ---------------
-When the program doesn't detect a standard prompt and doesn't recieve any more data the onCommandTimeout event triggers
+When the program doesn't detect a standard prompt and doesn't receive any more data the onCommandTimeout event triggers
 after the host.idleTimeOut value (in ms). This is usually because an unexpected prompt on the server is requiring a 
 response that isn't handled or the host is not responding at all. In either case detection of the standard prompt will
-never happen causeing the program to hang, perpetuley waiting for a response it wont get. The commandTimeout stops this.
+never happen causing the program to hang, perpetuley waiting for a response it won’t get. The commandTimeout stops this.
 The commandTimeout event can enable you to handle such prompts without having to disconnect by providing the response
-the host requires. The host then replies with more text triggering a data recieved event resetting the timer and
+the host requires. The host then replies with more text triggering a data received event resetting the timer and
 enabling the process to continue. It is recommended to close the connection as a default action if all else fails so you
 are not left with a hanging script again. The default action is to add the last response text to the session text and
 disconnect. Enabling host.debug would also provide the process path leading upto disconnection which in conjunction with
@@ -671,7 +686,7 @@ Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
 * When using key authentication you may require a valid passphrase if your key was created with one.
-* When using fingerprint falidation both host.server.hashMethod property and host.server.hostVerifier function must be
+* When using fingerprint validation both host.server.hashMethod property and host.server.hostVerifier function must be
   set.
 * When using keyboard-interactive authentication both host.server.tryKeyboard and instance.on ("keayboard-interactive",
   function...) or host.onKeyboardInteractive() must be defined.
@@ -718,17 +733,17 @@ var host = {
 
 Fingerprint Validation:
 ---------------
-At connection time the hash of the servers public key can be compared with the hash the client had previously recorded
+At connection time the hash of the server’s public key can be compared with the hash the client had previously recorded
 for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect
 to the server you expected to. This hash only changes with a reinstall of SSH, a key change on the server or a load
 balancer is now in place. 
 
 __*Note:*
- Fingerprint check doesn't work the same way for tunnelling. The first host will vailidate using this method but the
+ Fingerprint check doesn't work the same way for tunnelling. The first host will validate using this method but the
  subsequent connections would have to be handled by your commands. Only the first host uses the SSH2 connection method
  that does the validation.__
 
-To use figngerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
+To use fingerprint validation you first need the server hash string which can be obtained using ssh2shell as follows:
 * Set host.verbose to true then set host.server.hashKey to any non-empty string (say "1234"). 
  * Validation will be checked and fail causing the connection to terminate. 
  * A verbose message will return both the server hash and client hash values that failed comparison. 
@@ -780,7 +795,7 @@ var SSH2Shell = require ('ssh2shell'),
 SSH.connect();
 ```
 __*Note:* 
-host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentaion anything else may produce
+host.server.hashMethod only supports md5 or sha1 according to the current SSH2 documentation anything else may produce
 undesired results.__
 
 
@@ -800,7 +815,7 @@ var SSH2Shell = require ('../lib/ssh2shell');
 var SSH = new SSH2Shell(host);
   
 //Add the keyboard-interactive handler
-//The event function must call finish() with an array of responses in the same order as prompts recieved
+//The event function must call finish() with an array of responses in the same order as prompts received
 // in the prompts array
 SSH.on ('keyboard-interactive', function(name, instructions, instructionsLang, prompts, finish){
      if (this.sshObj.debug) {this.emit('msg', this.sshObj.server.host + ": Keyboard-interactive");}
@@ -858,12 +873,12 @@ There are two notification commands that are added to the host.commands array bu
  * The text after `msg:` is passed to the message property of the onMsg event.
 2. "\`SessionText notification\`" will take the text between "\` \`" and add it to the sessionText.
  * The reason for not using echo or printf commands as a normal command is that you see both the command and the message
-   in the sessionTest which is pointless when all you want is the message.
+   in the sessionText which is pointless when all you want is the message.
 
 
 Prompt detection override:
 -------------------------
-The following properties have been added to the host object making it possable to override prompt string values used
+The following properties have been added to the host object making it possible to override prompt string values used
 with regular expressions to for prompt detection. Being able to change these values enables you to easily manage all
 sorts of prompt options subject to you server prompts. 
 
@@ -877,10 +892,10 @@ These are optional settings.
  
 Text regular expression filters:
 -------------------------------
-There are two regular expression filters that remove unwanted text from responce data.
+There are two regular expression filters that remove unwanted text from response data.
  
-The first removes non-statndard ascii and the second removes ANSI text formating codes. Both of these can be modified in
-your host object to overide defaults. It is also possible to output the ANSI codes by setting disableColorFilter to true.
+The first removes non-standard ascii and the second removes ANSI text formatting codes. Both of these can be modified in
+your host object to override defaults. It is also possible to output the ANSI codes by setting disableColorFilter to true.
  
 These are optional settings
 ```javascript
@@ -895,7 +910,7 @@ Responding to non-standard command prompts:
 When running commands there are cases that you might need to respond to specific prompt that results from the command
 being run. The command response check method is the same as in the example for the host.onCommandComplete event handler
 but in this case we use it in the host.onCommandProcessing event handler. The stream object is available in
-onCommandProcessing to the prompt directly using strea.write("y\n"), note "\n" might be required to comlete the
+onCommandProcessing to the prompt directly using strea.write("y\n"), note "\n" might be required to complete the
 response. 
 
 Host definition that replaces the default handler and runs only for the current host connection
@@ -909,7 +924,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
      stream.write('y\n');
    }
  };
-\\sshObj.firstRun can be reset to false in onCommandComplete to allow for another non-standed prompt 
+\\sshObj.firstRun can be reset to false in onCommandComplete to allow for another non-standard prompt 
 ```
 
 Instance definition that runs in parrallel with every other commandProcessing for every host connection
@@ -938,7 +953,7 @@ Bash scripts on the fly:
 ------------------------
 If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate
 or get the script on the fly. You can echo/printf the script content into a file as a command, ensure it is executable, 
-run it and then delete it. The other option is to curl or wget the script from a remote location and do the same but
+run it and then delete it. The other option is to curl or wget the script from a remote location but
 this has some risks associated with it. I like to know what is in the script I am running.
 
 **Note** # and > in the following commands with conflict with the host.standardPrompt definition ">$%#" change it to "$%"
@@ -971,7 +986,7 @@ to add your own functionality as the class already has default handlers defined.
 
 There are two ways to add event handlers:
 
-1. Add handller functions to the host object (See requirments at start of readme). 
+1. Add handler functions to the host object (See requirments at start of readme). 
  * These event handlers will only be run for the currently connected host.Important to understand in a multi host setup. 
  * Within the host event functions `this` is always referencing the ssh2shell instance at run time. 
  * Instance variables and functions are available through `this` including the Emitter functions like 
@@ -980,7 +995,7 @@ There are two ways to add event handlers:
  * Defining a host event replaces the default event handler. Again while that host is connected.
 
 2. Add an event handler, as defined below, to the class instance.
- * Handlers added to the class instance will be triggered every time the event is raised in parrallel with any other
+ * Handlers added to the class instance will be triggered every time the event is raised in parallel with any other
    handlers of the same name.
  * It will not replace the internal event handler of the class be it set by the class default or a host definition.  
 
@@ -1002,7 +1017,7 @@ ssh2shell.on ("ready", function onReady() {
 
 ssh2shell.on ("msg", function onMsg( message ) {
  //default: outputs the message to the host.msg.send function. If undefined output is to console.log
- //message is the text to ouput.
+ //message is the text to output.
 });
 
 ssh2shell.on ("commandProcessing", function onCommandProcessing( command, response, sshObj, stream )  {
@@ -1019,7 +1034,7 @@ ssh2shell.on ("commandComplete", function onCommandComplete( command, response, 
  //Allows for the handling of a commands response before the next command is run 
  //default: returns a debug message if host.debug = true
  //default is replaced by host.onCommandComplete function if defined
- //command is the compleated command
+ //command is the completed command
  //response is the full buffer response from the command
  //sshObj is the host object
 });
@@ -1045,7 +1060,7 @@ ssh2shell.on ("end", function onEnd( sessionText, sshObj ) {
 ssh2shell.on ("close", function onClose(had_error = void(0)) { 
  //default: outputs primaryHost.closeMessage or error if one was received
  //default: returns a debug message if host.debug = true
- //had_error indicates an error was recieved on close
+ //had_error indicates an error was received on close
 });
 
 ssh2shell.on ("error", function onError(err, type, close = false, callback(err, type) = undefined) {
@@ -1053,15 +1068,15 @@ ssh2shell.on ("error", function onError(err, type, close = false, callback(err, 
  //default is replaced by host.onEnd function if defined 
  //err is the error received it maybe an Error object or a string containing the error message.
  //type is a string identifying the source of the error
- //close is a boolean value indicating if the event should close the connection.
- //callback a fuction that will be run by the handler
+ //close is a Boolean value indicating if the event should close the connection.
+ //callback a function that will be run by the handler
 });
 
 ssh2shell.on ("keyboard-interactive", 
   function onKeyboardInteractive(name, instructions, instructionsLang, prompts, finish){
  //See https://github.com/mscdex/ssh2#client-events
  //name, instructions, instructionsLang don't seem to be of interest for authenticating
- //prompts is an object of expected prompts and if they are to be showen to the user
+ //prompts is an object of expected prompts and if they are to be shown to the user
  //finish is the function to be called with an array of responses in the same order as 
  //the prompts parameter defined them.
  //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
