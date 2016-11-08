@@ -95,7 +95,7 @@ host = {
   passwordPrompt:     ":",
   passphrasePrompt:   ":",
   //Optional: Enter key character to send as end of line.
-  enter:              "\n", Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
+  enter:              "\n", //Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
   
   //Optional: Regular expressions to clean output text
   asciiFilter:        "[^\r\n\x20-\x7e]", //removes non-standard ASCII
