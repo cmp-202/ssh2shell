@@ -27,6 +27,9 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Server SSH fingerprint validation.
 * Access to [SSH2.connect parameters](https://github.com/mscdex/ssh2#client-methods) for first host connection.
 * Keyboard-interactive authentication.
+* Pipe stream.data into another writable stream using SSH2shell.pipe(writableStream). Pipe commands can be chained.
+* Also process raw stream.data through SSH2shell.on('Data') or host.onData event handlers as the stream receives each
+  character. 
 
 
 Code:
