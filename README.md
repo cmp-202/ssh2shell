@@ -210,7 +210,7 @@ SSH2Shell extends events.EventEmitter
 *Methods*
 * .constructor(sshObj) requires a host object as defined above. `SSH = new SSH2Shell(host);`
 
-* .connect(callback(sessionText){}) Is the main function to establish the connection and handle data events from the server which triggers
+* .connect(callback(sessionText)) Is the main function to establish the connection and handle data events from the server which triggers
   the rest of the process. It take in an optional callback funtion that receives the full session text as its parameter.
 
 * .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
