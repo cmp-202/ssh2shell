@@ -26,5 +26,10 @@ var SSH = new SSH2Shell(host),
           console.log ( "-----Callback session text:\n" + sessionText);
           console.log ( "-----Callback end" );
       }
+var firstLog = fs.createWriteStream('first.log'),
+    secondLog = fs.createWriteStream('second.log');
+
+//multiple pipes can be added but they wont be bound to the stream until the connection is established    
+SSH.pipe(firstLog).pipe(secondLog);    
 
 SSH.connect(callback)

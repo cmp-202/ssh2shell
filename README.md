@@ -142,6 +142,24 @@ host = {
     //see text/keyboard-interactivetest.js
   },
   
+  //Optional: data is triggered on every stream data event providing the raw stream output 
+  //without SSH2shell interacting with it.
+  onData: function( data ) {
+    data is a string chunk recieved from the connected host
+  },
+  
+  //Optional: The pipe event is raised when readStream.pipe() adds a writable stream to 
+  //receive output
+  onPipe: function( source ) {
+    //source is the read stream the write stream will receive output from
+  }
+  
+  //Optional: The unpipe event is raised when readStream.unpipe() removes a writable stream 
+  //so it no longer receives output
+  onUnpipe: function( source ) {
+    //source is the read stream to remove from being able to write its output.
+  },
+  
   //Optional: Command processing is triggered on every data read event (one character at a time) 
   //until prompt is detected.
   onCommandProcessing: function( command, response, sshObj, stream ) {
@@ -215,6 +233,10 @@ SSH2Shell extends events.EventEmitter
 
 * .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
+  
+* .pipe(destination) binds a writable stream to the output of the read stream but only after the connection is established.
+
+* .unpipe(destination) removes piped streams but can only be called after a connection has been made.
 
 *Variables*
 * .sshObj is the host object as defined above along with some instance variables.
@@ -242,6 +264,9 @@ Test Files:
 cp .env-example .env
 //set the env variables to match your test host/vm username and password.
 node text/simple.js
+
+//simple pipe example
+node test/pipe.js
 
 //multiple nested hosts
 //requires the additional details added to .env file for each server
@@ -1092,5 +1117,17 @@ ssh2shell.on ("keyboard-interactive",
  //if a non standard prompt results from a successfull connection then handle its detection and response in
  //onCommandProcessing or commandTimeout.
  //see text/keyboard-interactivetest.js
+});
+
+ssh2shell.on ("data", function onData(data){
+  //data is a string chunk received from the stream.data event
+});
+
+ssh2shell.on ("pipe", function onPipe(source){
+  //Source is the read stream to output data from
+});
+
+ssh2shell.on ("Unpipe", function onUnpipe(source){
+  //Source is the read stream to remove from outputting data
 });
 ```

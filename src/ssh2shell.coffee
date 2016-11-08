@@ -13,6 +13,7 @@ class SSH2Shell extends EventEmitter
   _data:            ""
   _buffer:          ""
   _connections:     []
+  _pipes:           []
   idleTime:         5000
   asciiFilter:      ""
   textColorFilter:  ""
@@ -23,7 +24,11 @@ class SSH2Shell extends EventEmitter
   onCommandComplete:  =>
   onCommandTimeout:   =>
   onEnd:              =>
-    
+  pipe:  (destination)=>
+    @_pipes.push(destination)
+    return @    
+  unpipe:             =>
+  
   _processData: ( data )=>
             
     #add host response data to buffer
@@ -308,7 +313,15 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', "#{type} error: " + err
       callback(err, type) if callback
       @connection.end() if close
-        
+    
+    @.on "pipe", @sshObj.onPipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
+      
+    @.on "unpipe", @sshObj.onUnpipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug 
+      
+    @.on "data", @sshObj.onData ? (data) =>
+    
   connect: (callback)=>
     if @sshObj.server and @sshObj.commands
       try
@@ -329,7 +342,10 @@ class SSH2Shell extends EventEmitter
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
+            @_stream.setEncoding('utf8');
             
+            @_stream.pipe pipe for pipe in @_pipes
+            @.unpipe = @_stream.unpipe
             @_stream.on "error", (err) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.error" if @sshObj.debug
               @.emit 'error', err, "Stream"
@@ -340,15 +356,21 @@ class SSH2Shell extends EventEmitter
               @.emit 'msg', "#{@sshObj.server.host}: Stream.stderr.data" if @sshObj.debug
               @.emit 'error', err, "Stream STDERR"
               
-            @_stream.on "readable", =>
+            @_stream.on "data", (data)=>
               try
-                while (data = @_stream.read())
-                  @_processData( "#{data}" )
+                @_processData( data )
+                @.emit "data", data 
               catch e
                 err = new Error("#{e} #{e.stack}")
                 err.level = "Data handling"
                 @.emit 'error', err, "Stream.read", true
                 
+            @_stream.on "pipe", (source)=>
+              @.emit 'pipe', source
+            
+            @_stream.on "unpipe", (source)=>
+              @.emit 'unpipe', source
+              
             @_stream.on "finish", =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.finish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
@@ -394,6 +416,7 @@ class SSH2Shell extends EventEmitter
           algorithms:       @sshObj.server.algorithms
           compress:         @sshObj.server.compress
           debug:            @sshObj.server.debug
+        return @_stream
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connection.connect", true        
     else
@@ -401,4 +424,6 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', @sshObj.server
         @.emit 'msg', @sshObj.commands
 
+  
+  
 module.exports = SSH2Shell
