@@ -85,9 +85,9 @@ host = {
     //Optional: ssh2.connect config parameters
     //See https://github.com/mscdex/ssh2#client-methods
     //ssh2.connect parameters are only valid for the first host connection.
-    //Other host connections use the ssh command within the current host.
+    //Other host connections use the ssh command/s to connect not ssh2.
   },
-  //Optional: Array of host object for multiple host connections
+  //Optional: Array of host objects for multiple host connections
   hosts:              [host2, host3, host4, host5],
   
   //Optional: Characters used in prompt detection
@@ -137,8 +137,8 @@ host = {
     //finish is the function to be called with an array of responses in the same order as 
     //the prompts parameter defined them.
     //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
-    //if a nonstandard prompt results from a successful connection then handle its detection and response in
-    //onCommandProcessing or commandTimeout.
+    //if a nonstandard prompt results from a successful connection then handle its 
+    //detection and response in onCommandProcessing or commandTimeout.
     //see text/keyboard-interactivetest.js
   },
   
@@ -159,15 +159,15 @@ host = {
   
   //Optional: Command timeout is raised when a standard prompt is not detected and no data is 
   //received from the hostafter host.idleTimeout value.
-  //This stops the connection from hanging when no prompt is detected usually because the host is requiring
-  //a response it will never get. This event 
+  //This stops the connection from hanging when no prompt is detected usually because the
+  // host is requiring a response it will never get. This event 
   onCommandTimeout:    function( command, response, stream, connection ) {
    //command is the last command run or "" if no prompt after connection
    //response is the text received up to the time out.
    //stream object is used to send text to the host without having to close the connection.
    //connection gives access to close the connection if all else fails
-   //The connection will hang if you send text to the host but get no response and you don't close the
-   //connection. 
+   //The connection will hang if you send text to the host but get no response and you don't
+   //close the connection. 
    //The timer can be reset from within this event in case a stream write gets no response.
    //See test/timeouttest.js for and example of multiple commandTimeout triggers.
   },
@@ -393,15 +393,14 @@ server3.hosts = []
 3. Server1 is stored for use later and server2's host object is loaded as the current host.
 4. A connection to server2 is made using its server parameters via running the ssh command on the primary.
 5. Server2's commands are completed and server2.hosts array is checked for other hosts.
-6. With no hosts found the connection to server2 is closed triggering an end event (calling server2.onEnd function if
-   defined).
+6. With no hosts found the connection to server2 is closed triggering an end event (calling server2.onEnd function if defined).
 5. Server1 host object is reloaded as the current host object and server2 host object discarded.
 6. Server1.hosts array is checked for other hosts and the next host popped off the array.
 7. Server1's host object is stored again and server3's host object is loaded as the current host.
 8. Server3 is connected to and it completes its process.
 9. Server3.hosts is checked and with no hosts found the connection is closed and the end event is triggered.
 9. Server1 is loaded for the last time.
-10 The session text for each connection is appended to the session text for the primary host.
+10. The session text for each connection is appended to the session text for the primary host.
 11. With no further hosts to load the connection is closed triggering an end event for the last time.
 12. As all sessions are closed the process ends.
 
@@ -696,7 +695,7 @@ Default Cyphers:
 ---------------
 Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.alogrithms through the host.server.alogrithms option. As with this property all ssh2.connect properties are set in the host.server object.
 
-Example:
+*Example:*
 ```javascript
 var host = {
     server:        {  
@@ -753,7 +752,7 @@ To use fingerprint validation you first need the server hash string which can be
  * The servers hash value can be saved to a variable outside the host or class so you can access it without having to
    parse response text.
 
-Fingerprint validation example: 
+*Example:*
 ```javascript
 //Define the hostValidation function in the host.server config.
 //hashKey needs to be defined at the top level if you want to access the server hash at run time
@@ -804,9 +803,9 @@ Keyboard-interactive
 Keyboard-interactive authentication is available when both host.server.tryKeyboard is set to true and the event handler
 keyboard-interactive is defined as below. The keyboard-interactive event handler can only be used on the first connection.
 
-Also see test/keyboard-interactivetest.js for the full example 
+Also see [test/keyboard-interactivetest.js](https://github.com/cmp-202/ssh2shell/blob/master/test/keyboard-interactivetest.js) for the full example 
 
-keyboard-interactive event handler definition
+*Defining the event handler:*
 ```javascript
 //this is required
 host.server.tryKeyboard = true;
@@ -861,7 +860,7 @@ of root or the other user (`su seconduser`) and requires you detect the password
 See: [su VS sudo su VS sudo -u -i](http://johnkpaul.tumblr.com/post/19841381351/su-vs-sudo-su-vs-sudo-u-i) for
      clarification about the difference between the commands.
 
-See: test/sudosutest.js for a working code example.
+See: [test/sudosutest.js](https://github.com/cmp-202/ssh2shell/blob/master/test/sudosutest.js) for a working code example.
 
 
 Notification commands:
