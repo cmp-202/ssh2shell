@@ -30,6 +30,8 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Pipe stream.data into another writable stream using SSH2shell.pipe(writableStream). Pipe commands can be chained.
 * Also process raw stream.data through SSH2shell.on('Data') or host.onData event handlers as the stream receives each
   character. 
+* Use a callback funtion to handle final session text. The callback function can be defined in the host object or 
+  passed to SSH2shell.connect(callback). The callback function has access to the `this` keyword. 
 
 
 Code:
@@ -211,7 +213,13 @@ host = {
    //callback is the function to run with handling the error in the form of function(err,type)
    //if overwriting the default definition remember to handle closing the connection based on close
    //To close the connection us this.connection.close()
-  }
+  },
+  
+  //Optional: callback funtion definition called when the stream closes
+  callback:           function( sessionText ){
+    //sessionText is the full session response filtered and notifications added
+    //Is overridden by SSH2shell.connect(callback)
+  }  
 };
 ```
 * Host.server will accept current [SSH2.client.connect parameters](https://github.com/mscdex/ssh2#client-methods).

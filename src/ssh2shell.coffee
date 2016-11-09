@@ -20,6 +20,7 @@ class SSH2Shell extends EventEmitter
   passwordPromt:    ""
   passphrasePromt:  ""
   standardPromt:    ""
+  _callback:          =>
   onCommandProcessing:=>
   onCommandComplete:  =>
   onCommandTimeout:   =>
@@ -266,8 +267,8 @@ class SSH2Shell extends EventEmitter
     @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
     @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i") unless @passphrasePromt
     @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPromt
-
-    @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
+    @_callback                = @sshObj.callback if @sshObj.callback
+    @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>  
     
     @onCommandComplete        = @sshObj.onCommandComplete ? ( command, response, sshObj ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.commandComplete" if @sshObj.debug
@@ -325,6 +326,7 @@ class SSH2Shell extends EventEmitter
   connect: (callback)=>
     if @sshObj.server and @sshObj.commands
       try
+        @_callback = callback if callback
         @connection.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.keyboard-interactive" if @sshObj.debug
           @.emit "keyboard-interactive", name, instructions, instructionsLang, prompts, finish
@@ -374,7 +376,7 @@ class SSH2Shell extends EventEmitter
             @_stream.on "finish", =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.finish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
-              callback @sshObj.sessionText if callback
+              @_callback @sshObj.sessionText if @_callback
               
             @_stream.on "close", (code, signal) =>                          
               @.emit 'msg', "#{@sshObj.server.host}: Stream.close" if @sshObj.debug
