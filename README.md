@@ -238,8 +238,6 @@ SSH2Shell extends events.EventEmitter
 
 *Methods*
 
-* .constructor(sshObj) requires a host object as defined above. `SSH = new SSH2Shell(host);`
-
 * .connect(callback(sessionText)) Is the main function to establish the connection and handle data events from the server which triggers
   the rest of the process. It take in an optional callback function that receives the full session text as its parameter.
 
@@ -251,22 +249,10 @@ SSH2Shell extends events.EventEmitter
 * .unpipe(destination) removes piped streams but can only be called after a connection has been made.
 
 *Variables*
+
 * .sshObj is the host object as defined above along with some instance variables.
 
-* .command is the current command being run until a new prompt is detected and the next command replaces it or a
-  commandTimeout event is raised which may cause a disconnection. 
-
-* .idleTime is used by the command timeout timer
-
-* .asciiFilter is the regular expression used to filter out non-standard ascii values from response text
-
-* .textColorFilter is the regular expression used to filter out text colour codes
-
-* .passwordPromt is the characters used to identify a valid password prompt
-
-* .passphrasePromt is the characters used to identify a valid passphrase prompt
-
-* .standardPromt is the characters used to identify a valid standard prompt
+* .command is the current command being run until a new prompt is detected and the next command replaces it.
 
 
 Test Files:
