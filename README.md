@@ -48,26 +48,26 @@ npm install ssh2shell
 Minimal Example:
 ------------
 ```javascript
+//host configuration with connection settings and commands
 var host = {
  server:        {     
   host:         "127.0.0.1",
   userName:     "test",
   password:     "1234",
- },
- commands:      [
-  "msg:Connected",
-  "echo $(pwd)",
-  "ls -l"
- ]
+ }},
+ commands:      [ "echo $(pwd)", "ls -l" ]
 };
 
-
 var SSH2Shell = require ('ssh2shell'),
-//Create a new instance passing in the host object
-SSH = new SSH2Shell(host);
+  //Create a new instance passing in the host object
+  SSH = new SSH2Shell(host),
+  //Use a callback function to process the full session text
+  callback = function(sessionText){
+    console.log(sessionText)
+  }
 
 //Start the process
-SSH.connect();
+SSH.connect(callback);
 ``` 
 
 Host Configuration:
@@ -229,10 +229,11 @@ ssh2shell API
 SSH2Shell extends events.EventEmitter
 
 *Methods*
+
 * .constructor(sshObj) requires a host object as defined above. `SSH = new SSH2Shell(host);`
 
 * .connect(callback(sessionText)) Is the main function to establish the connection and handle data events from the server which triggers
-  the rest of the process. It take in an optional callback funtion that receives the full session text as its parameter.
+  the rest of the process. It take in an optional callback function that receives the full session text as its parameter.
 
 * .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
