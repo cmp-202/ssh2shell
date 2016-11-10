@@ -197,9 +197,31 @@ class SSH2Shell extends EventEmitter
     @_loadDefaults()
     if @sshObj.hosts and @sshObj.hosts.length is 0
       @sshObj.exitCommands.push "exit"
-    @sshObj.commands.unshift("ssh -oStrictHostKeyChecking=no #{@sshObj.server.userName}@#{@sshObj.server.host}")
+      
+    //add ssh commandline options from host.server.ssh
+    sshFlags   = "-x"
+    sshFlags   += @sshObj.server.ssh.forceProtocolVersion if @sshObj.server.ssh.forceProtocolVersion
+    sshFlags   += @sshObj.server.ssh.forceAddressType if @sshObj.server.ssh.forceAddressType      
+    sshFlags   += "T" if @sshObj.server.ssh.disablePseudoTTY 
+    sshFlags   += "t" if @sshObj.server.ssh.forcePseudoTTY    
+    sshFlags   += "v" if @sshObj.server.ssh.verbose
+      
+    sshOptions += " -c " + @sshObj.server.ssh.cipherSpec if @sshObj.server.ssh.cipherSpec
+    sshOptions += " -e " + @sshObj.server.ssh.escape if @sshObj.server.ssh.escape
+    sshOptions += " -E " + @sshObj.server.ssh.logFile if @sshObj.server.ssh.logFile    
+    sshOptions += " -F " + @sshObj.server.ssh.configFile if @sshObj.server.ssh.configFile    
+    sshOptions += " -i " + @sshObj.server.ssh.identityFile if @sshObj.server.ssh.identityFile
+    sshOptions += " -l " + @sshObj.server.ssh.loginName if @sshObj.server.ssh.loginName   
+    sshOptions += " -m " + @sshObj.server.ssh.macSpec if @sshObj.server.ssh.macSpec  
+    sshOptions += ' -o "StrictHostKeyChecking=no"'
+    sshOptions += ' -o "#{option}={#value}"' for option, value of @sshObj.server.ssh.Options
+    sshOptions += " -p #{@sshObj.server.port}"
+    
+    sshCommand = "ssh #{sshFlags} #{sshOptions} #{@sshObj.server.userName}@#{@sshObj.server.host}"
+    @.emit 'msg', "SSH command: #{sshCommand}" if @sshObj.debug
+    @sshObj.commands.unshift(sshCommand)
     @_processNextCommand()
- 
+  
   _runExit: =>
     #run the exit commands loaded by ssh and sudo su commands
     if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
