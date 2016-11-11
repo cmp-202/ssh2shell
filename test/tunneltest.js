@@ -24,14 +24,14 @@ var conParamsHost1 = {
 var host1 = {
   server:              conParamsHost1,
   commands:            [
-    "msg:connected to host: passed",
+    "msg:connected to host1: passed",
     "ls -la"
   ],
   connectedMessage:    "Connected to Primary host1",
-  onCommandComplete:   function( command, response, sshObj, self ) {
+  onCommandComplete:   function( command, response, sshObj) {
     //we are listing the dir so output it to the msg handler
     if (command === "ls -l"){      
-      self.emit("msg", response);
+      this.emit("msg", response);
     }
   }
 },
@@ -39,16 +39,20 @@ var host1 = {
 host2 = {
   server:              conParamsHost2,
   commands:            [
-    "msg:connected to host: passed",
+    "msg:connected to host2: passed",
     "sudo su",
     "cd ~/",
     "ls -la"
   ],
-  onCommandComplete:   function( command, response, sshObj, self ) {
+  onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
     if (command === "sudo su"){      
-      self.emit("msg", "Just ran a sudo su command");
+      this.emit("msg", "Just ran a sudo su command");
     }
+  },
+  onEnd: function( sessionText, sshObj ) {
+    //show the full session output. This could be emailed or saved to a log file.
+    this.emit("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText + "\nThe End\n");
   }
 },
 
@@ -60,12 +64,9 @@ host3 = {
     "cd ~/",
     "ls -la"
   ],
-  onCommandComplete:   function( command, response, sshObj, self ) {
+  onCommandComplete:   function( command, response, sshObj ) {
     //we are listing the dir so output it to the msg handler
-    if (command.indexOf("cd") != -1){  
-      self.emit("msg", "Just ran a cd command:");    
-      self.emit("msg", response);
-    }
+    this.emit("msg", response)
   }
 }
 
@@ -77,14 +78,14 @@ host1.hosts = [ host2, host3 ];
 //host1.hosts = [ host2 ];
 
 //Create the new instance
+//or SSH2Shell = require ('ssh2shell')
 var SSH2Shell = require ('../lib/ssh2shell'),
-SSH = new SSH2Shell(host1);
+    SSH = new SSH2Shell(host1),
+    callback = function( sessionText ){
+          console.log ( "-----Callback session text:\n" + sessionText);
+          console.log ( "-----Callback end" );
+      }
 
-//default on end event handler used by all hosts
-SSH.on ('end', function onEnd( sessionText, sshObj ) {
-  //show the full session output. This could be emailed or saved to a log file.
-  this.emit("msg", "\nSession text for " + sshObj.server.host + ":\n" + sessionText + "\nThe End\n\n");
-});
 
 //Start the process
-SSH.connect();
+SSH.connect(callback);

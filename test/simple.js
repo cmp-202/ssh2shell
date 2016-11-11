@@ -3,13 +3,15 @@ var dotenv = require('dotenv'),
 dotenv.load();
 
 var host = {
-  server:             {     
+  server: {     
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
-  commands:           [
+  debug:          false,
+  verbose:        false,
+  commands:       [
     "`Test session text message: passed`",
     "msg:console test notification: passed",
     "ls -la"

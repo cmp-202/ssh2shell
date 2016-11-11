@@ -87,10 +87,31 @@ host = {
     password:     "user password",
     passPhrase:   "privateKeyPassphrase", string
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'),
+    //Optional ssh object and parameters used by the ssh command when connecting 
+    //to a host. These ssh settings affect the connection to the host the host.server
+    //Configuration they were defined within. This only applies when making multi host connections.
+    //see http://man.openbsd.org/ssh for definitions of options below.
+    ssh: {
+        //Optional
+        forceProtocolVersion: true/false,
+        forceAddressType: true/false,
+        disablePseudoTTY: true/false,
+        forcePseudoTTY: true/false,
+        verbose: true/false,
+        cipherSpec: "",
+        escape: "",
+        logFile: "",
+        configFile: "",
+        identityFile: "",
+        loginName: "",
+        macSpec: "",
+        Options: {}
+    }
     //Optional: ssh2.connect config parameters
     //See https://github.com/mscdex/ssh2#client-methods
     //ssh2.connect parameters are only valid for the first host connection.
     //Other host connections use the ssh command/s to connect not ssh2.
+    
   },
   //Optional: Array of host objects for multiple host connections
   hosts:              [host2, host3, host4, host5],
@@ -398,10 +419,39 @@ SSH.connect(callback);
 Tunnelling nested host objects:
 ---------------------------------
 SSH tunnelling has been incorporated into core of the class process enabling nested host objects.
-The new `hosts: [ host1, host2]` setting can make multiple sequential host connections possible and each host object
-can also contain nested hosts. Each host config object has its own server settings, commands, command handlers and
-event handlers. The msg handler can be shared between all objects. This a very robust and simple multi host 
-configuration method.
+The new `hosts: [ host1, host2]` setting can make multiple host connections possible. 
+Each host config object has its own server settings, commands, command handlers and
+event handlers. Each host object also has its own hosts array that other host objects can be added to.
+This provides for different host connection sequences to any depth of recursion.
+
+**SSH connections:**
+Once the primary host connection is made all other connections are made using an ssh command from the 
+curent host to the next. I have given access to a number of ssh command options by adding
+an optional host.server.ssh object. All host.server.ssh properties are optional. 
+host.server.ssh.options allows setting any ssh config option from the command. 
+
+```
+var host = {
+    server: { ...,
+        ssh: {
+            forceProtocolVersion: true/false,
+            forceAddressType: true/false,
+            disablePseudoTTY: true/false,
+            forcePseudoTTY: true/false,
+            verbose: true/false,
+            cipherSpec: "",
+            escape: "",
+            logFile: "",
+            configFile: "",
+            identityFile: "",
+            loginName: "",
+            macSpec: "",
+            options: {}
+        }
+    }
+}
+```
+
 
 **Tunnelling Example:**
 This example shows two hosts (server2, server3) that are connected to via server1. The two host configs are add
