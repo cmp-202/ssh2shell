@@ -402,7 +402,8 @@ class SSH2Shell extends EventEmitter
       @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug 
       
     @.on "data", @sshObj.onData ? (data) =>
-    
+    @.on "stderrData", @sshObj.onStderrData ? (data) =>
+        console.error data
   connect: (callback)=>
     if @sshObj.server and @sshObj.commands
       try
@@ -428,15 +429,14 @@ class SSH2Shell extends EventEmitter
             
             @_stream.pipe pipe for pipe in @_pipes
             @.unpipe = @_stream.unpipe
+            
             @_stream.on "error", (err) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.error" if @sshObj.debug
               @.emit 'error', err, "Stream"
 
-            @_stream.stderr.on 'data', (data) =>
-              err = new Error("stderr data: #{data}")
-              err.level = "stderr"
+            @_stream.stderr.on 'data', (data) =>              
               @.emit 'msg', "#{@sshObj.server.host}: Stream.stderr.data" if @sshObj.debug
-              @.emit 'error', err, "Stream STDERR"
+              @.emit 'stderrData', data
               
             @_stream.on "data", (data)=>
               try
