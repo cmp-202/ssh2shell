@@ -125,7 +125,7 @@ host = {
   
   //Optional: Regular expressions to clean output text
   asciiFilter:        "[^\r\n\x20-\x7e]", //removes non-standard ASCII
-  diableColorFilter:  false, //turns colour filtering on and off
+  disableColorFilter:  false, //turns colour filtering on and off
   textColorFilter:    "(\[{1}[0-9;]+m{1})", //removes colour formatting codes
   
   //Required: array of commands
