@@ -56,7 +56,7 @@ var host = {
   host:         "127.0.0.1",
   userName:     "test",
   password:     "1234",
- }},
+ },
  commands:      [ "echo $(pwd)", "ls -l" ]
 };
 
