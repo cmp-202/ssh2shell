@@ -120,8 +120,12 @@ host = {
   standardPrompt:     ">$%#",
   passwordPrompt:     ":",
   passphrasePrompt:   ":",
+  
   //Optional: Enter key character to send as end of line.
   enter:              "\n", //Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
+  
+  //Optionsl: stream encoding
+  streamEncoding:     "utf8",
   
   //Optional: Regular expressions to clean output text
   asciiFilter:        "[^\r\n\x20-\x7e]", //removes non-standard ASCII
@@ -130,16 +134,19 @@ host = {
   
   //Required: array of commands
   commands:           ["cd /var/logs", "ls -al", "msg:Listed dir", "cd /home/user"],
+  
   //Optional: Used by this.emit("msg", "my message") to output a message
   msg:                {
     send: function( message ) {
       console.log(message);
     }
   }, 
+  
   //Optional: Trouble shooting options
   verbose:             false,  //outputs all received content
-  debug:               false,  //outputs information about each process step.
-  //Optional: Command timeout timer max interval
+  debug:               false,  //outputs information about each process step
+  
+  //Optional: Command timeout timer max interval in milliseconds
   idleTimeOut:         5000,        //integer
   
   //Optional: Messages returned on each connection event.

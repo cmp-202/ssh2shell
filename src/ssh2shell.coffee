@@ -12,8 +12,6 @@ class SSH2Shell extends EventEmitter
   _stream:          {}
   _data:            ""
   _buffer:          ""
-  _connections:     []
-  _pipes:           []
   idleTime:         5000
   asciiFilter:      ""
   textColorFilter:  ""
@@ -339,6 +337,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.sshAuth           = false unless @sshObj.sshAuth
     @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
     @sshObj.sessionText       = "" unless @sshObj.sessionText
+    @sshObj.streamEncoding    = @sshObj.streamEncoding ? "utf8"
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
@@ -346,6 +345,9 @@ class SSH2Shell extends EventEmitter
     @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s$","i") unless @passphrasePromt
     @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s$") unless @standardPromt
     @_callback                = @sshObj.callback if @sshObj.callback
+    @_connections             = []
+    @_pipes                   = []
+    
     @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>  
     
     @onCommandComplete        = @sshObj.onCommandComplete ? ( command, response, sshObj ) =>
@@ -425,7 +427,7 @@ class SSH2Shell extends EventEmitter
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
-            @_stream.setEncoding('utf8');
+            @_stream.setEncoding(@sshObj.streamEncoding);
             
             @_stream.pipe pipe for pipe in @_pipes
             @.unpipe = @_stream.unpipe
