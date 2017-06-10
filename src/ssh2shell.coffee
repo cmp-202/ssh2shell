@@ -505,7 +505,7 @@ class SSH2Shell extends EventEmitter
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connection.connect", true        
     else
-      @.emit 'error', "Missing connection parameters", "Parameters", false, missingParameters( err, type, close ) ->
+      @.emit 'error', "Missing connection parameters", "Parameters", false, ( err, type, close ) ->
         @.emit 'msg', @sshObj.server
         @.emit 'msg', @sshObj.commands
 
