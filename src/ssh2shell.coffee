@@ -50,7 +50,8 @@ class SSH2Shell extends EventEmitter
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
       if @command is "" 
         @sshObj.idleTimer = setTimeout( =>
-        @_nextCommand, 500)
+          @_nextCommand()
+        , 500)
       @sshObj.idleTimer = setTimeout( =>
         @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
       , @idleTime)
