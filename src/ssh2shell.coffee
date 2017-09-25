@@ -40,7 +40,7 @@ class SSH2Shell extends EventEmitter
     else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #Check for standard prompt with command content not included
-    else if @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+    else if @command and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
       @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
       @sshObj.pwSent = false #reset sudo prompt checkable
       @_commandComplete() 
@@ -48,6 +48,9 @@ class SSH2Shell extends EventEmitter
     else
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+      if @command is "" 
+        @sshObj.idleTimer = setTimeout( =>
+        @_nextCommand, 500)
       @sshObj.idleTimer = setTimeout( =>
         @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
       , @idleTime)
