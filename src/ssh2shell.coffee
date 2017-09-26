@@ -39,24 +39,26 @@ class SSH2Shell extends EventEmitter
     #check if ssh authentication needs to be handled
     else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
-    #Check for standard prompt with command content not included
-    else if @command and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+    #Check for standard prompt only if there is a currently running command
+    else if @command isnt "" and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
       @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
       @sshObj.pwSent = false #reset sudo prompt checkable
       @_commandComplete() 
     #command still processing
     else
+      #continue loading the buffer and set/reset a timeout
+      #When there is no command the first timeout is detecting the first commant prompt
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
       if @command is "" 
         @sshObj.idleTimer = setTimeout( =>
           @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
-          clearTimeout @sshObj.idleTimer
           @_nextCommand()
         , 500)
-      @sshObj.idleTimer = setTimeout( =>
-        @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
-      , @idleTime)
+      else
+        @sshObj.idleTimer = setTimeout( =>
+          @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
+        , @idleTime)
 
   _processPasswordPrompt: =>
     #First test for password prompt    
