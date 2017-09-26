@@ -53,6 +53,7 @@ class SSH2Shell extends EventEmitter
       if @command is "" 
         @sshObj.idleTimer = setTimeout( =>
           @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
+          @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
         , 500)
       else
@@ -329,6 +330,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.connectedMessage  = "Connected" unless @sshObj.connectedMessage
     @sshObj.readyMessage      = "Ready" unless @sshObj.readyMessage
     @sshObj.closedMessage     = "Closed" unless @sshObj.closedMessage
+    @sshObj.showBanner        = false unless @sshObj.showBanner
     @sshObj.verbose           = false unless @sshObj.verbose
     @sshObj.debug             = false unless @sshObj.debug
     @sshObj.hosts             = [] unless @sshObj.hosts 
