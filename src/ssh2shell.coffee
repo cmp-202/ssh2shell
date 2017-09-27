@@ -436,6 +436,7 @@ class SSH2Shell extends EventEmitter
           @connection.shell { pty: true }, (err, @_stream) =>
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
+            @.emit 'msg', "#{@sshObj.server.host}: Banner branch"
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
             @_stream.setEncoding(@sshObj.streamEncoding);
             
