@@ -40,26 +40,26 @@ class SSH2Shell extends EventEmitter
     else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #conection data detect first prompt by timeout in case baner has prompt chars
-    else if @command is ""
-      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-      @sshObj.idleTimer = setTimeout( =>
+    else
+      clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
+      @sshObj.dataReceivedTimer = setTimeout( =>
+        #Check for standard prompt only if there is a currently running command      
+        if @command and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+          @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
+          @sshObj.pwSent = false #reset sudo prompt checkable
+          @_commandComplete()
+        else if @command
+          #continue loading the buffer and set/reset a timeout
+          @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
+          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+          @sshObj.idleTimer = setTimeout( =>
+              @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
+          , @idleTime)
+        else
           @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
-        , 500)
-    #Check for standard prompt only if there is a currently running command
-    else if @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
-      @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
-      @sshObj.pwSent = false #reset sudo prompt checkable
-      @_commandComplete() 
-    #command still processing
-    else
-      #continue loading the buffer and set/reset a timeout
-      @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
-      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-      @sshObj.idleTimer = setTimeout( =>
-          @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
-      , @idleTime)
+      , 500)
 
   _processPasswordPrompt: =>
     #First test for password prompt    
@@ -353,7 +353,7 @@ class SSH2Shell extends EventEmitter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
     @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s$","i") unless @passwordPromt
     @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s$","i") unless @passphrasePromt
-    @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s$") unless @standardPromt
+    @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPromt
     @_callback                = @sshObj.callback if @sshObj.callback
     @_connections             = []
     @_pipes                   = []
