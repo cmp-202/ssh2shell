@@ -27,10 +27,10 @@ Wrapper class for [ssh2](https://www.npmjs.org/package/ssh2) shell command.
 * Server SSH fingerprint validation.
 * Access to [SSH2.connect parameters](https://github.com/mscdex/ssh2#client-methods) for first host connection.
 * Keyboard-interactive authentication.
-* Pipe stream.data into another writable stream using SSH2shell.pipe(writableStream). Pipe commands can be chained.
+* Pipe stream.data into another writeable stream using SSH2shell.pipe(writableStream). Pipe commands can be chained.
 * Also process raw stream.data through SSH2shell.on('data') or host.onData event handlers as the stream receives each
   character. 
-* Use a callback funtion to handle final session text. The callback function can be defined in the host object or 
+* Use a callback function to handle final session text. The callback function can be defined in the host object or 
   passed to SSH2shell.connect(callback). The callback function has access to the `this` keyword. 
 
 
@@ -85,11 +85,14 @@ host = {
     userName:     "user name",
     //optional or required settings subject to authentication method used
     password:     "user password",
-    passPhrase:   "privateKeyPassphrase", string
+    passPhrase:   "privateKeyPassphrase",
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'),
-    //Optional ssh object and parameters used by the ssh command when connecting 
-    //to a host. These ssh settings affect the connection to the host the host.server
-    //Configuration they were defined within. This only applies when making multi host connections.
+    //Optional: ssh2.connect config parameters
+    //See https://github.com/mscdex/ssh2#client-methods
+    //ssh2.connect parameters are only valid for the first host connection.
+    //Other host connections use the ssh command/s to connect not ssh2.
+    
+    //Optional: ssh options only for making secondary host ssh connections when tunnelling:
     //see http://man.openbsd.org/ssh for definitions of options below.
     ssh: {
         //Optional
@@ -107,11 +110,6 @@ host = {
         macSpec: "",
         Options: {}
     }
-    //Optional: ssh2.connect config parameters
-    //See https://github.com/mscdex/ssh2#client-methods
-    //ssh2.connect parameters are only valid for the first host connection.
-    //Other host connections use the ssh command/s to connect not ssh2.
-    
   },
   //Optional: Array of host objects for multiple host connections
   hosts:              [host2, host3, host4, host5],
@@ -121,10 +119,13 @@ host = {
   passwordPrompt:     ":",
   passphrasePrompt:   ":",
   
+  //Optional: exclude or include host banner after connection  
+  showBanner:         false,
+  
   //Optional: Enter key character to send as end of line.
   enter:              "\n", //Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
   
-  //Optionsl: stream encoding
+  //Optional: stream encoding
   streamEncoding:     "utf8",
   
   //Optional: Regular expressions to clean output text
@@ -146,8 +147,8 @@ host = {
   verbose:             false,  //outputs all received content
   debug:               false,  //outputs information about each process step
   
-  //Optional: Command timeout timer max interval in milliseconds
-  idleTimeOut:         5000,        //integer
+  //Optional: Command time-out timer max interval in milliseconds
+  idleTimeOut:         5000,  //integer
   
   //Optional: Messages returned on each connection event.
   connectedMessage:    "Connected",
@@ -158,7 +159,7 @@ host = {
   //These event handlers only apply to the host object they are defined within.
   //Host event function definitions replace the default event handlers defined 
   //in the class instead of adding another handler to the listeners.
-  //`this` is correctly linked to the instance within host defined event handlers
+  //\`this\` is correctly linked to the instance within host defined event handlers
   
   //Optional: Keyboard interactive authentication event handler
   //This event is only used for the first host connecting through ssh2.connect
@@ -170,7 +171,7 @@ host = {
     //finish is the function to be called with an array of responses in the same order as 
     //the prompts parameter defined them.
     //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
-    //if a nonstandard prompt results from a successful connection then handle its 
+    //if a non-standard prompt results from a successful connection then handle its 
     //detection and response in onCommandProcessing or commandTimeout.
     //see text/keyboard-interactivetest.js
   },
@@ -178,16 +179,16 @@ host = {
   //Optional: data is triggered on every stream data event providing the raw stream output 
   //without SSH2shell interacting with it.
   onData: function( data ) {
-    //data is a string chunk recieved from the connected host
+    //data is a string chunk received from the connected host
   },
   
-  //Optional: The pipe event is raised when readStream.pipe() adds a writable stream to 
+  //Optional: The pipe event is raised when readStream.pipe() adds a writeable stream to 
   //receive output
   onPipe: function( source ) {
     //source is the read stream the write stream will receive output from
   }
   
-  //Optional: The unpipe event is raised when readStream.unpipe() removes a writable stream 
+  //Optional: The unpipe event is raised when readStream.unpipe() removes a writeable stream 
   //so it no longer receives output
   onUnpipe: function( source ) {
     //source is the read stream to remove from being able to write its output.
@@ -209,7 +210,7 @@ host = {
   },
   
   //Optional: Command timeout is raised when a standard prompt is not detected and no data is 
-  //received from the hostafter host.idleTimeout value.
+  //received from the host after host.idleTimeout value.
   //This stops the connection from hanging when no prompt is detected usually because the
   // host is requiring a response it will never get. This event 
   onCommandTimeout:    function( command, response, stream, connection ) {
@@ -243,7 +244,7 @@ host = {
    //To close the connection us this.connection.close()
   },
   
-  //Optional: callback funtion definition called when the stream closes
+  //Optional: callback function definition called when the stream closes
   callback:           function( sessionText ){
     //sessionText is the full session response filtered and notifications added
     //Is overridden by SSH2shell.connect(callback)
@@ -324,7 +325,7 @@ Connecting to a single host:
 
 *How to:*
 * Use an .env file for server values loaded by dotenv from the root of the project.
-* Connect using a key pair with passphrase.
+* Connect using a key pair with pass phrase.
 * Use sudo su with user password.
 * Set commands.
 * Test the response of a command and add more commands and notifications in the host.onCommandComplete event handler.
@@ -433,7 +434,7 @@ This provides for different host connection sequences to any depth of recursion.
 
 **SSH connections:**
 Once the primary host connection is made all other connections are made using an ssh command from the 
-curent host to the next. I have given access to a number of ssh command options by adding
+current host to the next. I have given access to a number of ssh command options by adding
 an optional host.server.ssh object. All host.server.ssh properties are optional. 
 host.server.ssh.options allows setting any ssh config option from the command. 
 
@@ -648,12 +649,12 @@ Trouble shooting:
 
 * Adding msg command `"msg:Doing something"` to your commands array at key points will help you track the sequence of
   what has been done as the process runs. (See examples)
-* `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the passphrase
-  being incorrect. This confused me because it doesn't indicate the passphrase was the problem but it does indicate
+* `Error: Unable to parse private key while generating public key (expected sequence)` is caused by the pass phrase
+  being incorrect. This confused me because it doesn't indicate the pass phrase was the problem but it does indicate
   that it could not decrypt the private key. 
- * Recheck your passphrase for typos or missing chars.
- * Try connecting manually to the host using the exact passphrase used by the code to confirm it works.
- * I did read of people having problems with the passphrase or password having an \n added when used from an
+ * Recheck your pass phrase for typos or missing chars.
+ * Try connecting manually to the host using the exact pass phrase used by the code to confirm it works.
+ * I did read of people having problems with the pass phrase or password having an \n added when used from an
    external file causing it to fail. They had to add .trim() when setting it.
 * If your password is incorrect the connection will return an error.
 * There is an optional debug setting in the host object that will output process information when set to true and
@@ -681,22 +682,22 @@ Add your own debug messages as follows:
 identifying what happened
 
 
-Command Timeout Event Handler
+Command Time-out Event Handler
 ---------------
 When the program doesn't detect a standard prompt and doesn't receive any more data the onCommandTimeout event triggers
 after the host.idleTimeOut value (in ms). This is usually because an unexpected prompt on the server is requiring a 
 response that isn't handled or the host is not responding at all. In either case detection of the standard prompt will
-never happen causing the program to hang, perpetuley waiting for a response it won’t get. The commandTimeout stops this.
+never happen causing the program to hang, perpetually waiting for a response it won’t get. The commandTimeout stops this.
 The commandTimeout event can enable you to handle such prompts without having to disconnect by providing the response
 the host requires. The host then replies with more text triggering a data received event resetting the timer and
 enabling the process to continue. It is recommended to close the connection as a default action if all else fails so you
 are not left with a hanging script again. The default action is to add the last response text to the session text and
-disconnect. Enabling host.debug would also provide the process path leading upto disconnection which in conjunction with
+disconnect. Enabling host.debug would also provide the process path leading up to disconnection which in conjunction with
 the session text would clarify what command and output triggered the event.
 
 **Note: If you receive garble back before the clear response you may need to save the previous response text to the 
   sessionText and clear the buffer before using stream.write() in commandTimeout. 
-  `this.sshObj.sessionText = response` and `this._buffer = ""`
+  `this.sshObj.sessionText = response` and `this._buffer = ""`**
 
 
 ```javascript
@@ -758,7 +759,7 @@ SSH.on ('commandTimeout',function( command, response, stream, connection ){
     return true;
   }
   this.sshObj.sessionText += response;
-  this.emit("error", this.sshObj.server.host + ": Command `" + command + "` timed out after " 
+  this.emit("error", this.sshObj.server.host + ": Command \`" + command + "\` timed out after " 
     + (this._idleTime / 1000) + " seconds. command: " + command, "Command Timeout", true);
 });
 
@@ -774,7 +775,7 @@ SSH.connect();
 Authentication:
 ---------------
 * Each host authenticates with its own host.server parameters.
-* When using key authentication you may require a valid passphrase if your key was created with one.
+* When using key authentication you may require a valid pass phrase if your key was created with one.
 * When using fingerprint validation both host.server.hashMethod property and host.server.hostVerifier function must be
   set.
 * When using keyboard-interactive authentication both host.server.tryKeyboard and instance.on ("keayboard-interactive",
@@ -783,7 +784,8 @@ Authentication:
 
 Default Cyphers:
 ---------------
-Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.alogrithms through the host.server.alogrithms option. As with this property all ssh2.connect properties are set in the host.server object.
+Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.algorithms through the host.server.algorithms option. 
+As with this property all ssh2.connect properties are set in the host.server object.
 
 *Example:*
 ```javascript
@@ -859,10 +861,10 @@ host = {
         hostVerifier: function(hashedKey) {
             var recievedHash;
             
-            expectedHash = expectedHash + "".replace(/[:]/g, "").toLowerCase();           
+            expectedHash = expectedHash + "".replace(/[:]/g, "").toLowerCase();
             recievedHash = hashedKey + "".replace(/[:]/g, "").toLowerCase();
             if (expectedHash === "") {
-              //No expected hash so save save what was recived from the host (hashedKey)
+              //No expected hash so save save what was received from the host (hashedKey)
               //serverHash needs to be defined before host object
               serverHash = hashedKey; 
               console.log("Server hash: " + serverHash);
@@ -1016,7 +1018,7 @@ host.onCommandProcessing = function( command, response, sshObj, stream ) {
 \\sshObj.firstRun can be reset to false in onCommandComplete to allow for another non-standard prompt 
 ```
 
-Instance definition that runs in parrallel with every other commandProcessing for every host connection
+Instance definition that runs in parallel with every other commandProcessing for every host connection
 ```javascript
 //To handle all hosts the same add an event handler to the class instance
 //Don't define an event handler in the host object with the same code, it will do it twice!
@@ -1075,7 +1077,7 @@ to add your own functionality as the class already has default handlers defined.
 
 There are two ways to add event handlers:
 
-1. Add handler functions to the host object (See requirments at start of readme). 
+1. Add handler functions to the host object (See requirements at start of readme). 
  * These event handlers will only be run for the currently connected host.Important to understand in a multi host setup. 
  * Within the host event functions `this` is always referencing the ssh2shell instance at run time. 
  * Instance variables and functions are available through `this` including the Emitter functions like 
@@ -1153,7 +1155,7 @@ ssh2shell.on ("close", function onClose(had_error = void(0)) {
 });
 
 ssh2shell.on ("error", function onError(err, type, close = false, callback(err, type) = undefined) {
- //default: rasies a msg with the error message, runs the callback if defined and closes the connection
+ //default: raises a msg with the error message, runs the callback if defined and closes the connection
  //default is replaced by host.onEnd function if defined 
  //err is the error received it maybe an Error object or a string containing the error message.
  //type is a string identifying the source of the error
@@ -1169,7 +1171,7 @@ ssh2shell.on ("keyboard-interactive",
  //finish is the function to be called with an array of responses in the same order as 
  //the prompts parameter defined them.
  //See [Client events](https://github.com/mscdex/ssh2#client-events) for more information
- //if a non standard prompt results from a successfull connection then handle its detection and response in
+ //if a non standard prompt results from a successful connection then handle its detection and response in
  //onCommandProcessing or commandTimeout.
  //see text/keyboard-interactivetest.js
 });
