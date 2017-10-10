@@ -348,6 +348,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
     @sshObj.sessionText       = "" unless @sshObj.sessionText
     @sshObj.streamEncoding    = @sshObj.streamEncoding ? "utf8"
+    @sshObj.window            = @sshObj.window unless @sshObj.window
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
@@ -433,7 +434,7 @@ class SSH2Shell extends EventEmitter
           @.emit 'msg', @sshObj.readyMessage
 
           #open a shell
-          @connection.shell { pty: true }, (err, @_stream) =>
+          @connection.shell @sshObj.window, { pty: true }, (err, @_stream) =>
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
