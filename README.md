@@ -160,7 +160,7 @@ host = {
   //These event handlers only apply to the host object they are defined within.
   //Host event function definitions replace the default event handlers defined 
   //in the class instead of adding another handler to the listeners.
-  //\`this\` is correctly linked to the instance within host defined event handlers
+  //`this.` is correctly linked to the instance within host defined event handlers.
   
   //Optional: Keyboard interactive authentication event handler
   //This event is only used for the first host connecting through ssh2.connect
