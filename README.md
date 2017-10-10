@@ -121,7 +121,8 @@ host = {
   
   //Optional: exclude or include host banner after connection and window size 
   showBanner:         false,
-  window:             false, //[ssh2 client pseudo-TTY options](https://github.com/mscdex/ssh2#pseudo-tty-settings): {cols:200}
+  window:             false, //https://github.com/mscdex/ssh2#pseudo-tty-settings use {cols:200}
+  
   //Optional: Enter key character to send as end of line.
   enter:              "\n", //Linux = "\n" | "\x0a\, Mac = "\r" | "x0d"
   
