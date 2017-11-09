@@ -44,11 +44,11 @@ class SSH2Shell extends EventEmitter
       clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
       @sshObj.dataReceivedTimer = setTimeout( =>
         #Check for standard prompt only if there is a currently running command      
-        if @command and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+        if @command.length > 0 and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
           @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
           @sshObj.pwSent = false #reset sudo prompt checkable
           @_commandComplete()
-        else if @command
+        else if @command.length > 0
           #continue loading the buffer and set/reset a timeout
           @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
           clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
