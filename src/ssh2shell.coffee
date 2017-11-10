@@ -50,6 +50,7 @@ class SSH2Shell extends EventEmitter
           @_commandComplete()
         else if @command.length > 0
           #continue loading the buffer and set/reset a timeout
+          @.emit 'msg', "#{@sshObj.server.host}: Command waiting" if @sshObj.debug
           @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
           clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
           @sshObj.idleTimer = setTimeout( =>
@@ -59,6 +60,9 @@ class SSH2Shell extends EventEmitter
           @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
+        else
+          @.emit 'msg', "#{@sshObj.server.host}: No command processing to first prompt" if @sshObj.debug
+          @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream
       , 500)
 
   _processPasswordPrompt: =>
