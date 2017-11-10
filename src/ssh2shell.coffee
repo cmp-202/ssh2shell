@@ -55,7 +55,7 @@ class SSH2Shell extends EventEmitter
           @sshObj.idleTimer = setTimeout( =>
               @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
           , @idleTime)
-        else if @command.length < 1 and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+        else if @command.length < 1 and @standardPromt.test(@_buffer)
           @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
