@@ -32,11 +32,12 @@ class SSH2Shell extends EventEmitter
             
     #add host response data to buffer
     @_buffer += data
+    @.emit 'msg', "#{@sshObj.server.host}: Password prompt: \nBuffer: \n#{@_buffer} \nresponse: #{@_buffer}" if @command.indexOf("ll -al") != -1
     #check if sudo password is needed
-    if @command and @command.indexOf(@sshObj.localAuthCommand+" ") isnt -1    
+    if @command and @command.indexOf("sudo ") isnt -1    
       @_processPasswordPrompt()
     #check if ssh authentication needs to be handled
-    else if @command and @command.indexOf(@sshObj.remoteAuthCommand+" ") isnt -1
+    else if @command and @command.indexOf("ssh ") isnt -1
       @_processSSHPrompt()
     #conection data detect first prompt by timeout in case baner has prompt chars
     else
@@ -91,8 +92,8 @@ class SSH2Shell extends EventEmitter
     else
       #reprompted for password again so failed password 
       if @passwordPromt.test(response) 
-        @.emit 'msg', "#{@sshObj.server.host}: "+@sshObj.localAuthCommand+" password faied: response: #{response}" if @sshObj.verbose
-        @.emit 'error', @sshObj.localAuthCommand+" password was incorrect for #{@sshObj.server.userName}", @sshObj.localAuthCommand+" authentication"
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo password faied: response: #{response}" if @sshObj.verbose
+        @.emit 'error', "Sudo password was incorrect for #{@sshObj.server.userName}", "Sudo authentication"
         @.emit 'msg', "#{@sshObj.server.host}: Failed password prompt: Password: [#{@sshObj.server.password}]" if @sshObj.debug
         #add buffer to sessionText so the sudo response can be seen
         @sshObj.sessionText += "#{@_buffer}"
@@ -107,17 +108,17 @@ class SSH2Shell extends EventEmitter
     unless @sshObj.sshAuth
       #provide password
       if @passwordPromt.test(response)
-        @.emit 'msg', "#{@sshObj.server.host}: "+@sshObj.remoteAuthCommand+" password prompt" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH password prompt" if @sshObj.debug
         @sshObj.sshAuth = true
         @_stream.write "#{@sshObj.server.password}#{@sshObj.enter}"
       #provide passphrase
       else if @passphrasePromt.test(response)
-        @.emit 'msg', "#{@sshObj.server.host}: "+@sshObj.remoteAuthCommand+" passphrase prompt" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH passphrase prompt" if @sshObj.debug
         @sshObj.sshAuth = "true"
         @_stream.write "#{@sshObj.server.passPhrase}#{@sshObj.enter}"
       #normal prompt so continue with next command
       else if @standardPromt.test(response)
-        @.emit 'msg', "#{@sshObj.server.host}: "+@sshObj.remoteAuthCommand+" auth normal prompt" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH auth normal prompt" if @sshObj.debug
         @sshObj.sshAuth = true        
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
         @_commandComplete()
@@ -125,7 +126,7 @@ class SSH2Shell extends EventEmitter
       #detect failed authentication
       if (password = (@passwordPromt.test(response) or @passphrasePromt.test(response)))
         @sshObj.sshAuth = false
-        @.emit 'error', @sshObj.remoteAuthCommand+" authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}", "Nested host authentication"
+        @.emit 'error', "SSH authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}", "Nested host authentication"
         if @sshObj.debug
           @.emit 'msg', "Using " + (if password then "password: [#{@sshObj.server.password}]" else "passphrase: [#{@sshObj.server.passPhrase}]")
         #no connection so drop back to first host settings if there was one
@@ -167,7 +168,7 @@ class SSH2Shell extends EventEmitter
       @.emit 'msg', "#{@sshObj.server.host}: Sudo su adding exit." if @sshObj.debug
       @sshObj.exitCommands.push "exit"    
     
-    if @command isnt "" and @command isnt "exit" and @command.indexOf(@sshObj.remoteAuthCommand+" ") is -1
+    if @command isnt "" and @command isnt "exit" and @command.indexOf("ssh ") is -1
       @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose 
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
@@ -352,8 +353,6 @@ class SSH2Shell extends EventEmitter
     @sshObj.sessionText       = "" unless @sshObj.sessionText
     @sshObj.streamEncoding    = @sshObj.streamEncoding ? "utf8"
     @sshObj.window            = @sshObj.window unless @sshObj.window
-    @sshObj.localAuthCommand  = "sudo" unless @sshObj.localAuthCommand
-    @sshObj.remoteAuthCommand = "ssh" unless @sshObj.remoteAuthCommand
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
