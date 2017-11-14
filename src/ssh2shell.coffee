@@ -29,10 +29,16 @@ class SSH2Shell extends EventEmitter
   unpipe:             =>
   
   _processData: ( data )=>
-            
     #add host response data to buffer
     @_buffer += data
-    @.emit 'msg', "#{@sshObj.server.host}: Password prompt: \nBuffer: \n#{@_buffer} \nresponse: #{@_buffer}" if @command.indexOf("ll -al") != -1
+    
+    #remove non-standard ascii from terminal responses
+    unless @sshObj.disableASCIIFilter
+      @_buffer = @_buffer.replace(@asciiFilter, "")
+      
+    #remove test coloring from responses like [32m[31m
+    unless @sshObj.disableColorFilter
+      @_buffer = @_buffer.replace(@textColorFilter, "")
     #check if sudo password is needed
     if @command and @command.indexOf("sudo ") isnt -1    
       @_processPasswordPrompt()
@@ -172,16 +178,9 @@ class SSH2Shell extends EventEmitter
       @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose 
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
-      #remove non-standard ascii from terminal responses
-      unless @sshObj.disableASCIIFilter
-        @_buffer = @_buffer.replace(@asciiFilter, "")
-        
-      #remove test coloring from responses like [32m[31m
-      unless @sshObj.disableColorFilter
-        @_buffer = @_buffer.replace(@textColorFilter, "")
        
       @sshObj.sessionText += @_buffer
-      @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug       
+      @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
       @.emit 'commandComplete', @command, @_buffer, @sshObj
     
     if @command.indexOf("exit") != -1
