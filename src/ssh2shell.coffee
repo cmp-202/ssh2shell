@@ -32,13 +32,15 @@ class SSH2Shell extends EventEmitter
     #add host response data to buffer
     @_buffer += data
     
-    #remove non-standard ascii from terminal responses
-    unless @sshObj.disableASCIIFilter
-      @_buffer = @_buffer.replace(@asciiFilter, "")
       
     #remove test coloring from responses like [32m[31m
     unless @sshObj.disableColorFilter
       @_buffer = @_buffer.replace(@textColorFilter, "")
+    
+    #remove non-standard ascii from terminal responses
+    unless @sshObj.disableASCIIFilter
+      @_buffer = @_buffer.replace(@asciiFilter, "")
+    
     #check if sudo password is needed
     if @command and @command.indexOf("sudo ") isnt -1    
       @_processPasswordPrompt()
