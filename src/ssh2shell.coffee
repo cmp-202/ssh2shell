@@ -47,6 +47,8 @@ class SSH2Shell extends EventEmitter
     #and then process the buffer based on command and prompt combinations
     clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
     @sshObj.dataReceivedTimer = setTimeout( =>
+      #clear the command timeout timer 
+      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
       
       #remove test coloring from responses like [32m[31m
       unless @.sshObj.disableColorFilter        
