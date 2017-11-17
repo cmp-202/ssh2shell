@@ -32,7 +32,6 @@ class SSH2Shell extends EventEmitter
     #add host response data to buffer
     @_buffer += data
     if @command.length > 0 and not @.standardPromt.test(@._buffer.replace(@.command.substr(0, @._buffer.length), ""))
-      @.emit 'msg', "1\n"
       #continue loading the buffer and set/reset a timeout
       @.emit 'msg', "#{@sshObj.server.host}: Command waiting" if @sshObj.debug
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
@@ -41,7 +40,6 @@ class SSH2Shell extends EventEmitter
           @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
       , @idleTime)
     else if @command.length < 1 and not @standardPromt.test(@_buffer)
-      @.emit 'msg', "2\n"
       @.emit 'msg', "#{@sshObj.server.host}: No command processing to first prompt" if @sshObj.debug
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream
         
