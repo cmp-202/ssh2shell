@@ -53,21 +53,21 @@ class SSH2Shell extends EventEmitter
       #remove test coloring from responses like [32m[31m
       unless @.sshObj.disableColorFilter        
         @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+" :"+@textColorFilter.test(@_buffer) if @sshObj.verbose
-        @._buffer = @_buffer.replace(@textColorFilter, "")
+        @_buffer = @_buffer.replace(@textColorFilter, "")
       
       #remove non-standard ascii from terminal responses
       unless @.sshObj.disableASCIIFilter
         @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+" :"+@asciiFilter.test(@_buffer) if @sshObj.verbose
-        @._buffer = @_buffer.replace(@asciiFilter, "")
+        @_buffer = @_buffer.replace(@asciiFilter, "")
         
       switch (true)
         #check if sudo password is needed
         when @command.length > 0 and @command.indexOf("sudo ") isnt -1
-          @.emit 'msg', "#{@sshObj.server.host}: Password prompt: process " if @sshObj.debug
+          @emit 'msg', "#{@sshObj.server.host}: Password prompt: process " if @sshObj.debug
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
         when @command.length > 0 and @command.indexOf("ssh ") isnt -1
-          @.emit 'msg', "#{@sshObj.server.host}: SSH Password prompt: process " if @sshObj.debug
+          @emit 'msg', "#{@sshObj.server.host}: SSH Password prompt: process " if @sshObj.debug
           @_processSSHPrompt()
         #check for standard prompt from a command
         when @command.length > 0 and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
@@ -80,8 +80,8 @@ class SSH2Shell extends EventEmitter
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
         else
-          @.emit 'msg', "Timeout after hung data event" if @sshObj.debug
-          @.emit 'commandTimeout', @command, @_buffer, @_stream, @_connection
+          @emit 'msg', "Timeout after hung data event" if @sshObj.debug
+          @emit 'commandTimeout', @command, @_buffer, @_stream, @_connection
     , 500)
 
   _processPasswordPrompt: =>

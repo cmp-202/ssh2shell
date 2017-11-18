@@ -9,11 +9,9 @@ var host = {
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
-  debug:          false,
-  verbose:        false,
+  debug:          true,
+  verbose:        true,
   commands:       [
-    "`Test session text message: passed`",
-    "msg:console test notification: passed",
     "ls -la"
   ],
 
