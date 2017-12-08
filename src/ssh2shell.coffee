@@ -29,41 +29,60 @@ class SSH2Shell extends EventEmitter
   unpipe:             =>
   
   _processData: ( data )=>
-            
     #add host response data to buffer
     @_buffer += data
-    @.emit 'msg', "#{@sshObj.server.host}: Password prompt: \nBuffer: \n#{@_buffer} \nresponse: #{@_buffer}" if @command.indexOf("ll -al") != -1
-    #check if sudo password is needed
-    if @command and @command.indexOf("sudo ") isnt -1    
-      @_processPasswordPrompt()
-    #check if ssh authentication needs to be handled
-    else if @command and @command.indexOf("ssh ") isnt -1
-      @_processSSHPrompt()
-    #conection data detect first prompt by timeout in case baner has prompt chars
-    else
-      clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
-      @sshObj.dataReceivedTimer = setTimeout( =>
-        #Check for standard prompt only if there is a currently running command      
-        if @command.length > 0 and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
-          @.emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
+    if @command.length > 0 and not @.standardPromt.test(@._buffer.replace(@.command.substr(0, @._buffer.length), ""))
+      #continue loading the buffer and set/reset a timeout
+      @.emit 'msg', "#{@sshObj.server.host}: Command waiting" if @sshObj.debug
+      @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
+      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+      @sshObj.idleTimer = setTimeout( =>
+          @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
+      , @idleTime)
+    else if @command.length < 1 and not @standardPromt.test(@_buffer)
+      @.emit 'msg', "#{@sshObj.server.host}: No command processing to first prompt" if @sshObj.debug
+      @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream
+        
+    #Set a timer to fire when no more data events are received
+    #and then process the buffer based on command and prompt combinations
+    clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
+    @sshObj.dataReceivedTimer = setTimeout( =>
+      #clear the command timeout timer 
+      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+      
+      #remove test coloring from responses like [32m[31m
+      unless @.sshObj.disableColorFilter        
+        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+" :"+@textColorFilter.test(@_buffer) if @sshObj.verbose
+        @_buffer = @_buffer.replace(@textColorFilter, "")
+      
+      #remove non-standard ascii from terminal responses
+      unless @.sshObj.disableASCIIFilter
+        @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+" :"+@asciiFilter.test(@_buffer) if @sshObj.verbose
+        @_buffer = @_buffer.replace(@asciiFilter, "")
+        
+      switch (true)
+        #check if sudo password is needed
+        when @command.length > 0 and @command.indexOf("sudo ") isnt -1
+          @emit 'msg', "#{@sshObj.server.host}: Password prompt: process " if @sshObj.debug
+          @_processPasswordPrompt()
+        #check if ssh authentication needs to be handled
+        when @command.length > 0 and @command.indexOf("ssh ") isnt -1
+          @emit 'msg', "#{@sshObj.server.host}: SSH Password prompt: process " if @sshObj.debug
+          @_processSSHPrompt()
+        #check for standard prompt from a command
+        when @command.length > 0 and @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
+          @emit 'msg', "#{@sshObj.server.host}: Normal prompt detected" if @sshObj.debug
           @sshObj.pwSent = false #reset sudo prompt checkable
-          @_commandComplete()
-        else if @command.length > 0
-          #continue loading the buffer and set/reset a timeout
-          @.emit 'msg', "#{@sshObj.server.host}: Command waiting" if @sshObj.debug
-          @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
-          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-          @sshObj.idleTimer = setTimeout( =>
-              @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
-          , @idleTime)
-        else if @command.length < 1 and @standardPromt.test(@_buffer)
-          @.emit 'msg', "#{@sshObj.server.host}: first prompt detected" if @sshObj.debug
+          @_commandComplete() 
+        #check for no command but first prompt detected
+        when @command.length < 1 and @standardPromt.test(@_buffer)
+          @emit 'msg', "#{@sshObj.server.host}: First prompt detected" if @sshObj.debug
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
         else
-          @.emit 'msg', "#{@sshObj.server.host}: No command processing to first prompt" if @sshObj.debug
-          @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream
-      , 500)
+          @emit 'msg', "Timeout after hung data event" if @sshObj.debug
+          @emit 'commandTimeout', @command, @_buffer, @_stream, @_connection
+    , 500)
 
   _processPasswordPrompt: =>
     #First test for password prompt    
@@ -172,16 +191,9 @@ class SSH2Shell extends EventEmitter
       @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose 
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
-      #remove non-standard ascii from terminal responses
-      unless @sshObj.disableASCIIFilter
-        @_buffer = @_buffer.replace(@asciiFilter, "")
-        
-      #remove test coloring from responses like [32m[31m
-      unless @sshObj.disableColorFilter
-        @_buffer = @_buffer.replace(@textColorFilter, "")
        
       @sshObj.sessionText += @_buffer
-      @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug       
+      @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
       @.emit 'commandComplete', @command, @_buffer, @sshObj
     
     if @command.indexOf("exit") != -1
