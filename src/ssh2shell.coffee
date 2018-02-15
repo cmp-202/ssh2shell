@@ -3,12 +3,13 @@
 #================================
 # Description
 # SSH2 wrapper for creating a SSH shell connection and running multiple commands sequentially.
-
+typeIsArray = Array.isArray || ( value ) -> return {}.toString.call( value ) is '[object Array]'
 EventEmitter = require('events').EventEmitter
 
 class SSH2Shell extends EventEmitter
   sshObj:           {}
   command:          ""
+  hosts:            []
   _stream:          {}
   _data:            ""
   _buffer:          ""
@@ -396,11 +397,18 @@ class SSH2Shell extends EventEmitter
     @.on "commandTimeout", @onCommandTimeout  
     @.on "end", @onEnd
     
-  constructor: (@sshObj) ->
-    @_loadDefaults()
+  constructor: (hosts) ->
+    if typeIsArray(hosts) 
+      @hosts = hosts
+    else
+      @hosts = [hosts]
+    @connection = new require('ssh2')()
     
-    @connection = new require('ssh2')()    
-    
+  _initiate: =>
+    @.emit 'msg', "#{@sshObj.server.host}: initiate" if @sshObj.debug
+    @.removeAllListeners()
+    @connection.removeAllListeners()
+    @_loadDefaults()    
     #event handlers        
     @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
@@ -433,10 +441,22 @@ class SSH2Shell extends EventEmitter
     @.on "data", @sshObj.onData ? (data) =>
     @.on "stderrData", @sshObj.onStderrData ? (data) =>
         console.error data
+        
   connect: (callback)=>
-    if @sshObj.server and @sshObj.commands
-      try
-        @_callback = callback if callback
+    @_callback = callback if callback
+    @_nextPrimaryHost()
+  
+  _nextPrimaryHost: =>
+    @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
+    
+    host = @hosts.pop()
+    console.log(host)
+    @sshObj = host
+    
+    @_initiate()
+    @_connect()
+    
+  _connect: =>
         @connection.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.keyboard-interactive" if @sshObj.debug
           @.emit "keyboard-interactive", name, instructions, instructionsLang, prompts, finish
@@ -503,39 +523,42 @@ class SSH2Shell extends EventEmitter
             @.emit "error", had_error, "Connection close"
           else
             @.emit 'msg', @sshObj.closedMessage
-
-        @connection.connect
-          host:             @sshObj.server.host
-          port:             @sshObj.server.port
-          forceIPv4:        @sshObj.server.forceIPv4
-          forceIPv6:        @sshObj.server.forceIPv6
-          hostHash:         @sshObj.server.hashMethod
-          hostVerifier:     @sshObj.server.hostVerifier
-          username:         @sshObj.server.userName
-          password:         @sshObj.server.password
-          agent:            @sshObj.server.agent
-          agentForward:     @sshObj.server.agentForward
-          privateKey:       @sshObj.server.privateKey
-          passphrase:       @sshObj.server.passPhrase
-          localHostname:    @sshObj.server.localHostname
-          localUsername:    @sshObj.server.localUsername
-          tryKeyboard:      @sshObj.server.tryKeyboard
-          keepaliveInterval:@sshObj.server.keepaliveInterval
-          keepaliveCountMax:@sshObj.server.keepaliveCountMax
-          readyTimeout:     @sshObj.server.readyTimeout
-          sock:             @sshObj.server.sock
-          strictVendor:     @sshObj.server.strictVendor
-          algorithms:       @sshObj.server.algorithms
-          compress:         @sshObj.server.compress
-          debug:            @sshObj.server.debug
+          if @hosts.length > 0
+            @_nextPrimaryHost()
+            
+        if @sshObj.server and @sshObj.commands
+          try
+            @connection.connect
+              host:             @sshObj.server.host
+              port:             @sshObj.server.port
+              forceIPv4:        @sshObj.server.forceIPv4
+              forceIPv6:        @sshObj.server.forceIPv6
+              hostHash:         @sshObj.server.hashMethod
+              hostVerifier:     @sshObj.server.hostVerifier
+              username:         @sshObj.server.userName
+              password:         @sshObj.server.password
+              agent:            @sshObj.server.agent
+              agentForward:     @sshObj.server.agentForward
+              privateKey:       @sshObj.server.privateKey
+              passphrase:       @sshObj.server.passPhrase
+              localHostname:    @sshObj.server.localHostname
+              localUsername:    @sshObj.server.localUsername
+              tryKeyboard:      @sshObj.server.tryKeyboard
+              keepaliveInterval:@sshObj.server.keepaliveInterval
+              keepaliveCountMax:@sshObj.server.keepaliveCountMax
+              readyTimeout:     @sshObj.server.readyTimeout
+              sock:             @sshObj.server.sock
+              strictVendor:     @sshObj.server.strictVendor
+              algorithms:       @sshObj.server.algorithms
+              compress:         @sshObj.server.compress
+              debug:            @sshObj.server.debug
+          catch e
+            @.emit 'error', "#{e} #{e.stack}", "Connection.connect", true        
+        else
+          @.emit 'error', "Missing connection parameters", "Parameters", false, ( err, type, close ) ->
+            @.emit 'msg', @sshObj.server
+            @.emit 'msg', @sshObj.commands
         return @_stream
-      catch e
-        @.emit 'error', "#{e} #{e.stack}", "Connection.connect", true        
-    else
-      @.emit 'error', "Missing connection parameters", "Parameters", false, ( err, type, close ) ->
-        @.emit 'msg', @sshObj.server
-        @.emit 'msg', @sshObj.commands
-
-  
+        
   
 module.exports = SSH2Shell
