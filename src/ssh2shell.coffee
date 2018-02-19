@@ -52,12 +52,12 @@ class SSH2Shell extends EventEmitter
       
       #remove test coloring from responses like [32m[31m
       unless @.sshObj.disableColorFilter        
-        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+" :"+@textColorFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+", filtered: "+@textColorFilter.test(@_buffer) if @sshObj.verbose
         @_buffer = @_buffer.replace(@textColorFilter, "")
       
       #remove non-standard ascii from terminal responses
       unless @.sshObj.disableASCIIFilter
-        @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+" :"+@asciiFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+", filtered: "+@asciiFilter.test(@_buffer) if @sshObj.verbose
         @_buffer = @_buffer.replace(@asciiFilter, "")
         
       switch (true)
@@ -80,8 +80,10 @@ class SSH2Shell extends EventEmitter
           @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
           @_nextCommand()
         else
-          @emit 'msg', "Timeout after hung data event" if @sshObj.debug
-          @emit 'commandTimeout', @command, @_buffer, @_stream, @_connection
+          @emit 'msg', "Data processing: data received timeout" if @sshObj.debug
+          @sshObj.idleTimer = setTimeout( =>
+              @.emit 'commandTimeout', @.command, @._buffer, @._stream, @._connection
+          , @idleTime)
     , 500)
 
   _processPasswordPrompt: =>
