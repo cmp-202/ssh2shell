@@ -198,7 +198,7 @@ class SSH2Shell extends EventEmitter
        
       @sshObj.sessionText += response
       @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
-      @.emit 'commandComplete', @command, response, @sshObj
+      @.emit 'commandComplete', @command, @_buffer, @sshObj
     
     if @command.indexOf("exit") != -1
       @_runExit()
@@ -358,7 +358,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
-    @sshObj.asciiFilter       = "[^\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
     @sshObj.disableASCIIFilter = false unless @sshObj.disableASCIIFilter is true
     @sshObj.textColorFilter   = "(\[{1}[0-9;]+m{1})" unless @sshObj.textColorFilter
