@@ -31,8 +31,9 @@ class SSH2Shell extends EventEmitter
   
   _processData: ( data )=>
     #add host response data to buffer
+
     @_buffer += data
-    if @command.length > 0 and not @.standardPromt.test(@._buffer.replace(@.command.substr(0, @._buffer.length), ""))
+    if @command.length > 0 and not @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
       #continue loading the buffer and set/reset a timeout
       @.emit 'msg', "#{@sshObj.server.host}: Command waiting" if @sshObj.debug
       @.emit 'commandProcessing' , @command, @_buffer, @sshObj, @_stream 
@@ -53,12 +54,12 @@ class SSH2Shell extends EventEmitter
       
       #remove test coloring from responses like [32m[31m
       unless @.sshObj.disableColorFilter        
-        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+", filtered: "+@textColorFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+", response is ok: "+@textColorFilter.test(@_buffer) if @sshObj.verbose
         @_buffer = @_buffer.replace(@textColorFilter, "")
       
       #remove non-standard ascii from terminal responses
       unless @.sshObj.disableASCIIFilter
-        @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+", filtered: "+@asciiFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: ASCII filter: "+@sshObj.asciiFilter+", response is ok: "+@asciiFilter.test(@_buffer) if @sshObj.verbose
         @_buffer = @_buffer.replace(@asciiFilter, "")
         
       switch (true)
@@ -78,7 +79,7 @@ class SSH2Shell extends EventEmitter
         #check for no command but first prompt detected
         when @command.length < 1 and @standardPromt.test(@_buffer)
           @emit 'msg', "#{@sshObj.server.host}: First prompt detected" if @sshObj.debug
-          @sshObj.sessionText += "#{@_buffer}" if @sshObj.showBanner
+          @sshObj.sessionText += @_buffer if @sshObj.showBanner
           @_nextCommand()
         else
           @emit 'msg', "Data processing: data received timeout" if @sshObj.debug
@@ -191,13 +192,13 @@ class SSH2Shell extends EventEmitter
       @sshObj.exitCommands.push "exit"    
     
     if @command isnt "" and @command isnt "exit" and @command.indexOf("ssh ") is -1
-      @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose 
+      @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose
       #Not running an exit command or first prompt detection after connection
       #load the full buffer into sessionText and raise a commandComplete event
        
-      @sshObj.sessionText += @_buffer
+      @sshObj.sessionText += response
       @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
-      @.emit 'commandComplete', @command, @_buffer, @sshObj
+      @.emit 'commandComplete', @command, response, @sshObj
     
     if @command.indexOf("exit") != -1
       @_runExit()
@@ -357,7 +358,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
-    @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.asciiFilter       = "[^\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
     @sshObj.disableASCIIFilter = false unless @sshObj.disableASCIIFilter is true
     @sshObj.textColorFilter   = "(\[{1}[0-9;]+m{1})" unless @sshObj.textColorFilter
@@ -367,7 +368,8 @@ class SSH2Shell extends EventEmitter
     @sshObj.server.hashKey    = @sshObj.server.hashKey ? ""
     @sshObj.sessionText       = "" unless @sshObj.sessionText
     @sshObj.streamEncoding    = @sshObj.streamEncoding ? "utf8"
-    @sshObj.window            = @sshObj.window unless @sshObj.window
+    @sshObj.window            = true unless @sshObj.window
+    @sshObj.pty               = true unless @sshObj.pty
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
@@ -441,8 +443,10 @@ class SSH2Shell extends EventEmitter
       @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug 
       
     @.on "data", @sshObj.onData ? (data) =>
+      @.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
+      
     @.on "stderrData", @sshObj.onStderrData ? (data) =>
-        console.error data
+      console.error data
         
   connect: (callback)=>
     @_callback = callback if callback
@@ -472,12 +476,12 @@ class SSH2Shell extends EventEmitter
           @.emit 'msg', @sshObj.readyMessage
 
           #open a shell
-          @connection.shell @sshObj.window, { pty: true }, (err, @_stream) =>
+          @connection.shell @sshObj.window, { pty: @sshObj.pty }, (err, @_stream) =>
             if err then @.emit 'error', err, "Shell", true
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
             @_stream.setEncoding(@sshObj.streamEncoding);
-            
+             
             @_stream.pipe pipe for pipe in @_pipes
             @.unpipe = @_stream.unpipe
             
@@ -491,8 +495,8 @@ class SSH2Shell extends EventEmitter
               
             @_stream.on "data", (data)=>
               try
+                @.emit 'data', data
                 @_processData( data )
-                @.emit "data", data 
               catch e
                 err = new Error("#{e} #{e.stack}")
                 err.level = "Data handling"
