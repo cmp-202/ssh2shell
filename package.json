@@ -15,7 +15,6 @@
     "dotenv": ">=2.0.0"
   },
   "scripts": {
-    "prepublish": "coffee -o lib/ src/"
   },
   "keywords": [
     "SSH",
