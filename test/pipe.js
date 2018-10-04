@@ -10,11 +10,9 @@ var host = {
     password:     process.env.PASSWORD
   },
   commands:           [
-    "`Test session text message: passed`",
-    "msg:console test notification: passed",
-    "ls -la"
+    "ls -la", "ifconfig"
   ],
-
+   debug: true
 }
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell')
@@ -29,8 +27,7 @@ var SSH = new SSH2Shell(host),
     secondLog = fs.createWriteStream('second.log'),
     buffer = ""
 
-//multiple pipes can be added but they wont be bound to the stream until the connection is established    
-SSH.pipe(firstLog).pipe(secondLog);    
+SSH.pipe(firstLog)//.pipe(secondLog);    
 
 SSH.on('data', function(data){
     //do something with the data chunk

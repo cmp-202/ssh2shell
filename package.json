@@ -14,8 +14,7 @@
     "coffee-script": ">=1.10.0",
     "dotenv": ">=2.0.0"
   },
-  "scripts": {
-  },
+  "scripts": {},
   "keywords": [
     "SSH",
     "ssh2",

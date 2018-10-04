@@ -23,15 +23,13 @@ class SSH2Shell extends EventEmitter
   onCommandProcessing:=>
   onCommandComplete:  =>
   onCommandTimeout:   =>
-  onEnd:              =>
-  pipe:  (destination)=>
-    @_pipes.push(destination)
-    return @    
+  onEnd:              =>  
+  pipe:                =>
   unpipe:             =>
   
   _processData: ( data )=>
     #add host response data to buffer
-
+ 
     @_buffer += data
     if @command.length > 0 and not @standardPromt.test(@_buffer.replace(@command.substr(0, @_buffer.length), ""))
       #continue loading the buffer and set/reset a timeout
@@ -354,6 +352,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.verbose           = false unless @sshObj.verbose
     @sshObj.debug             = false unless @sshObj.debug
     @sshObj.hosts             = [] unless @sshObj.hosts 
+    @sshObj.commands          = [] unless @sshObj.commands
     @sshObj.standardPrompt    = ">$%#" unless @sshObj.standardPrompt
     @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
@@ -378,7 +377,6 @@ class SSH2Shell extends EventEmitter
     @standardPromt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPromt
     @_callback                = @sshObj.callback if @sshObj.callback
     @_connections             = []
-    @_pipes                   = []
     
     @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>  
     
@@ -435,12 +433,13 @@ class SSH2Shell extends EventEmitter
         @.emit 'msg', "#{type} error: " + err
       callback(err, type) if callback
       @connection.end() if close
-    
-    @.on "pipe", @sshObj.onPipe ? (source) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
+
+#    @._stream.on "pipe", @sshObj.onPipe ? (source) =>
+#      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
       
-    @.on "unpipe", @sshObj.onUnpipe ? (source) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug 
+      
+#    @._stream.on "unpipe", @sshObj.onUnpipe ? (source) =>
+#      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug 
       
     @.on "data", @sshObj.onData ? (data) =>
       @.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
@@ -456,7 +455,7 @@ class SSH2Shell extends EventEmitter
     @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
     
     host = @hosts.pop()
-    console.log(host)
+    @.emit 'msg', host
     @sshObj = host
     
     @_initiate()
@@ -477,12 +476,22 @@ class SSH2Shell extends EventEmitter
 
           #open a shell
           @connection.shell @sshObj.window, { pty: @sshObj.pty }, (err, @_stream) =>
-            if err then @.emit 'error', err, "Shell", true
+            if err instanceof Error 
+               @.emit 'error', err, "Shell", true
+               return
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
             @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
             @_stream.setEncoding(@sshObj.streamEncoding);
-             
-            @_stream.pipe pipe for pipe in @_pipes
+            
+            @_stream.on "pipe", (source) =>
+               emit "msg", "pipe for \n\n#{source}"
+               @.on "pipe", source
+            
+            @_stream.on "unpipe", (source) =>
+               emit "msg", "unpipe for \n\n#{source}"
+               @.on "unpipe", source
+               
+            @.pipe = @_stream.pipe
             @.unpipe = @_stream.unpipe
             
             @_stream.on "error", (err) =>
@@ -495,7 +504,7 @@ class SSH2Shell extends EventEmitter
               
             @_stream.on "data", (data)=>
               try
-                @.emit 'data', data
+                @.emit 'data', data                
                 @_processData( data )
               catch e
                 err = new Error("#{e} #{e.stack}")
