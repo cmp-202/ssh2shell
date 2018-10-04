@@ -452,12 +452,12 @@ class SSH2Shell extends EventEmitter
     @_nextPrimaryHost()
   
   _nextPrimaryHost: =>
-    @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
+    @.emit 'msg', "#{@sshObj.server.host}: Current primary host" if @sshObj.debug
     
     host = @hosts.pop()
-    @.emit 'msg', host
     @sshObj = host
     
+    @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
     @_initiate()
     @_connect()
     
@@ -484,15 +484,12 @@ class SSH2Shell extends EventEmitter
             @_stream.setEncoding(@sshObj.streamEncoding);
             
             @_stream.on "pipe", (source) =>
-               emit "msg", "pipe for \n\n#{source}"
+               emit "msg", "pipe for \n\n#{source}" if @sshObj.debug
                @.on "pipe", source
             
             @_stream.on "unpipe", (source) =>
-               emit "msg", "unpipe for \n\n#{source}"
+               emit "msg", "unpipe for \n\n#{source}" if @sshObj.debug
                @.on "unpipe", source
-               
-            @.pipe = @_stream.pipe
-            @.unpipe = @_stream.unpipe
             
             @_stream.on "error", (err) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.error" if @sshObj.debug
