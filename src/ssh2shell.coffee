@@ -522,7 +522,10 @@ class SSH2Shell extends EventEmitter
               
             @_stream.on "close", (code, signal) =>                          
               @.emit 'msg', "#{@sshObj.server.host}: Stream.close" if @sshObj.debug
+              clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
+              @.removeAllListeners()
               @connection.end()
+              @connection.removeAllListeners()
           
         @connection.on "error", (err) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.error" if @sshObj.debug
