@@ -267,7 +267,7 @@ class SSH2Shell extends EventEmitter
   _sshConnectionTest: (response)=>
     if @sshObj.testConnection          
       @.emit 'msg', "#{@sshObj.server.host}: SSH: Connection test response: #{response}." if @sshObj.verbose
-      if response.indexOf("NOK") is -1
+      if response.indexOf("OK") >= 0
         @.emit 'msg', "#{@sshObj.server.host}: SSH: Okay to connect" if @sshObj.debug
         @sshObj.testConnection = false
         @_sshConnect()
