@@ -118,6 +118,7 @@ host = {
   standardPrompt:     ">$%#",
   passwordPrompt:     ":",
   passphrasePrompt:   ":",
+  passPromptText:     "Password",
   
   //Optional: exclude or include host banner after connection and window size 
   showBanner:         false,

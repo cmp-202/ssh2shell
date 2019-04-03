@@ -362,6 +362,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.standardPrompt    = ">$%#" unless @sshObj.standardPrompt
     @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
     @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
+    @sshObj.passPromptText    = "Password" unless @sshObj.passPromptText
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
@@ -378,9 +379,9 @@ class SSH2Shell extends EventEmitter
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
-    @passwordPromt            = new RegExp("password.*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
-    @passphrasePromt          = new RegExp("password.*" + @sshObj.passphrasePromt + "\\s?$","i") unless @passphrasePromt
-    @standardPrompt            = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPrompt
+    @passwordPromt            = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
+    @passphrasePromt          = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passphrasePromt + "\\s?$","i") unless @passphrasePromt
+    @standardPrompt           = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPrompt
     @_callback                = @sshObj.callback if @sshObj.callback
 
     @onCommandProcessing      = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
