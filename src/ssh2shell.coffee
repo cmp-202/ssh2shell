@@ -157,7 +157,8 @@ class SSH2Shell extends EventEmitter
         @_runCommand("#{@sshObj.server.passPhrase}")
       #normal prompt so continue with next command
       else if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH standard prompt" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH standard prompt" if @sshObj.debug        
+        @.emit 'msg', @sshObj.connectedMessage
         @sshObj.sshAuth = true
         @sshObj.sessionText += "Connected to #{@sshObj.server.host}"
         @sshObj.exitCommands.push "exit" 
@@ -167,7 +168,8 @@ class SSH2Shell extends EventEmitter
       #normal prompt after authentication, start running commands.
       if standardPrompt
         @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug
-        @sshObj.exitCommands.push "exit" 
+        @sshObj.exitCommands.push "exit"
+        @.emit 'msg', @sshObj.connectedMessage
         @_nextCommand()
       #Password or passphase detected a second time after authentication indicating failure.
       else if (passwordPrompt or passphrasePrompt)
@@ -327,7 +329,6 @@ class SSH2Shell extends EventEmitter
     #more hosts to connect to so process the next one
     else if @sshObj.hosts and @sshObj.hosts.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: Next host from this host" if @sshObj.debug
-      @.emit 'msg', @sshObj.hosts if @sshObj.verbose
       @_nextHost()
     #Leaving last host so load previous host
     else if @_connections and @_connections.length > 0
@@ -404,7 +405,8 @@ class SSH2Shell extends EventEmitter
     @.on "commandComplete", @onCommandComplete
     @.on "commandTimeout", @onCommandTimeout
     @.on "end", @onEnd
-
+    @.emit 'msg', "#{@sshObj.server.host}: Host loaded" if @sshObj.verbose
+    @.emit 'msg', @sshObj if @sshObj.verbose
     if callback
       callback() 
     

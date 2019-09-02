@@ -18,7 +18,7 @@ var conParamsHost1 = {
   host:         process.env.SERVER3_HOST,
   port:         process.env.PORT,
   userName:     process.env.SERVER3_USER_NAME,
-  password:   process.env.SERVER1_PASSWORD
+  password:     process.env.SERVER3_PASSWORD
  },
  debug = true,
  verbose = false
