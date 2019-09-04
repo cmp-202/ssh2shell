@@ -66,9 +66,7 @@ class SSH2Shell extends EventEmitter
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
         when @command.length > 0 and @command.indexOf("ssh ") isnt -1
-          @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug          
-          @sshObj.SSHTimer = setTimeout( =>
-              @.emit 'onSSHTimeout', @._buffer,500)
+          @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug 
           @_processSSHPrompt()
         #check for standard prompt from a command
         when @command.length > 0 and @standardPrompt.test(@_sanitizeResponse())
@@ -160,31 +158,32 @@ class SSH2Shell extends EventEmitter
         @_runCommand("#{@sshObj.server.passPhrase}")
       #normal prompt so continue with next command
       else if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH: standard prompt: connection failed" if @sshObj.debug        
+        @.emit 'msg', "#{@sshObj.server.host}: SSH: standard prompt: connection failed" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH connection failed"        
         @_runExit()
     else
       @.emit 'msg', "#{@sshObj.server.host}: SSH post authentication prompt detection" if @sshObj.debug
       #normal prompt after authentication, start running commands.
-      clearTimeout @sshObj.SSHTimer if @sshObj.SSHTimer
       if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug
-        
+        @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug        
         @sshObj.exitCommands.push "exit"
-        @.emit 'msg', @sshObj.connectedMessage
+        @.emit 'msg', "#{@sshObj.connectedMessage}"
+        @.emit 'msg', "#{@sshObj.readyMessage}"
         @_nextCommand()
       #Password or passphase detected a second time after authentication indicating failure.
       else if (passwordPrompt or passphrasePrompt)
+        @.emit 'msg', "#{@sshObj.server.host}: SSH authentication failed"
         @.emit 'msg', "#{@sshObj.server.host}: SSH auth failed" if @sshObj.debug
         @.emit 'msg', "#{@sshObj.server.host}: SSH: failed response: #{response}" if @sshObj.verbose
         @sshObj.sshAuth = false
         using = switch
-          when passwordPrompt then "password: |#{@sshObj.server.password}|"
-          when passphrasePrompt then "passphrase: |#{@sshObj.server.passPhrase}|"
+          when passwordPrompt then "password: #{@sshObj.server.password}"
+          when passphrasePrompt then "passphrase: #{@sshObj.server.passPhrase}"
         @.emit 'error', "#{@sshObj.server.host}: SSH authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}", "Nested host authentication"
         @.emit 'msg', "#{@sshObj.server.host}: SSH auth failed: Using " + using if @sshObj.debug
         
         #no connection so drop back to first host settings if there was one
-        @sshObj.sessionText += "#{@_buffer}"
+        #@sshObj.sessionText += "#{@_buffer}"
         @.emit 'msg', "#{@sshObj.server.host}: SSH resonse: #{response}" if @sshObj.verbose and @sshObj.debug
         if @_connections.length > 0
           return @_previousHost()
@@ -201,7 +200,10 @@ class SSH2Shell extends EventEmitter
       #this is a message for the sessionText like an echo command in bash
       if (sessionNote = @command.match(/^`(.*)`$/))
         @.emit 'msg', "#{@sshObj.server.host}: Notifications: sessionText output" if @sshObj.debug
-        @sshObj.sessionText += "#{@sshObj.server.host}: Note: #{sessionNote[1]}#{@sshObj.enter}"
+        if @_connections.length > 0
+          @sshObj.sessionText += "#{@sshObj.server.host}: Note: #{sessionNote[1]}#{@sshObj.enter}"
+        else
+          @sshObj.sessionText += "Note: #{sessionNote[1]}#{@sshObj.enter}"
         @.emit 'msg', sessionNote[1] if @sshObj.verbose
         @_nextCommand()
       #this is a message to output in process
@@ -268,13 +270,7 @@ class SSH2Shell extends EventEmitter
     @.emit 'end', "#{@sshObj.server.host}: \n#{@sshObj.sessionText}", @sshObj
     @.emit 'msg', "#{@sshObj.server.host}: Previous hosts: #{@_connections.length}" if @sshObj.debug
     if @_connections.length > 0
-      clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-      @.removeListener 'commandProcessing', @onCommandProcessing
-      @.removeListener 'commandComplete', @onCommandComplete
-      @.removeListener 'commandTimeout',  @onCommandTimeout
-      @.removeListener 'end', @onEnd
       @sshObj = @_connections.pop()
-
       @.emit 'msg', "#{@sshObj.server.host}: Reload previous host" if @sshObj.debug
       return @_loadDefaults(@_runExit)
 
@@ -285,12 +281,21 @@ class SSH2Shell extends EventEmitter
     nextHost = @sshObj.hosts.shift()
     @.emit 'msg', "#{@sshObj.server.host}: SSH to #{nextHost.server.host}" if @sshObj.debug
     @.emit 'msg', "#{@sshObj.server.host}: Clearing previous event handlers" if @sshObj.debug
-    @_removeEvents        
-    @_connections.push(@sshObj)    
+            
+    @_connections.push(@sshObj) 
+   
     @sshObj = nextHost 
     @_loadDefaults(@_sshConnect)
     
+  _nextPrimaryHost: =>
+    @.emit 'msg', "#{@sshObj.server.host}: Current primary host" if @sshObj.debug
 
+    host = @hosts.pop()
+    @sshObj = host
+    @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
+    @_initiate()
+    @_connect()
+    
   _sshConnect: =>
     #add ssh commandline options from host.server.ssh
     sshFlags   = "-x"
@@ -323,7 +328,7 @@ class SSH2Shell extends EventEmitter
     if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: Queued exit commands: #{@sshObj.exitCommands.length}" if @sshObj.debug
       @command = @sshObj.exitCommands.pop()      
-      @_connections[0].sessionText += "\n\n#{@sshObj.server.host}:#{@sshObj.sessionText}"
+      @_connections[0].sessionText += "\n#{@sshObj.server.host} session: #{@sshObj.sessionText}"
       @_runCommand(@command)
     #more hosts to connect to so process the next one
     else if @sshObj.hosts and @sshObj.hosts.length > 0
@@ -332,6 +337,7 @@ class SSH2Shell extends EventEmitter
     #Leaving last host so load previous host
     else if @_connections and @_connections.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: load previous host" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: #{@sshObj.closedMessage}"
       @_previousHost()
     #Nothing more to do so end the stream with last exit
     else
@@ -340,16 +346,71 @@ class SSH2Shell extends EventEmitter
       @_stream.close() #"exit#{@sshObj.enter}"
 
   _removeEvents: =>
-    @.emit 'msg', "#{@sshObj.server.host}: Clearing previous event handlers" if @sshObj.debug
-    @.removeListener 'commandProcessing', @onCommandProcessing
-    @.removeListener 'commandComplete', @onCommandComplete
-    @.removeListener 'commandTimeout',  @onCommandTimeout
-    @.removeListener 'end', @onEnd
+    @.emit 'msg', "#{@sshObj.server.host}: Clearing host event handlers" if @sshObj.debug
+    @onCommandProcessing = ""
+    @onCommandComplete = ""
+    @onCommandTimeout = ""    
+    @onEnd = ""
+    @.removeAllListeners 'commandProcessing'
+    @.removeAllListeners 'commandComplete'
+    @.removeAllListeners 'commandTimeout'
+    @.removeAllListeners 'end'
     clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
     clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
+    
+    
+  constructor: (hosts) ->
+    if typeIsArray(hosts)
+      @hosts = hosts
+    else
+      @hosts = [hosts]
+    @connection = new require('ssh2')()
 
+  _initiate: =>
+    @.emit 'msg', "#{@sshObj.server.host}: initiate" if @sshObj.debug
+    @_loadDefaults()
+    #event handlers
+    @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: Keyboard-interactive: finish([response, array]) not called in class event handler." if @sshObj.debug
+      if @sshObj.verbose
+        @.emit 'msg', "name: " + name
+        @.emit 'msg', "instructions: " + instructions
+        str = JSON.stringify(prompts, null, 4)
+        @.emit 'msg', "Prompts object: " + str
+      @sshObj.onKeyboardInteractive name, instructions, instructionsLang, prompts, finish if @sshObj.onKeyboardInteractive
+
+    @.on "msg", @sshObj.msg.send ? ( message ) =>
+      console.log message
+
+    @.on "error", @sshObj.onError ? (err, type, close = false, callback) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.error" if @sshObj.debug
+      if ( err instanceof Error )
+        @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
+      else
+        @.emit 'msg', "#{type} error: " + err
+      callback(err, type) if callback
+      @connection.end() if close
+
+    @.on "pipe", @sshObj.onPipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
+      @.on "data", source.onData
+
+    @.on "unpipe", @sshObj.onUnpipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug
+      @.removeListener 'data', source.onData
+
+    @.on "data", @sshObj.onData ? (data) =>
+      #@.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
+      @_processData( data )
+
+    @.on "stderrData", @sshObj.onStderrData ? (data) =>
+      console.error data
+
+    
   _loadDefaults: (callback) =>
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
+    @_removeEvents()
     @sshObj.msg = { send: ( message ) =>
       console.log message
     } unless @sshObj.msg
@@ -412,69 +473,9 @@ class SSH2Shell extends EventEmitter
     if callback
       callback() 
     
-  constructor: (hosts) ->
-    if typeIsArray(hosts)
-      @hosts = hosts
-    else
-      @hosts = [hosts]
-    @connection = new require('ssh2')()
-
-  _initiate: =>
-    @.emit 'msg', "#{@sshObj.server.host}: initiate" if @sshObj.debug
-    @.removeAllListeners()
-    @connection.removeAllListeners()
-    @_loadDefaults()
-    #event handlers
-    @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
-      @.emit 'msg', "#{@sshObj.server.host}: Keyboard-interactive: finish([response, array]) not called in class event handler." if @sshObj.debug
-      if @sshObj.verbose
-        @.emit 'msg', "name: " + name
-        @.emit 'msg', "instructions: " + instructions
-        str = JSON.stringify(prompts, null, 4)
-        @.emit 'msg', "Prompts object: " + str
-      @sshObj.onKeyboardInteractive name, instructions, instructionsLang, prompts, finish if @sshObj.onKeyboardInteractive
-
-    @.on "msg", @sshObj.msg.send ? ( message ) =>
-      console.log message
-
-    @.on "error", @sshObj.onError ? (err, type, close = false, callback) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.error" if @sshObj.debug
-      if ( err instanceof Error )
-        @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
-      else
-        @.emit 'msg', "#{type} error: " + err
-      callback(err, type) if callback
-      @connection.end() if close
-
-    @.on "pipe", @sshObj.onPipe ? (source) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
-      @.on "data", source.onData
-
-    @.on "unpipe", @sshObj.onUnpipe ? (source) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug
-      @.removeListener 'data', source.onData
-
-    @.on "data", @sshObj.onData ? (data) =>
-      #@.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
-      @_processData( data )
-
-    @.on "stderrData", @sshObj.onStderrData ? (data) =>
-      console.error data
-
   connect: (callback)=>
     @_callback = callback if callback
     @_nextPrimaryHost()
-
-  _nextPrimaryHost: =>
-    @.emit 'msg', "#{@sshObj.server.host}: Current primary host" if @sshObj.debug
-
-    host = @hosts.pop()
-    @sshObj = host
-
-    @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
-    @_initiate()
-    @_connect()
 
   _connect: =>
         @connection.on "keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) =>
@@ -495,7 +496,6 @@ class SSH2Shell extends EventEmitter
                @.emit 'error', err, "Shell", true
                return
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
-            @sshObj.sessionText = "Connected to #{@sshObj.server.host}"
             @_stream.setEncoding(@sshObj.streamEncoding);
 
             @_stream.on "pipe", (source) =>
@@ -523,20 +523,19 @@ class SSH2Shell extends EventEmitter
                 err.level = "Data handling"
                 @.emit 'error', err, "Stream.read", true
 
-            @_stream.on "pipe", (source)=>
-              @.emit 'pipe', source
-
             @_stream.on "unpipe", (source)=>
               @.emit 'unpipe', source
 
             @_stream.on "finish", =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.finish" if @sshObj.debug
               @.emit 'end', @sshObj.sessionText, @sshObj
+              @_removeEvents()
               @sshObj.commands = ""
               @_callback @sshObj.sessionText if @_callback
 
             @_stream.on "close", (code, signal) =>
               @.emit 'msg', "#{@sshObj.server.host}: Stream.close" if @sshObj.debug
+              @_removeEvents()
               @connection.end()
 
         @connection.on "error", (err) =>
@@ -545,7 +544,6 @@ class SSH2Shell extends EventEmitter
 
         @connection.on "close", (had_error) =>
           @.emit 'msg', "#{@sshObj.server.host}: Connection.close" if @sshObj.debug
-          clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
           if had_error
             @.emit "error", had_error, "Connection close"
           else
