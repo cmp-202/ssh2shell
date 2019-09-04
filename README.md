@@ -152,6 +152,9 @@ host = {
   //Optional: Command time-out timer max interval in milliseconds
   idleTimeOut:         5000,  //integer
   
+  //Optional: timeout between data events. max interval in milliseconds
+  dataIdleTimeOut:     500,  //integer
+  
   //Optional: Messages returned on each connection event.
   connectedMessage:    "Connected",
   readyMessage:        "Ready",
