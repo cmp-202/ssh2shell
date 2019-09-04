@@ -46,17 +46,17 @@ class SSH2Shell extends EventEmitter
     #and then process the buffer based on command and prompt combinations
     clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
     @sshObj.dataReceivedTimer = setTimeout( =>
-      #clear the command timeout timer
+      #clear the command and SSH timeout timer
       clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
-
+      
       #remove test coloring from responses like [32m[31m
       unless @.sshObj.disableColorFilter
-        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+", filtered: "+@textColorFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: text formatting filter: "+@sshObj.textColorFilter+", filtered: "+@textColorFilter.test(@_buffer) if @sshObj.verbose and @sshObj.debug
         @_buffer = @_buffer.replace(@textColorFilter, "")
 
       #remove non-standard ascii from terminal responses
       unless @.sshObj.disableASCIIFilter
-        @emit 'msg', "#{@sshObj.server.host}: Non-standard ASCII filtered: "+@asciiFilter.test(@_buffer) if @sshObj.verbose
+        @emit 'msg', "#{@sshObj.server.host}: Non-standard ASCII filtered: "+@asciiFilter.test(@_buffer) if @sshObj.verbose and @sshObj.debug
         @_buffer = @_buffer.replace(@asciiFilter, "")
 
       switch (true)
@@ -66,7 +66,9 @@ class SSH2Shell extends EventEmitter
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
         when @command.length > 0 and @command.indexOf("ssh ") isnt -1
-          @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug
+          @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug          
+          @sshObj.SSHTimer = setTimeout( =>
+              @.emit 'onSSHTimeout', @._buffer,500)
           @_processSSHPrompt()
         #check for standard prompt from a command
         when @command.length > 0 and @standardPrompt.test(@_sanitizeResponse())
@@ -94,7 +96,7 @@ class SSH2Shell extends EventEmitter
     passwordPrompt =  @passwordPromt.test(response)
     passphrase =  @passphrasePromt.test(response)
     standardPrompt = @standardPrompt.test(response)
-    @.emit 'msg', "#{@sshObj.server.host}: Password sent: #{@sshObj.pwSent}" if @sshObj.verbose 
+    @.emit 'msg', "#{@sshObj.server.host}: Password previously sent: #{@sshObj.pwSent}" if @sshObj.verbose 
     @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Password previously sent: #{@sshObj.pwSent}" if @sshObj.debug
     @.emit 'msg', "#{@sshObj.server.host}: Response: #{response}" if @sshObj.verbose
     @.emit 'msg', "#{@sshObj.server.host}: Sudo Password Prompt: #{passwordPrompt}" if @sshObj.verbose
@@ -132,22 +134,23 @@ class SSH2Shell extends EventEmitter
   _processSSHPrompt: =>
     #not authenticated yet so detect prompts
     response = @_sanitizeResponse().trim()
+    clearTimeout @sshObj.idleTimer if @sshObj.idleTimer      
     passwordPrompt =  @passwordPromt.test(response) and not @sshObj.server.hasOwnProperty("passPhrase")
     passphrasePrompt =  @passphrasePromt.test(response) and @sshObj.server.hasOwnProperty("passPhrase")
     standardPrompt = @standardPrompt.test(response)
-    
-    @.emit 'msg', "#{@sshObj.server.host}: Password sent: #{@sshObj.sshAuth},\n\tPrompt regex: #{@passwordPromt}" if @sshObj.verbose
-    @.emit 'msg', "#{@sshObj.server.host}: Response: |#{response}|" if @sshObj.verbose
-    @.emit 'msg', "#{@sshObj.server.host}: Password prompt: #{passwordPrompt},\n\t
-      Passphrase prompt: #{passphrasePrompt},\n\tStandard prompt: #{standardPrompt}" if @sshObj.verbose
+
+    @.emit 'msg', "#{@sshObj.server.host}: SSH: Password previously sent: #{@sshObj.sshAuth}" if @sshObj.verbose
+        
     unless @sshObj.sshAuth
       @.emit 'msg', "#{@sshObj.server.host}: First SSH prompt detection" if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: SSH: First response: #{response}" if @sshObj.verbose
       
       #provide password
       if passwordPrompt
         @.emit 'msg', "#{@sshObj.server.host}: SSH send password" if @sshObj.debug
-        @sshObj.sshAuth = true
+        @sshObj.sshAuth = true        
         @_buffer = ""
+        
         @_runCommand("#{@sshObj.server.password}")
       #provide passphrase
       else if passphrasePrompt
@@ -157,23 +160,22 @@ class SSH2Shell extends EventEmitter
         @_runCommand("#{@sshObj.server.passPhrase}")
       #normal prompt so continue with next command
       else if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH standard prompt" if @sshObj.debug        
-        @.emit 'msg', @sshObj.connectedMessage
-        @sshObj.sshAuth = true
-        @sshObj.sessionText += "Connected to #{@sshObj.server.host}"
-        @sshObj.exitCommands.push "exit" 
-        @_nextCommand()
+        @.emit 'msg', "#{@sshObj.server.host}: SSH: standard prompt: connection failed" if @sshObj.debug        
+        @_runExit()
     else
       @.emit 'msg', "#{@sshObj.server.host}: SSH post authentication prompt detection" if @sshObj.debug
       #normal prompt after authentication, start running commands.
+      clearTimeout @sshObj.SSHTimer if @sshObj.SSHTimer
       if standardPrompt
         @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug
+        
         @sshObj.exitCommands.push "exit"
         @.emit 'msg', @sshObj.connectedMessage
         @_nextCommand()
       #Password or passphase detected a second time after authentication indicating failure.
       else if (passwordPrompt or passphrasePrompt)
         @.emit 'msg', "#{@sshObj.server.host}: SSH auth failed" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH: failed response: #{response}" if @sshObj.verbose
         @sshObj.sshAuth = false
         using = switch
           when passwordPrompt then "password: |#{@sshObj.server.password}|"
@@ -183,7 +185,7 @@ class SSH2Shell extends EventEmitter
         
         #no connection so drop back to first host settings if there was one
         @sshObj.sessionText += "#{@_buffer}"
-        
+        @.emit 'msg', "#{@sshObj.server.host}: SSH resonse: #{response}" if @sshObj.verbose and @sshObj.debug
         if @_connections.length > 0
           return @_previousHost()
           #@sshObj = @_connections.pop()
@@ -272,7 +274,7 @@ class SSH2Shell extends EventEmitter
       @.removeListener 'commandTimeout',  @onCommandTimeout
       @.removeListener 'end', @onEnd
       @sshObj = @_connections.pop()
-      @.emit 'msg', "#{@sshObj.enter}Previous host object:\n#{@sshObj}" if @sshObj.verbose
+
       @.emit 'msg', "#{@sshObj.server.host}: Reload previous host" if @sshObj.debug
       return @_loadDefaults(@_runExit)
 
@@ -283,11 +285,8 @@ class SSH2Shell extends EventEmitter
     nextHost = @sshObj.hosts.shift()
     @.emit 'msg', "#{@sshObj.server.host}: SSH to #{nextHost.server.host}" if @sshObj.debug
     @.emit 'msg', "#{@sshObj.server.host}: Clearing previous event handlers" if @sshObj.debug
-    @.removeListener 'commandProcessing', @onCommandProcessing
-    @.removeListener 'commandComplete', @onCommandComplete
-    @.removeListener 'commandTimeout',  @onCommandTimeout
-    @.removeListener 'end', @onEnd        
-    @_connections.push(@sshObj)      
+    @_removeEvents        
+    @_connections.push(@sshObj)    
     @sshObj = nextHost 
     @_loadDefaults(@_sshConnect)
     
@@ -319,7 +318,7 @@ class SSH2Shell extends EventEmitter
     @_runCommand(@command)
 
   _runExit: =>
-    @.emit 'msg', "#{@sshObj.server.host}: Run exit" if @sshObj.debug
+    @.emit 'msg', "#{@sshObj.server.host}: Process an exit" if @sshObj.debug
     #run the exit commands loaded by ssh and sudo su commands
     if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: Queued exit commands: #{@sshObj.exitCommands.length}" if @sshObj.debug
@@ -346,6 +345,8 @@ class SSH2Shell extends EventEmitter
     @.removeListener 'commandComplete', @onCommandComplete
     @.removeListener 'commandTimeout',  @onCommandTimeout
     @.removeListener 'end', @onEnd
+    clearTimeout @sshObj.idleTimer if @sshObj.idleTimer
+    clearTimeout @sshObj.dataReceivedTimer if @sshObj.dataReceivedTimer
 
   _loadDefaults: (callback) =>
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
@@ -378,6 +379,7 @@ class SSH2Shell extends EventEmitter
     @sshObj.window            = true unless @sshObj.window
     @sshObj.pty               = true unless @sshObj.pty
     @idleTime                 = @sshObj.idleTimeOut ? 5000
+    @SSHwaitTime              = @sshObj.SSHwaitTime ? 500
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
     @passwordPromt            = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
@@ -397,7 +399,7 @@ class SSH2Shell extends EventEmitter
       @_runExit()
       @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@.idleTime/1000} seconds", "Timeout", true, (err, type)=>
         @sshObj.sessionText += @_buffer
-
+    
     @onEnd                   = @sshObj.onEnd ? ( sessionText, sshObj ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.end" if @sshObj.debug
 
@@ -445,15 +447,17 @@ class SSH2Shell extends EventEmitter
       callback(err, type) if callback
       @connection.end() if close
 
-#    @._stream.on "pipe", @sshObj.onPipe ? (source) =>
-#      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
+    @.on "pipe", @sshObj.onPipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.pipe" if @sshObj.debug
+      @.on "data", source.onData
 
-
-#    @._stream.on "unpipe", @sshObj.onUnpipe ? (source) =>
-#      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug
+    @.on "unpipe", @sshObj.onUnpipe ? (source) =>
+      @.emit 'msg', "#{@sshObj.server.host}: Class.unpipe" if @sshObj.debug
+      @.removeListener 'data', source.onData
 
     @.on "data", @sshObj.onData ? (data) =>
-      @.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
+      #@.emit 'msg', "#{@sshObj.server.host}: data event"  if @sshObj.debug
+      @_processData( data )
 
     @.on "stderrData", @sshObj.onStderrData ? (data) =>
       console.error data
@@ -491,7 +495,7 @@ class SSH2Shell extends EventEmitter
                @.emit 'error', err, "Shell", true
                return
             @.emit 'msg', "#{@sshObj.server.host}: Connection.shell" if @sshObj.debug
-            @sshObj.sessionText = "Connected to #{@sshObj.server.host}#{@sshObj.enter}"
+            @sshObj.sessionText = "Connected to #{@sshObj.server.host}"
             @_stream.setEncoding(@sshObj.streamEncoding);
 
             @_stream.on "pipe", (source) =>
@@ -513,7 +517,7 @@ class SSH2Shell extends EventEmitter
             @_stream.on "data", (data)=>
               try
                 @.emit 'data', data
-                @_processData( data )
+                
               catch e
                 err = new Error("#{e} #{e.stack}")
                 err.level = "Data handling"
