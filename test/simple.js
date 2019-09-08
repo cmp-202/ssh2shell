@@ -1,5 +1,7 @@
 var dotenv = require('dotenv'),
-    fs = require('fs')
+    fs = require('fs'),
+	debug = true,
+    verbose = true
 dotenv.load();
 
 var host = {
@@ -9,19 +11,15 @@ var host = {
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
-  debug:          true,
-  verbose:        false
+  commands: 	  ["echo basic test success"],
+  debug: debug,
+  verbose: verbose
 };
-var host2 = {commands: ["cd ~"]}
-var host3 = {commands: ["ls"]}
-Object.assign(host2,host)
-Object.assign(host3,host)
-host.commands = ["ls -la"]
-//var SSH2Shell = require ('ssh2shell');
+
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
-var SSH = new SSH2Shell([host,host2,host3]),
+var SSH = new SSH2Shell(host),
     callback = function( sessionText ){
           console.log ( "-----Callback session text:\n" + sessionText);
           console.log ( "-----Callback end" );

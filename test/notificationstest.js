@@ -17,7 +17,8 @@ var sshObj = {
       console.log(message);
     }
   },
-  debug:              true,
+  verbose: false,
+  debug: false,
   onEnd: function( sessionText, sshObj ){
      //show the full session output. This could be emailed or saved to a log file.
     this.emit("msg", "\nThis is the full session response:\n\n" + sessionText);

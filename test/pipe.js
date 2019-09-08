@@ -1,5 +1,6 @@
 var dotenv = require('dotenv'),
     fs = require('fs')
+	fs = require('fs')
 dotenv.load()
 
 var host = {
@@ -7,10 +8,10 @@ var host = {
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD
+    password:     process.env.PASSWORD,
   },
   commands:           [
-    "ls -la", "ifconfig"
+    "echo host pipe"
   ],
    debug: true
 }
@@ -24,14 +25,8 @@ var SSH = new SSH2Shell(host),
           console.log ( "-----Callback end" );
       },
     firstLog = fs.createWriteStream('first.log'),
-    secondLog = fs.createWriteStream('second.log'),
-    buffer = ""
+    secondLog = fs.createWriteStream('second.log')
 
-SSH.pipe(firstLog)//.pipe(secondLog);    
-
-SSH.on('data', function(data){
-    //do something with the data chunk
-    console.log(data)
-})
-
+SSH.pipe(firstLog)  
+SSH.pipe(secondLog)
 SSH.connect(callback)

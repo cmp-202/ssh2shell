@@ -26,7 +26,7 @@ var host = {
     "msg:Testing idle time out",
     "mkdir ~/scripts",
     "if [ ! -f ~/scripts/myscript.sh ] then printf '#!/bin/bash\n#\n" +
-    "read -n 1 -p \"First prompt to trigger time out (y,n): \" test' > ~/scripts/myscript.sh\nfi",
+    "read -n 1 -p \"First prompt to trigger time out (y,n): \" test > ~/scripts/myscript.sh\nfi",
     "sudo chmod 700 ~/scripts/myscript.sh",
     "./scripts/myscript.sh",
     "rm -r ~/scripts/",
@@ -41,8 +41,8 @@ var host = {
   },
   //can't use # and > because prompt detection triggers in the wrong place
   standardPrompt:     "$",
-  verbose:            true,
-  debug:              true,
+  verbose:            false,
+  debug:              false,
   idleTimeOut:        1000,
   onCommandTimeout: function( command, response, stream, connection ){
    if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": host.onCommandTimeout")}
