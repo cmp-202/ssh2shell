@@ -543,9 +543,7 @@ class SSH2Shell extends Stream
           @_allSessions += @_primaryhostSessionText
           
           if typeIsArray(@hosts) and @hosts.length == 0
-            @.emit 'end', @_allSessions, @sshObj
-            if typeof @_callback == 'function'
-              @_callback @_allSessions
+            @.emit 'end', @_allSessions, @sshObj            
             
           @_removeEvents() 
 
@@ -565,8 +563,10 @@ class SSH2Shell extends Stream
         @.emit "error", had_error, "Connection close"
       else
         @.emit 'msg', @sshObj.closedMessage
-        
-      if typeIsArray(@hosts) and @hosts.length > 0
+      if typeIsArray(@hosts) and @hosts.length == 0  
+        if typeof @_callback == 'function'
+          @_callback @_allSessions
+      else      
         @.emit "newPrimaryHost", @_nextPrimaryHost(@_connect)
             
 
