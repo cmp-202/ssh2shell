@@ -1,5 +1,5 @@
-var dotenv = require('dotenv');
-dotenv.load();
+var dotenv = require('dotenv').config();
+
 /*
 * Used `sudo visudo` to add `[username] ALL=(ALL) NOPASSWD: ALL` on the first test
 * server to test no password required detecting normal prompt correctly to run the 
@@ -14,36 +14,39 @@ var sshObj = {
   },
   commands:           [
     "msg:Showing current directory",
-    //"echo \$(pwd)",
+    "echo \$(pwd)",
     "ls -al",
-    "sudo ls -al",
+    "sudo -i",
+    "msg:Showing root home directory",
+    "cd \~",
+    "echo \$(pwd)",
+    "ls -al",
+    "msg:exiting root",
+    "exit",
     "msg:Changing to " + process.env.secondaryUser + " via su [username]",
     "su " + process.env.secondaryUser,
     "msg:Showing user home directory",
     "cd \~",
-    //"echo \$(pwd)",
+    "echo \$(pwd)",
     "ls -al",
     "msg:exiting user ",
     "exit",
-    //"echo \$(pwd)",
-    "ls -al",
     "msg:Changing user via sudo -u [username] -i",
-    "sudo -u " + process.env.secondaryUser + " -i",
+    "sudo -u " + process.env.USER_NAME + " -i",
     "msg:Showing user directory",
     "cd \~",
-    //"echo \$(pwd)",
-    "ls -la",
-    "msg: exit user",
-    "exit"
+    "echo \$(pwd)",
+    "ls -la"
   ],
   msg: {
     send: function( message ) {
       console.log(message);
     }
   },
-  debug:              true,
+  debug:              false,
   verbose:            false,
   suPassSent:         false, //used by commandProcessing to only send password once
+  rootPassSent:       false,
   onCommandProcessing: function( command, response, sshObj, stream ) {
     //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
 
@@ -52,12 +55,12 @@ var sshObj = {
       //this is required to stop "bounce" without this the password would be sent multiple times
       sshObj.suPassSent = true;
       stream.write(process.env.secondUserPassword + "\n");
-    } else if (command == "su root" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
+    }/* else if (command == "sudo -i" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
       sshObj.commands.unshift("msg:Using root user password");
       //this is required to stop "bounce" without this the password would be sent multiple times
       sshObj.rootPassSent = true;
-      stream.write(process.env.rootPassword + "\n");
-    }
+      stream.write(process.env.PASSWORD + "\n");
+    }*/
   },
   onEnd: function ( sessionText, sshObj ) {
     if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};

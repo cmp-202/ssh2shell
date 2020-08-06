@@ -1,7 +1,6 @@
-var dotenv = require('dotenv'),
-debug = true,
-verbose = true
-dotenv.load();
+var dotenv = require('dotenv').config(),
+debug = false,
+verbose = false
 
 var host1 = {
 server: {

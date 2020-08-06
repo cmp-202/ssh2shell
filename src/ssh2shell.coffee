@@ -214,23 +214,17 @@ class SSH2Shell extends Stream
   _commandComplete: =>
     response = @_buffer.trim() #replace(@command, "")
     #check sudo su has been authenticated and add an extra exit command
-    if @command.indexOf("sudo su") isnt -1
-      @.emit 'msg', "#{@sshObj.server.host}: Sudo su adding exit." if @sshObj.debug
-      @sshObj.exitCommands.push "exit"
 
     if @command isnt "" and @command isnt "exit" and @command.indexOf("ssh ") is -1
       @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose
-      #Not running an exit command or first prompt detection after connection
-      #load the full buffer into sessionText and raise a commandComplete event
-
       @sshObj.sessionText += response
       @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
       @.emit 'commandComplete', @command, @_buffer, @sshObj
 
-    if @command.indexOf("exit") != -1
-      @_runExit()
-    else
-      @_nextCommand()
+    #if @command.indexOf("exit") != -1
+    #  @_runExit()
+    #else
+    @_nextCommand()
 
   _nextCommand: =>
     @_buffer = ""
@@ -330,8 +324,9 @@ class SSH2Shell extends Stream
     #run the exit commands loaded by ssh and sudo su commands
     if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: Queued exit commands: #{@sshObj.exitCommands.length}" if @sshObj.debug
-      @command = @sshObj.exitCommands.pop()      
-      @_connections[0].sessionText += "\n#{@sshObj.server.host}: #{@sshObj.sessionText}"
+      @command = @sshObj.exitCommands.pop()
+      if @_connections and @_connections.length > 0      
+        @_connections[0].sessionText += "\n#{@sshObj.server.host}: #{@sshObj.sessionText}"
       @_runCommand(@command)
     #more hosts to connect to so process the next one
     else if @sshObj.hosts and @sshObj.hosts.length > 0
@@ -344,12 +339,16 @@ class SSH2Shell extends Stream
       @_previousHost()
     #else if typeIsArray(@hosts) and @hosts.length > 0
       #@connection.end()
-    #Nothing more to do so end the stream with last exit
+    else if @command == "exit"
+      @.emit 'msg', "#{@sshObj.server.host}: Manual exit command" if @sshObj.debug
+      @_runCommand("exit")
+      #Nothing more to do so end the stream with last exit
     else
-      @.emit 'msg', "#{@sshObj.server.host}: Exit command: Stream: close" if @sshObj.debug
-      #@.command = "stream.end()"
-      @_stream.close() #"exit#{@sshObj.enter}"
+      @close()
       
+  close: =>
+    @.emit 'msg', "#{@sshObj.server.host}: Exit command: Stream: close" if @sshObj.debug
+    @_stream.close() #"exit#{@sshObj.enter}"
 
   _removeEvents: =>
     @.emit 'msg', "#{@sshObj.server.host}: Clearing host event handlers" if @sshObj.debug
@@ -400,7 +399,6 @@ class SSH2Shell extends Stream
     #event handlers
     @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
       @.emit 'msg', "#{@sshObj.server.host}: Class.keyboard-interactive" if @sshObj.debug
-      @.emit 'msg', "#{@sshObj.server.host}: Keyboard-interactive: finish([response, array]) not called in class event handler." if @sshObj.debug
       if @sshObj.verbose
         @.emit 'msg', "name: " + name
         @.emit 'msg', "instructions: " + instructions
@@ -587,6 +585,9 @@ class SSH2Shell extends Stream
           passphrase:       @sshObj.server.passPhrase
           localHostname:    @sshObj.server.localHostname
           localUsername:    @sshObj.server.localUsername
+          localAddress:     @sshObj.server.localAddress
+          localPort:        @sshObj.server.localPort
+          authHandler:      @sshObj.server.authHandler
           tryKeyboard:      @sshObj.server.tryKeyboard
           keepaliveInterval:@sshObj.server.keepaliveInterval
           keepaliveCountMax:@sshObj.server.keepaliveCountMax

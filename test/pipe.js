@@ -1,7 +1,5 @@
-var dotenv = require('dotenv'),
+var dotenv = require('dotenv').config(),
     fs = require('fs')
-	fs = require('fs')
-dotenv.load()
 
 var host = {
   server:             {     
@@ -13,7 +11,7 @@ var host = {
   commands:           [
     "echo host pipe"
   ],
-   debug: true
+   debug: false
 }
 //until npm published use the cloned dir path.
 var SSH2Shell = require ('../lib/ssh2shell')

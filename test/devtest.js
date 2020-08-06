@@ -1,5 +1,4 @@
-var dotenv = require('dotenv');
-dotenv.load();
+var dotenv = require('dotenv').config()
 
 var sshObj = {
   server:             {     
@@ -30,7 +29,8 @@ var sshObj = {
      console.log(str);
      finish([process.env.PASSWORD] );
   },
-  standardPrompt:     "abc",//">$%#"
+  commands: [ "ls -l" ]
+  //standardPrompt:     "abc",//">$%#"
   /*onCommandProcessing: function( command, response, sshObj, stream ){
    if ( response.indexOf(“Connected”) != -1 ){
       stream.write(“\n”);

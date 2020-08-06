@@ -1,5 +1,4 @@
-var dotenv = require('dotenv');
-dotenv.load();
+var dotenv = require('dotenv').config();
 
 var conParamsHost1 = {
   host:         process.env.HOST,
@@ -26,7 +25,7 @@ var conParamsHost1 = {
 //Host objects:
 var host1 = {
   server:       conParamsHost1,
-  commands:     [ "echo host1" ],
+  commands:     [],
   connectedMessage: "Connected to host1",
   debug: debug,
   verbose: verbose
@@ -48,9 +47,9 @@ host3 = {
   verbose: verbose
 }
 
-host2.hosts = [ host3 ];
+//host2.hosts = [ host3 ];
 //Set the two hosts you are tunnelling to through host1
-host1.hosts = [ host2 ];
+host1.hosts = [ host2, host3  ];
 
 //or the alternative nested tunnelling method outlined above:
 //host2.hosts = [ host3 ];ssh -q george@192.168.0.129 "echo 2>&1" && echo OK || echo NOK
