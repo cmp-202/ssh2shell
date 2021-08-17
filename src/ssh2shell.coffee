@@ -18,8 +18,8 @@ class SSH2Shell extends Stream
   idleTime:         5000
   asciiFilter:      ""
   textColorFilter:  ""
-  passwordPromt:    ""
-  passphrasePromt:  ""
+  passwordPrompt:    ""
+  passphrasePrompt:  ""
   standardPrompt:    ""
   _callback:          =>
   onCommandProcessing:=>
@@ -61,7 +61,7 @@ class SSH2Shell extends Stream
       switch (true)
         #check if sudo password is needed
         when @command.length > 0 and @command.indexOf("sudo ") isnt -1
-          @emit 'msg', "#{@sshObj.server.host}: Sudo command data" if @sshObj.debug
+          @emit 'msg', "#{@sshObj.server.host}: Sudo command data" if @sshObj.debug          
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
         when @command.length > 0 and @command.indexOf("ssh ") isnt -1
@@ -90,8 +90,7 @@ class SSH2Shell extends Stream
   _processPasswordPrompt: =>
     #First test for password prompt
     response = @_sanitizeResponse().trim()
-    passwordPrompt =  @passwordPromt.test(response)
-    passphrase =  @passphrasePromt.test(response)
+    passwordPrompt =  @passwordPrompt.test(response)
     standardPrompt = @standardPrompt.test(response)
     @.emit 'msg', "#{@sshObj.server.host}: Password previously sent: #{@sshObj.pwSent}" if @sshObj.verbose 
     @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Password previously sent: #{@sshObj.pwSent}" if @sshObj.debug
@@ -113,8 +112,9 @@ class SSH2Shell extends Stream
         @sshObj.pwSent = true
         @_runCommand("#{@sshObj.server.password}")
       else
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt: not detected first test" if @sshObj.debug
-
+        @.emit 'msg', "#{@sshObj.server.host}: Password prompt: not detected" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: Password prompt #{@sshObj.passwordPrompt}" if @sshObj.verbose        
+        @_runExit()
     #password sent so either check for failure or run next command
     else if passwordPrompt
         @.emit 'msg', "#{@sshObj.server.host}: Sudo password faied: response: #{response}" if @sshObj.verbose
@@ -132,8 +132,8 @@ class SSH2Shell extends Stream
     #not authenticated yet so detect prompts
     response = @_sanitizeResponse().trim()
     clearTimeout @idleTimer if @idleTimer      
-    passwordPrompt =  @passwordPromt.test(response) and not @sshObj.server.hasOwnProperty("passPhrase")
-    passphrasePrompt =  @passphrasePromt.test(response) and @sshObj.server.hasOwnProperty("passPhrase")
+    passwordPrompt =  @passwordPrompt.test(response) and not @sshObj.server.hasOwnProperty("passPhrase")
+    passphrasePrompt =  @passphrasePrompt.test(response) and @sshObj.server.hasOwnProperty("passPhrase")
     standardPrompt = @standardPrompt.test(response)
 
     @.emit 'msg', "#{@sshObj.server.host}: SSH: Password previously sent: #{@sshObj.sshAuth}" if @sshObj.verbose
@@ -161,6 +161,12 @@ class SSH2Shell extends Stream
         @.emit 'msg', "#{@sshObj.server.host}: SSH failed response: #{response}"
         @sshObj.sessionText += "#{@sshObj.server.host}: SSH failed: response: #{response}"
         @_runExit()
+      else
+        @.emit 'msg', "#{@sshObj.server.host}: SSH: no prompt was not detected"
+        @.emit 'msg', "#{@sshObj.server.host}: Password prompt #{@sshObj.passwordPrompt}" if @sshObj.verbose and not @sshObj.server.hasOwnProperty("passPhrase")        
+        @.emit 'msg', "#{@sshObj.server.host}: Passphrase prompt #{@sshObj.passphrasePrompt}" if @sshObj.verbose and @sshObj.server.hasOwnProperty("passPhrase")
+        @.emit 'msg', "#{@sshObj.server.host}: Standard prompt #{@sshObj.standardPrompt}" if @sshObj.verbose
+        @_runExit()        
     else
       @.emit 'msg', "#{@sshObj.server.host}: SSH post authentication prompt detection" if @sshObj.debug
       #normal prompt after authentication, start running commands.
@@ -184,7 +190,7 @@ class SSH2Shell extends Stream
         
         #no connection so drop back to first host settings if there was one
         #@sshObj.sessionText += "#{@_buffer}"
-        @.emit 'msg', "#{@sshObj.server.host}: SSH resonse: #{response}" if @sshObj.verbose and @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH resonse: #{response}" if @sshObj.verbose
         if @_connections.length > 0
           return @_previousHost()
           
@@ -435,8 +441,10 @@ class SSH2Shell extends Stream
     @sshObj.hosts             = [] unless @sshObj.hosts
     @sshObj.commands          = [] unless @sshObj.commands
     @sshObj.standardPrompt    = ">$%#" unless @sshObj.standardPrompt
-    @sshObj.passwordPromt     = ":" unless @sshObj.passwordPromt
-    @sshObj.passphrasePromt   = ":" unless @sshObj.passphrasePromt
+    @sshObj.passwordPrompt    = @sshObj.passwordPromt unless @sshObj.passwordPrompt
+    @sshObj.passphrasePrompt  = @sshObj.passphrasePromt unless @sshObj.passphrasePrompt
+    @sshObj.passwordPrompt    = ":" unless @sshObj.passwordPrompt
+    @sshObj.passphrasePrompt  = ":" unless @sshObj.passphrasePrompt
     @sshObj.passPromptText    = "Password" unless @sshObj.passPromptText
     @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
@@ -455,8 +463,8 @@ class SSH2Shell extends Stream
     @dataIdleTime             = @sshObj.dataIdleTime ? 500
     @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
     @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
-    @passwordPromt            = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passwordPromt + "\\s?$","i") unless @passwordPromt
-    @passphrasePromt          = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passphrasePromt + "\\s?$","i") unless @passphrasePromt
+    @passwordPrompt            = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passwordPrompt + "\\s?$","i") unless @passwordPrompt
+    @passphrasePrompt          = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passphrasePrompt + "\\s?$","i") unless @passphrasePrompt
     @standardPrompt           = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPrompt
     #@_callback                = @sshObj.callback if @sshObj.callback
 

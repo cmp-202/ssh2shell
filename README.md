@@ -310,7 +310,7 @@ node test/timeouttest.js
 
 //Test multiple sudo and su combinations for changing user
 //Issue #10
-//Also test promt detection with no password requested 
+//Also test Prompt detection with no password requested 
 //Issue #14
 node test/sudosutest.js
 
@@ -352,9 +352,8 @@ PASS_PHRASE=myPassPhrase
 
 *app.js*
 ```javascript
-var dotenv = require('dotenv');
-dotenv.load();
-var Email = require('email');
+var dotenv = require('dotenv').config(),
+    Email = require('email');
 
 var host = {
  server:              {     
