@@ -8,7 +8,7 @@
     "node": ">=4.5.0"
   },
   "dependencies": {
-    "ssh2": "^0.8.9"
+    "ssh2": "^1.4.0"
   },
   "devDependencies": {
     "coffee-script": "^1.12.7",
