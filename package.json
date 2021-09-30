@@ -5,14 +5,14 @@
   "description": "A wrapper class for ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
   "engines": {
-    "node": ">=4.5.0"
+    "node": ">=14.18.0"
   },
   "dependencies": {
     "ssh2": "^1.4.0"
   },
   "devDependencies": {
     "coffee-script": "^1.12.7",
-    "dotenv": "^8.2.0"
+    "dotenv": "^8.6.0"
   },
   "scripts": {},
   "keywords": [

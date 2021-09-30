@@ -378,7 +378,7 @@ class SSH2Shell extends Stream
       @hosts = hosts
     else
       @hosts = [hosts]
-    @ssh2Client = require('ssh2')  
+    @ssh2Client = require('ssh2').Client  
     @.on "newPrimmaryHost", @_nextPrimaryHost
     @.on "data", (data) =>
       #@.emit 'msg', "#{@sshObj.server.host}: data event: #{data}" if @sshObj.verbose
@@ -578,33 +578,10 @@ class SSH2Shell extends Stream
 
     if @sshObj.server and @sshObj.commands
       try
-        @connection.connect
-          host:             @sshObj.server.host
-          port:             @sshObj.server.port
-          forceIPv4:        @sshObj.server.forceIPv4
-          forceIPv6:        @sshObj.server.forceIPv6
-          hostHash:         @sshObj.server.hashMethod
-          hostVerifier:     @sshObj.server.hostVerifier
-          username:         @sshObj.server.userName
-          password:         @sshObj.server.password
-          agent:            @sshObj.server.agent
-          agentForward:     @sshObj.server.agentForward
-          privateKey:       @sshObj.server.privateKey
-          passphrase:       @sshObj.server.passPhrase
-          localHostname:    @sshObj.server.localHostname
-          localUsername:    @sshObj.server.localUsername
-          localAddress:     @sshObj.server.localAddress
-          localPort:        @sshObj.server.localPort
-          authHandler:      @sshObj.server.authHandler
-          tryKeyboard:      @sshObj.server.tryKeyboard
-          keepaliveInterval:@sshObj.server.keepaliveInterval
-          keepaliveCountMax:@sshObj.server.keepaliveCountMax
-          readyTimeout:     @sshObj.server.readyTimeout
-          sock:             @sshObj.server.sock
-          strictVendor:     @sshObj.server.strictVendor
-          algorithms:       @sshObj.server.algorithms
-          compress:         @sshObj.server.compress
-          debug:            @sshObj.server.debug
+        @sshObj.server.username = @sshObj.server.userName unless @sshObj.server.username
+        @sshObj.server.hostHash = @sshObj.server.hashMethod unless @sshObj.server.hostHash
+        @sshObj.server.passphrase = @sshObj.server.passPhrase unless @sshObj.server.passphrase
+        @connection.connect @sshObj.server
       catch e
         @.emit 'error', "#{e} #{e.stack}", "Connection.connect", true
     else
