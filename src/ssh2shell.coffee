@@ -88,45 +88,51 @@ class SSH2Shell extends Stream
     return @_buffer.replace(@command.substr(0, @_buffer.length), "")
 
   _processPasswordPrompt: =>
-    #First test for password prompt
+    #First test for password prompt    
     response = @_sanitizeResponse().trim()
     passwordPrompt =  @passwordPrompt.test(response)
     standardPrompt = @standardPrompt.test(response)
-    @.emit 'msg', "#{@sshObj.server.host}: Password previously sent: #{@sshObj.pwSent}" if @sshObj.verbose 
-    @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Password previously sent: #{@sshObj.pwSent}" if @sshObj.debug
-    @.emit 'msg', "#{@sshObj.server.host}: Response: #{response}" if @sshObj.verbose
-    @.emit 'msg', "#{@sshObj.server.host}: Sudo Password Prompt: #{passwordPrompt}" if @sshObj.verbose
-    @.emit 'msg', "#{@sshObj.server.host}: Sudo Password: #{@sshObj.server.password}" if @sshObj.verbose
-    #normal prompt so continue with next command
-    if standardPrompt
-      @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Standard prompt detected" if @sshObj.debug
-      @_commandComplete()
-      @sshObj.pwSent = true
-    #Password prompt detection
-    else unless @sshObj.pwSent
-      if passwordPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Buffer: #{response}" if @sshObj.verbose
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt: Send password " if @sshObj.debug
-        @.emit 'msg', "#{@sshObj.server.host}: Sent password: #{@sshObj.server.password}" if @sshObj.verbose
+    @.emit 'msg', "#{@sshObj.server.host}: Sudo Password prompt detected: #{passwordPrompt}" if @sshObj.debug
+    @.emit 'msg', "#{@sshObj.server.host}: Sudo Password prompt: Password sent: #{@sshObj.pwSent}" if @sshObj.debug
+    @.emit 'msg', "#{@sshObj.server.host}: Sudo Password: #{@sshObj.server.password}" if @sshObj.debug
+    @.emit 'msg', "#{@sshObj.server.host}: Sudo Response: #{response}" if @sshObj.verbose
+        
+    #Prompt detection
+    #no password
+    switch (true)    
+      when passwordPrompt and not @sshObj.server.password
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo password prompt no password" if @sshObj.debug
+        @_resetFromSudoError()
+      when passwordPrompt and not @sshObj.pwSent
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo password prompt: Buffer: #{response}" if @sshObj.verbose
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo password prompt: Send password " if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo sent password: #{@sshObj.server.password}" if @sshObj.verbose
         #send password
         @sshObj.pwSent = true
         @_runCommand("#{@sshObj.server.password}")
-      else
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt: not detected" if @sshObj.debug
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt #{@sshObj.passwordPrompt}" if @sshObj.verbose        
-        @_runExit()
-    #password sent so either check for failure or run next command
-    else if passwordPrompt
+      when passwordPrompt and @sshObj.pwSent
         @.emit 'msg', "#{@sshObj.server.host}: Sudo password faied: response: #{response}" if @sshObj.verbose
-        @.emit 'error', "#{@sshObj.server.host}: Sudo password was incorrect for #{@sshObj.server.userName}", "Sudo authentication" if @sshObj.debug
-        @.emit 'msg', "#{@sshObj.server.host}: Failed password prompt: Password: [#{@sshObj.server.password}]" if @sshObj.debug
+        @.emit 'error', "#{@sshObj.server.host}: Sudo password was incorrect for #{@sshObj.server.userName}, Sudo authentication" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo failed password prompt: Password: [#{@sshObj.server.password}]" if @sshObj.debug
+        @sshObj.pwSent = false
         #add buffer to sessionText so the sudo response can be seen
-        @sshObj.sessionText += "#{@_buffer}"
-        @_buffer = ""
-        #@sshObj.commands = []
-        @command = ""
-        @_stream.write '\x03'
-      
+        @_resetFromSudoError()
+      when standardPrompt
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo prompt: Standard prompt detected" if @sshObj.debug
+        @sshObj.pwSent = false
+        @.emit 'msg', "#{@sshObj.server.host}: Sudo Standard Response: #{response}" if @sshObj.verbose
+        @_commandComplete()
+      else
+        @idleTimer = setTimeout( =>
+              @.emit 'commandTimeout', @.command, response, @._stream, @._connection
+          , @idleTime)
+
+  _resetFromSudoError: =>
+    @sshObj.pwSent = false
+    @sshObj.sessionText += "#{@_buffer}"
+    @_buffer = ""
+    @command = ""
+    @_stream.write '\x03'
 
   _processSSHPrompt: =>
     #not authenticated yet so detect prompts
@@ -156,16 +162,16 @@ class SSH2Shell extends Stream
         @_runCommand("#{@sshObj.server.passPhrase}")
       #normal prompt so continue with next command
       else if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH: standard prompt: connection failed" if @sshObj.debug
+        @.emit 'msg', "#{@sshObj.server.host}: SSH standard prompt: connection failed" if @sshObj.debug
         @.emit 'msg', "#{@sshObj.server.host}: SSH connection failed" 
         @.emit 'msg', "#{@sshObj.server.host}: SSH failed response: #{response}"
         @sshObj.sessionText += "#{@sshObj.server.host}: SSH failed: response: #{response}"
         @_runExit()
       else
-        @.emit 'msg', "#{@sshObj.server.host}: SSH: no prompt was not detected"
-        @.emit 'msg', "#{@sshObj.server.host}: Password prompt #{@sshObj.passwordPrompt}" if @sshObj.verbose and not @sshObj.server.hasOwnProperty("passPhrase")        
-        @.emit 'msg', "#{@sshObj.server.host}: Passphrase prompt #{@sshObj.passphrasePrompt}" if @sshObj.verbose and @sshObj.server.hasOwnProperty("passPhrase")
-        @.emit 'msg', "#{@sshObj.server.host}: Standard prompt #{@sshObj.standardPrompt}" if @sshObj.verbose
+        @.emit 'msg', "#{@sshObj.server.host}: SSH no prompt was not detected"
+        @.emit 'msg', "#{@sshObj.server.host}: SSH password prompt #{@sshObj.passwordPrompt}" if @sshObj.verbose and not @sshObj.server.hasOwnProperty("passPhrase")        
+        @.emit 'msg', "#{@sshObj.server.host}: SSH passphrase prompt #{@sshObj.passphrasePrompt}" if @sshObj.verbose and @sshObj.server.hasOwnProperty("passPhrase")
+        @.emit 'msg', "#{@sshObj.server.host}: SSH standard prompt #{@sshObj.standardPrompt}" if @sshObj.verbose
         @_runExit()        
     else
       @.emit 'msg', "#{@sshObj.server.host}: SSH post authentication prompt detection" if @sshObj.debug
@@ -183,8 +189,8 @@ class SSH2Shell extends Stream
         @.emit 'msg', "#{@sshObj.server.host}: SSH: failed response: #{response}" if @sshObj.verbose
         @sshObj.sshAuth = false
         using = switch
-          when passwordPrompt then "password: #{@sshObj.server.password}"
-          when passphrasePrompt then "passphrase: #{@sshObj.server.passPhrase}"
+          when passwordPrompt then "SSH password: #{@sshObj.server.password}"
+          when passphrasePrompt then "SSH passphrase: #{@sshObj.server.passPhrase}"
         @.emit 'error', "#{@sshObj.server.host}: SSH authentication failed for #{@sshObj.server.userName}@#{@sshObj.server.host}", "Nested host authentication"
         @.emit 'msg', "#{@sshObj.server.host}: SSH auth failed: Using " + using if @sshObj.debug
         
