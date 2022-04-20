@@ -139,8 +139,7 @@ host = {
   commands:           ["cd /var/logs", "ls -al", "msg:Listed dir", "cd /home/user"],
   
   //Optional: Used by this.emit("msg", "my message") to output a message
-  msg:                {
-    send: function( message ) {
+  msg:                function( message ) {
       console.log(message);
     }
   }, 

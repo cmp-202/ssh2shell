@@ -398,9 +398,11 @@ class SSH2Shell extends Stream
   _initiate: (callback)=>
     @_removeEvents()
     
-    if typeof @sshObj.msg == 'function'
-      @.on "msg", @sshObj.msg.send 
-    else 
+    if @sshObj.msg.send and typeof @sshObj.msg.send == 'function'
+      @.on "msg", @sshObj.msg.send
+    else if typeof @sshObj.msg == 'function'
+      @.on "msg", @sshObj.msg
+    else
       @.on "msg", ( message ) =>
         console.log message 
         
