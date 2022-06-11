@@ -36,7 +36,8 @@ var host1 = {
 host2 = {
   server:       conParamsHost2,
   commands:     [
-    "echo Host_2"
+    "echo Host_2",
+    "echo ssh"
   ],
   debug: debug,
   verbose: verbose

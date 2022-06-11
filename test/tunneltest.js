@@ -25,7 +25,7 @@ var conParamsHost1 = {
 //Host objects:
 var host1 = {
   server:       conParamsHost1,
-  commands:     [],
+  commands:     [ "echo ssh" ],
   connectedMessage: "Connected to host1",
   debug: debug,
   verbose: verbose

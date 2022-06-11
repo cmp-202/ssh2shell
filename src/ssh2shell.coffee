@@ -9,7 +9,7 @@ Stream = require('stream');
 class SSH2Shell extends Stream
   sshObj:           {}
   command:          ""
-  hosts:            []
+  _hosts:            []
   _primaryhostSessionText: ""
   _allSessions:      ""
   _connections:     []
@@ -64,7 +64,7 @@ class SSH2Shell extends Stream
           @emit 'msg', "#{@sshObj.server.host}: Sudo command data" if @sshObj.debug          
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
-        when @command.length > 0 and @command.indexOf("ssh ") isnt -1
+        when @command.length > 0 and @command.indexOf("ssh ") is 0
           @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug 
           @_processSSHPrompt()
         #check for standard prompt from a command
@@ -290,11 +290,11 @@ class SSH2Shell extends Stream
     
   _nextPrimaryHost: ( callback )=>
     
-    if typeIsArray(@hosts) and @hosts.length > 0
+    if typeIsArray(@_hosts) and @_hosts.length > 0
       if @sshObj.server 
         @.emit 'msg', "#{@sshObj.server.host}: Current primary host" if @sshObj.debug
       
-      @sshObj = @hosts.shift()      
+      @sshObj = @_hosts.shift()      
       @_primaryhostSessionText = "#{@sshObj.server.host}: " 
       
       @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug      
@@ -349,8 +349,6 @@ class SSH2Shell extends Stream
       @.emit 'msg', "#{@sshObj.server.host}: load previous host" if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: #{@sshObj.closedMessage}"
       @_previousHost()
-    #else if typeIsArray(@hosts) and @hosts.length > 0
-      #@connection.end()
     else if @command == "exit"
       @.emit 'msg', "#{@sshObj.server.host}: Manual exit command" if @sshObj.debug
       @_runCommand("exit")
@@ -380,10 +378,11 @@ class SSH2Shell extends Stream
     
     
   constructor: (hosts) ->
-    if typeIsArray(hosts)
-      @hosts = hosts
+    super hosts
+    if typeIsArray(hosts) and hosts.length > 0
+      @_hosts = hosts
     else
-      @hosts = [hosts]
+      @_hosts = [hosts]
     @ssh2Client = require('ssh2').Client  
     @.on "newPrimmaryHost", @_nextPrimaryHost
     @.on "data", (data) =>
@@ -556,7 +555,7 @@ class SSH2Shell extends Stream
           @_primaryhostSessionText += @sshObj.sessionText+"\n"
           @_allSessions += @_primaryhostSessionText
           
-          if typeIsArray(@hosts) and @hosts.length == 0
+          if typeIsArray(@_hosts) and @_hosts.length == 0
             @.emit 'end', @_allSessions, @sshObj            
             
           @_removeEvents() 
@@ -577,7 +576,7 @@ class SSH2Shell extends Stream
         @.emit "error", had_error, "Connection close"
       else
         @.emit 'msg', @sshObj.closedMessage
-      if typeIsArray(@hosts) and @hosts.length == 0  
+      if typeIsArray(@_hosts) and @_hosts.length == 0  
         if typeof @_callback == 'function'
           @_callback @_allSessions
       else      
