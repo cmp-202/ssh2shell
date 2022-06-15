@@ -10,6 +10,7 @@ class SSH2Shell extends Stream
   sshObj:           {}
   command:          ""
   _hosts:            []
+  _sshToNextHost:    false
   _primaryhostSessionText: ""
   _allSessions:      ""
   _connections:     []
@@ -64,7 +65,7 @@ class SSH2Shell extends Stream
           @emit 'msg', "#{@sshObj.server.host}: Sudo command data" if @sshObj.debug          
           @_processPasswordPrompt()
         #check if ssh authentication needs to be handled
-        when @command.length > 0 and @command.indexOf("ssh ") is 0
+        when @sshObj.sshToNextHost and @command.length > 0 and @command.indexOf("ssh ") is 0
           @emit 'msg', "#{@sshObj.server.host}: SSH command data" if @sshObj.debug 
           @_processSSHPrompt()
         #check for standard prompt from a command
@@ -175,12 +176,16 @@ class SSH2Shell extends Stream
         @_runExit()        
     else
       @.emit 'msg', "#{@sshObj.server.host}: SSH post authentication prompt detection" if @sshObj.debug
-      #normal prompt after authentication, start running commands.
+      #@sshObj.sshToNextHost = false
+      
       if standardPrompt
-        @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug        
+        @.emit 'msg', "#{@sshObj.server.host}: SSH complete: normal prompt" if @sshObj.debug
+        @sshObj.sessionText += "\n #{response}" if @sshObj.showBanner
         @sshObj.exitCommands.push "exit"
         @.emit 'msg', "#{@sshObj.connectedMessage}"
         @.emit 'msg', "#{@sshObj.readyMessage}"
+        @.emit 'msg', "#{@sshObj.server.host}: SSH complete: next command" if @sshObj.debug
+        @sshObj.sshToNextHost = false
         @_nextCommand()
       #Password or passphase detected a second time after authentication indicating failure.
       else if (passwordPrompt or passphrasePrompt)
@@ -196,7 +201,7 @@ class SSH2Shell extends Stream
         
         #no connection so drop back to first host settings if there was one
         #@sshObj.sessionText += "#{@_buffer}"
-        @.emit 'msg', "#{@sshObj.server.host}: SSH resonse: #{response}" if @sshObj.verbose
+        @.emit 'msg', "#{@sshObj.server.host}: SSH response: #{response}" if @sshObj.verbose
         if @_connections.length > 0
           return @_previousHost()
           
@@ -224,18 +229,13 @@ class SSH2Shell extends Stream
         @_checkCommand()
 
   _commandComplete: =>
-    response = @_buffer.trim() #replace(@command, "")
+    response = @_buffer.trim()
     #check sudo su has been authenticated and add an extra exit command
-
-    if @command isnt "" and @command isnt "exit" and @command.indexOf("ssh ") is -1
+    if @command isnt "" and @command isnt "exit" and @sshObj.sshToNextHost isnt true
       @.emit 'msg', "#{@sshObj.server.host}: Command complete:\nCommand:\n #{@command}\nResponse: #{response}" if @sshObj.verbose
       @sshObj.sessionText += response
       @.emit 'msg', "#{@sshObj.server.host}: Raising commandComplete event" if @sshObj.debug
       @.emit 'commandComplete', @command, @_buffer, @sshObj
-
-    #if @command.indexOf("exit") != -1
-    #  @_runExit()
-    #else
     @_nextCommand()
 
   _nextCommand: =>
@@ -269,6 +269,7 @@ class SSH2Shell extends Stream
     @.emit 'msg', "#{@sshObj.server.host}: Load previous host config" if @sshObj.debug
     @.emit 'end', "#{@sshObj.server.host}: \n#{@sshObj.sessionText}", @sshObj
     @.emit 'msg', "#{@sshObj.server.host}: Previous hosts: #{@_connections.length}" if @sshObj.debug
+    
     if @_connections.length > 0
       @sshObj = @_connections.pop()
       @.emit 'msg', "#{@sshObj.server.host}: Reload previous host" if @sshObj.debug
@@ -298,7 +299,7 @@ class SSH2Shell extends Stream
       @_primaryhostSessionText = "#{@sshObj.server.host}: " 
       
       @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug      
-        
+      
       @_initiate(callback)      
     else
       @.emit 'msg', "#{@sshObj.server.host}: No more primary hosts" if @sshObj.debug
@@ -306,6 +307,7 @@ class SSH2Shell extends Stream
       
     
   _sshConnect: =>
+    
     #add ssh commandline options from host.server.ssh
     sshFlags   = "-x"
     sshOptions = ""
@@ -327,6 +329,7 @@ class SSH2Shell extends Stream
     sshOptions += ' -o "StrictHostKeyChecking=no"'
     sshOptions += " -p #{@sshObj.server.port}"
     @sshObj.sshAuth = false
+    @sshObj.sshToNextHost = true
     @command = "ssh #{sshFlags} #{sshOptions} #{@sshObj.server.userName}@#{@sshObj.server.host}"
     @.emit 'msg', "#{@sshObj.server.host}: SSH command: connect" if @sshObj.debug
     @_runCommand(@command)
@@ -337,7 +340,8 @@ class SSH2Shell extends Stream
     if @sshObj.exitCommands and @sshObj.exitCommands.length > 0
       @.emit 'msg', "#{@sshObj.server.host}: Queued exit commands: #{@sshObj.exitCommands.length}" if @sshObj.debug
       @command = @sshObj.exitCommands.pop()
-      if @_connections and @_connections.length > 0      
+      if @_connections and @_connections.length > 0
+        @.emit 'msg', "#{@sshObj.server.host}: Primary host: #{@_connections[0].server.host}" if @sshObj.verbose
         @_connections[0].sessionText += "\n#{@sshObj.server.host}: #{@sshObj.sessionText}"
       @_runCommand(@command)
     #more hosts to connect to so process the next one
@@ -349,7 +353,7 @@ class SSH2Shell extends Stream
       @.emit 'msg', "#{@sshObj.server.host}: load previous host" if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: #{@sshObj.closedMessage}"
       @_previousHost()
-    else if @command == "exit"
+    else if @command is "exit"
       @.emit 'msg', "#{@sshObj.server.host}: Manual exit command" if @sshObj.debug
       @_runCommand("exit")
       #Nothing more to do so end the stream with last exit
@@ -439,6 +443,7 @@ class SSH2Shell extends Stream
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
     @command = ""
     @_buffer = ""
+    @sshObj.sshToNextHost = false
     @sshObj.connectedMessage  = "Connected" unless @sshObj.connectedMessage
     @sshObj.readyMessage      = "Ready" unless @sshObj.readyMessage
     @sshObj.closedMessage     = "Closed" unless @sshObj.closedMessage
