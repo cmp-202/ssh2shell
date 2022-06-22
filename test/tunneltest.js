@@ -25,7 +25,7 @@ var conParamsHost1 = {
 //Host objects:
 var host1 = {
   server:       conParamsHost1,
-  commands:     [ "echo host1","ssh -V" ],
+  commands:     [ "echo host1"],
   connectedMessage: "Connected to host1",
   debug: debug,
   verbose: verbose
@@ -33,7 +33,7 @@ var host1 = {
 
 host2 = {
   server:       conParamsHost2,
-  commands:     [ "echo host2","echo ssh" ],
+  commands:     [ "echo host2" ],
   connectedMessage: "Connected to host2",
   debug: debug,
   verbose: verbose
@@ -41,7 +41,7 @@ host2 = {
 
 host3 = {
   server:       conParamsHost3,
-  commands:     [ "echo host3","ssh -V" ],
+  commands:     [ "echo host3"],
   connectedMessage: "Connected to host3",
   debug: debug,
   verbose: verbose

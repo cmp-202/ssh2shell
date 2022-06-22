@@ -1,6 +1,6 @@
 var dotenv = require('dotenv').config()
 
-var sshObj = {
+var host = {
   server:             {     
     host:         process.env.HOST,
     port:         process.env.PORT,
@@ -42,8 +42,10 @@ var sshObj = {
 var SSH2Shell = require ('../lib/ssh2shell');
 
 //run the commands in the shell session
-var SSH = new SSH2Shell(sshObj);
+var SSH = new SSH2Shell(host);
+
 SSH.on('end', function( sessionText, sshObj ){
-      this.emit('msg', sessionText);
+      this.emit('msg', "Session Text " + sessionText);
   })
+  
 SSH.connect();

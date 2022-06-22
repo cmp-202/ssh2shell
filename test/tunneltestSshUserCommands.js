@@ -1,4 +1,4 @@
-var dotenv = require('dotenv').config()
+var dotenv = require('dotenv').config();
 
 var conParamsHost1 = {
   host:         process.env.HOST,
@@ -19,13 +19,13 @@ var conParamsHost1 = {
   userName:     process.env.SERVER3_USER_NAME,
   password:     process.env.SERVER3_PASSWORD
  },
- debug = true,
+ debug = false,
  verbose = false
 
 //Host objects:
 var host1 = {
   server:       conParamsHost1,
-  commands:     ["echo Host_1"],
+  commands:     [ "echo host1", "ssh -V"],
   connectedMessage: "Connected to host1",
   debug: debug,
   verbose: verbose
@@ -33,18 +33,23 @@ var host1 = {
 
 host2 = {
   server:       conParamsHost2,
-  commands:     ["echo Host_2"],
+  commands:     [ "echo host2", "echo ssh" ],
+  connectedMessage: "Connected to host2",
   debug: debug,
   verbose: verbose
 },
 
 host3 = {
   server:       conParamsHost3,
-  commands:     ["echo Host_3"],
+  commands:     [ "echo host3", "echo ssh middle"],
+  connectedMessage: "Connected to host3",
   debug: debug,
   verbose: verbose
 }
 
+//host2.hosts = [ host3 ];
+//Set the two hosts you are tunnelling to through host1
+host1.hosts = [ host2, host3  ];
 
 //or the alternative nested tunnelling method outlined above:
 //host2.hosts = [ host3 ];ssh -q george@192.168.0.129 "echo 2>&1" && echo OK || echo NOK
@@ -53,7 +58,7 @@ host3 = {
 //Create the new instance
 //or SSH2Shell = require ('ssh2shell')
 var SSH2Shell = require ('../lib/ssh2shell'),
-    SSH = new SSH2Shell([host1,host2,host3]),
+    SSH = new SSH2Shell(host1),
     callback = function( sessionText ){
           console.log ( "-----Callback session text:\n" + sessionText);
           console.log ( "-----Callback end" );
