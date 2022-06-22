@@ -370,13 +370,23 @@ class SSH2Shell extends Stream
     @_stream.close() #"exit#{@sshObj.enter}"
 
   _removeEvents: =>
-    @.emit 'msg', "#{@sshObj.server.host}: Clearing host event handlers" if @sshObj.debug
+    if @sshObj.debug
+      @.emit 'msg', "#{@sshObj.server.host}: Event handler count:"
+      @.emit 'msg', "keyboard-interactive: " + (@.listenerCount 'keyboard-interactive')
+      @.emit 'msg', "error: " + (@.listenerCount "error")
+      @.emit 'msg', "data: " + (@.listenerCount "data")
+      @.emit 'msg', "stderrData: " + (@.listenerCount "stderrData")
+      @.emit 'msg', "end: " + (@.listenerCount 'end')
+      @.emit 'msg', "commandProcessing: " + (@.listenerCount 'commandProcessing')
+      @.emit 'msg', "commandComplete: " + (@.listenerCount 'commandComplete')
+      @.emit 'msg', "commandTimeout: " + (@.listenerCount 'commandTimeout')
+      @.emit 'msg', "msg: " + (@.listenerCount 'msg')    
 
-    @.removeAllListeners 'keyboard-interactive'
-    @.removeAllListeners "error"
     @.removeListener "data", @sshObj.onData if typeof @sshObj.onData == 'function'
+    @.removeAllListeners "error"
     @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
     @.removeAllListeners 'end'
+    @.removeAllListeners 'keyboard-interactive'
     @.removeAllListeners 'commandProcessing'
     @.removeAllListeners 'commandComplete'
     @.removeAllListeners 'commandTimeout'
@@ -395,21 +405,20 @@ class SSH2Shell extends Stream
     
     @.on "newPrimmaryHost", @_nextPrimaryHost
     
-    @.on "data", (data) =>
-      #@.emit 'msg', "#{@sshObj.server.host}: data event: #{data}" if @sshObj.verbose
+    @.on "data", (data) =>      
       @_onData( data )
       
     @.on "stderrData", (data) =>
       console.error data    
      
     @.on "error", (err, type, close = false, callback) =>
-      @.emit 'msg', "#{@sshObj.server.host}: Class.error: #{err}, #{type}" if @sshObj.debug
+      @.emit 'msg', "Class.error: #{err}, #{type}" if @sshObj.debug
       if ( err instanceof Error )
         @.emit 'msg', "Error: " + err.message + ", Level: " + err.level
       else
         @.emit 'msg', "#{type} error: " + err
       
-      @connection.end() if close
+      @_stream.close() if close
       
     if @_hosts[0].server.tryKeyboard 
       @.on "keyboard-interactive", ( name, instructions, instructionsLang, prompts, finish ) =>
@@ -560,9 +569,8 @@ class SSH2Shell extends Stream
           @_primaryhostSessionText += @sshObj.sessionText+"\n"
           @_allSessions += @_primaryhostSessionText
           if @_hosts.length == 0
-            @.emit 'end', @_allSessions, @sshObj
-          #if @_hosts.length == 0
-            #@_removeEvents() 
+            @.emit 'end', @_allSessions, @sshObj          
+          @_removeEvents() 
 
           
         @_stream.on "close", (code, signal) =>
