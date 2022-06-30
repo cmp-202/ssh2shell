@@ -370,6 +370,7 @@ class SSH2Shell extends Stream
     @_stream.close() #"exit#{@sshObj.enter}"
 
   _removeEvents: =>
+    ###
     if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Event handler count:"
       @.emit 'msg', "keyboard-interactive: " + (@.listenerCount 'keyboard-interactive')
@@ -381,7 +382,7 @@ class SSH2Shell extends Stream
       @.emit 'msg', "commandComplete: " + (@.listenerCount 'commandComplete')
       @.emit 'msg', "commandTimeout: " + (@.listenerCount 'commandTimeout')
       @.emit 'msg', "msg: " + (@.listenerCount 'msg')    
-
+    ###
     @.removeListener "data", @sshObj.onData if typeof @sshObj.onData == 'function'
     @.removeAllListeners "error"
     @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
