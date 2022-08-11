@@ -219,75 +219,31 @@ Usage:
 Connecting to a single host:
 ----------------------------
 
-*How to:*
-* Connect using a key pair with pass phrase.
-* Use sudo su with user password.
-* Set commands.
-* Test the response of a command and add more commands and notifications in the host.onCommandComplete event handler.
-* Use the two notification types in the commands array.
-* Use msg: notifications to track progress in the console as the process completes.
-
-
-*.env*
-```
-HOST=
-USER_NAME=
-PRIV_KEY_PATH=~/.ssh/id_rsa
-PASS_PHRASE=myPassPhrase
-```
 
 *app.js*
 ```javascript
-var dotenv = require('dotenv').config(),
-    Email = require('email');
-
 var host = {
  server:        {
    host:         "192.168.0.1",
    userName:     "myuser",
-   password:     "sudoPassword",
    passPhrase:   "myPassPhrase",
    privateKey:   require('fs').readFileSync("~/.ssh/id_rsa")
  },
  commands:      [
   "`This is a message that will be added to the full sessionText`",
   "msg:This is a message that will be displayed during the process",
-  "echo $(pwd)",
-  "sudo su",
-  "msg:changing directory",
   "cd ~/",
-  "ls -l",
-  "msg:Confirming the current path",
-  "echo $(pwd)",
-  "msg:Command dynamically added",
-  "ls -l",
-  "`All done!`"
- ],
- 
- onCommandComplete: function( command, response, sshObj ) {
-  //confirm it is the root home dir and change to root's .ssh folder
-
-  if (command === "echo $(pwd)" && response.indexOf("/root") != -1 ) {
-   //unshift will add the command as the next command, use push to add command as the last command
-   sshObj.commands.unshift("msg:The command and response check worked. Added another cd command.");
-   sshObj.commands.unshift("cd .ssh");
-  }
-  //we are listing the dir so output it to the msg handler
-  else if (command === "ls -l"){      
-   this.emit("msg", response);
-  }
- },
+  "ls -l"
+ ]
 };
 
-
-//Create a new instance
 var SSH2Shell = require ('ssh2shell'),
     SSH       = new SSH2Shell(host);
 
-//use a callback
 var callback = function (sessionText){
         console.log (sessionText);
     }
+    
 SSH.connect(callback);
 ```
 
