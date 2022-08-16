@@ -4,6 +4,30 @@ ssh2shell
 
 Ssh2shell uses [ssh2](https://www.npmjs.org/package/ssh2) to open a ssh shell session to a host/s to run multiple commands and process the responses.
 
+Index:
+------------
+[Instalation](https://github.com/cmp-202/ssh2shell#installation)
+[Minimal Example](https://github.com/cmp-202/ssh2shell#minimal-example)
+[Host Configuration](https://github.com/cmp-202/ssh2shell#host-configuration)
+[ssh2shell API](https://github.com/cmp-202/ssh2shell#ssh2shell-api)
+[Connecting to a single host](https://github.com/cmp-202/ssh2shell#connecting-to-a-single-host)
+[Authentication](https://github.com/cmp-202/ssh2shell#authentication)
+[Default Cyphers](https://github.com/cmp-202/ssh2shell#default-cyphers)
+[Fingerprint Validation](https://github.com/cmp-202/ssh2shell#fingerprint-validation)
+[Keyboard-interactive](https://github.com/cmp-202/ssh2shell#keyboard-interactive)
+[Trouble shooting](https://github.com/cmp-202/ssh2shell#trouble-shooting)
+[Verbose and Debug](https://github.com/cmp-202/ssh2shell#verbose-and-debug)
+[Notification commands](https://github.com/cmp-202/ssh2shell#notification-commands)
+[Sudo and su Commands](https://github.com/cmp-202/ssh2shell#sudo-and-su-commands)
+[Prompt detection override](https://github.com/cmp-202/ssh2shell#prompt-detection-override)
+[Text regular expression filters](https://github.com/cmp-202/ssh2shell#text-regular-expression-filters)
+[Responding to non-standard command prompts](https://github.com/cmp-202/ssh2shell#responding-to-non-standard-command-prompts)
+[Command Time-out event](https://github.com/cmp-202/ssh2shell#command-time-out-event)
+[Multiple Primary Hosts](https://github.com/cmp-202/ssh2shell#multiple-primary-hosts)
+[Tunnelling nested host objects](https://github.com/cmp-202/ssh2shell#tunnelling-nested-host-objects)
+[Event Handlers](https://github.com/cmp-202/ssh2shell#event-handlers)
+[Bash scripts on the fly](https://github.com/cmp-202/ssh2shell#bash-scripts-on-the-fly)
+
 Installation:
 ------------
 ```
@@ -608,6 +632,82 @@ SSH.on ('end', function( sessionText, sshObj ) {
  });
  
 SSH.connect();
+```
+
+
+Multiple Primary Hosts:
+-----------------------
+Multiple hosts can be connected to one after the other as you would connecting to a single host.
+Each host config is independant of each other but can share thingsa like commands and handlers.
+Each host config is added to an array of hosts that is passed to the constructor.
+The final `sessionText` contains the output from all the hosts. 
+
+```javascript
+var dotenv = require('dotenv').config()
+
+var conParamsHost1 = {
+    host:         process.env.HOST,
+    port:         process.env.PORT,
+    userName:     process.env.USER_NAME,
+    password:     process.env.PASSWORD
+  },
+ 
+  conParamsHost2 = {
+    host:         process.env.SERVER2_HOST,
+    port:         process.env.PORT,
+    userName:     process.env.SERVER2_USER_NAME,
+    password:     process.env.SERVER2_PASSWORD
+  },
+ 
+  conParamsHost3 = {
+    host:         process.env.SERVER3_HOST,
+    port:         process.env.PORT,
+    userName:     process.env.SERVER3_USER_NAME,
+    password:     process.env.SERVER3_PASSWORD
+  },
+  debug = false,
+  verbose = false
+
+//
+var onCommandComplete = 
+
+
+//Host objects:
+var host1 = {
+    server:       conParamsHost1,
+    commands:     ["echo Host_1"],
+    connectedMessage: "Connected to host1",
+    debug: debug,
+    verbose: verbose
+  },
+
+  host2 = {
+    server:       conParamsHost2,
+    commands:     ["echo Host_2"],
+    debug: debug,
+    verbose: verbose
+  },
+
+  host3 = {
+    server:       conParamsHost3,
+    commands:     ["echo Host_3"],
+    debug: debug,
+    verbose: verbose,
+    //Event handler only used by this host
+    onCommandComplete: function( command, response, sshObj ) {
+      this.emit("msg", sshObj.server.host + ": commandComplete only used on this host);
+    }
+  }
+
+
+var SSH2Shell = require ('../lib/ssh2shell'),
+    SSH = new SSH2Shell([host1,host2,host3]),
+    callback = function( sessionText ){
+      console.log ( "-----Callback session text:\n" + sessionText);
+      console.log ( "-----Callback end" );
+    }
+  
+SSH.connect(callback);
 ```
 
 

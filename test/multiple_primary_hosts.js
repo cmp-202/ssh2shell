@@ -1,30 +1,16 @@
-var dotenv = require('dotenv').config()
-
-var conParamsHost1 = {
-  host:         process.env.HOST,
-  port:         process.env.PORT,
-  userName:     process.env.USER_NAME,
-  password:     process.env.PASSWORD
- },
- conParamsHost2 = {
-  host:         process.env.SERVER2_HOST,
-  port:         process.env.PORT,
-  userName:     process.env.SERVER2_USER_NAME,
-  password:     process.env.SERVER2_PASSWORD
- },
- //set to fail
- conParamsHost3 = {
-  host:         process.env.SERVER3_HOST,
-  port:         process.env.PORT,
-  userName:     process.env.SERVER3_USER_NAME,
-  password:     process.env.SERVER3_PASSWORD
- },
- debug = true,
- verbose = false
+var dotenv = require('dotenv').config(),
+  debug = false,
+  verbose = false 
+ 
 
 //Host objects:
 var host1 = {
-  server:       conParamsHost1,
+  server: {
+    host:         process.env.HOST,
+    port:         process.env.PORT,
+    userName:     process.env.USER_NAME,
+    password:     process.env.PASSWORD
+  },
   commands:     ["echo Host_1"],
   connectedMessage: "Connected to host1",
   debug: debug,
@@ -32,26 +18,36 @@ var host1 = {
 },
 
 host2 = {
-  server:       conParamsHost2,
+  server: {
+    host:         process.env.SERVER2_HOST,
+    port:         process.env.PORT,
+    userName:     process.env.SERVER2_USER_NAME,
+    password:     process.env.SERVER2_PASSWORD
+  },
   commands:     ["echo Host_2"],
+  connectedMessage: "Connected to host2",
   debug: debug,
   verbose: verbose
 },
 
 host3 = {
-  server:       conParamsHost3,
+  server: {
+    host:         process.env.SERVER3_HOST,
+    port:         process.env.PORT,
+    userName:     process.env.SERVER3_USER_NAME,
+    password:     process.env.SERVER3_PASSWORD
+  },
   commands:     ["echo Host_3"],
+  connectedMessage: "Connected to host3",
   debug: debug,
-  verbose: verbose
+  verbose: verbose,
+  //Event handler only used by this host
+  onCommandComplete: function( command, response, sshObj ) {
+    this.emit("msg", sshObj.server.host + ": commandComplete only used on this host");
+  }
 }
 
 
-//or the alternative nested tunnelling method outlined above:
-//host2.hosts = [ host3 ];ssh -q george@192.168.0.129 "echo 2>&1" && echo OK || echo NOK
-//host1.hosts = [ host2 ];
-
-//Create the new instance
-//or SSH2Shell = require ('ssh2shell')
 var SSH2Shell = require ('../lib/ssh2shell'),
     SSH = new SSH2Shell([host1,host2,host3]),
     callback = function( sessionText ){
@@ -60,7 +56,9 @@ var SSH2Shell = require ('../lib/ssh2shell'),
     }
 
 
-//Start the process
+SSH.on ('commandComplete', function( command, response, sshObj ) {
+    this.emit("msg", sshObj.server.host + ": onCommandComplete, command: " + command);
+  })
 SSH.connect(callback);
 
 
