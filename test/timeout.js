@@ -13,25 +13,11 @@ self.sshObj.idleTimer = setTimeout(function(){
 //commandTimeout is actually a `didn't detect a defined prompt` timeout
 
 var dotenv = require('dotenv').config(),
-debug=false,
+debug=true,
 verbose=false
 
-var conParamsHost2 = {
-  host:         process.env.SERVER2_HOST,
-  port:         process.env.PORT,
-  userName:     process.env.SERVER2_USER_NAME,
-  password:     process.env.SERVER2_PASSWORD
- }
-
 //Host objects:
-var host1 = {
-  server:       conParamsHost2,
-  commands:     [ "echo host" ],
-  connectedMessage: "Connected to host",
-  debug: true,
-  verbose: verbose
-},
-host = {
+var host = {
   server:             {     
     host:         process.env.HOST,
     port:         process.env.PORT,
@@ -47,7 +33,7 @@ host = {
   standardPrompt:     "$",
   verbose:            verbose,
   debug:              debug,
-  idleTimeOut:        1000,
+  idleTimeOut:        5000,
   FirstPass:		  false,
   SecondPass:         false,
   onCommandTimeout: function( command, response, stream, connection ){
@@ -65,7 +51,6 @@ host = {
          
          stream.write("y" + this.sshObj.enter)
          return
-         
    }
 
    if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + "Final timeout: All attempts completed")}
@@ -74,7 +59,7 @@ host = {
    //everything failed so update sessionText and raise an error event that closes the connection   
    if(!errorMessage){errorMessage = "Command"}
    if(!errorSource){errorSource = "Command Timeout"}   
-   //this.emit("msg", this.sshObj.server.host + ": " + errorMessage + " timed out after " + (this.idleTime / 1000) + " seconds", errorSource, true) 
+   this.emit("msg", this.sshObj.server.host + ": " + errorMessage + " timed out after " + (this.idleTime / 1000) + " seconds", errorSource, true) 
    //this.emit("end", response, this.sshObj)
    this.sshObj.sessionText += response + this.sshObj.enter
    this.close()

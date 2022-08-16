@@ -384,7 +384,7 @@ class SSH2Shell extends Stream
       @.emit 'msg', "msg: " + (@.listenerCount 'msg')    
     ###
     @.removeListener "data", @sshObj.onData if typeof @sshObj.onData == 'function'
-    @.removeAllListeners "error"
+    @.removeListener "error", @sshObj.onError if typeof @sshObj.onError == 'function'
     @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
     @.removeAllListeners 'end'
     @.removeAllListeners 'keyboard-interactive'
@@ -570,9 +570,7 @@ class SSH2Shell extends Stream
           @_primaryhostSessionText += @sshObj.sessionText+"\n"
           @_allSessions += @_primaryhostSessionText
           if @_hosts.length == 0
-            @.emit 'end', @_allSessions, @sshObj          
-          @_removeEvents() 
-
+            @.emit 'end', @_allSessions, @sshObj
           
         @_stream.on "close", (code, signal) =>
           @.emit 'msg', "#{@sshObj.server.host}: Stream.close" if @sshObj.debug
@@ -595,7 +593,8 @@ class SSH2Shell extends Stream
       if @_hosts.length == 0
         if typeof @_callback == 'function'
           @_callback @_allSessions
-      else      
+          @_removeEvents()
+      else        
         @.emit "newPrimaryHost", @_nextPrimaryHost(@_connect)
             
 

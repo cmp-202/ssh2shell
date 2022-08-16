@@ -24,7 +24,7 @@ var sshObj = {
    }
   },
   onCommandComplete:   function( command, response, sshObj ) {
-    if(sshObj.userPromptSent){
+    if(response.indexOf("[Y/n]") != -1 && sshObj.userPromptSent){
       sshObj.userPromptSent = false;
     }
   }

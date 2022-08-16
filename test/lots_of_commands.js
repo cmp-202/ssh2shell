@@ -8,6 +8,7 @@ var host = {
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
+  debug: false,
   commands:           [
     "msg: first",
     "sudo apt-get -y update",
