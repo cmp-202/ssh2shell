@@ -644,69 +644,65 @@ Each host config is added to an array of hosts that is passed to the constructor
 The final `sessionText` contains the output from all the hosts. 
 
 ```javascript
-var dotenv = require('dotenv').config()
+var dotenv = require('dotenv').config(),
+  debug = false,
+  verbose = false 
+ 
 
-var conParamsHost1 = {
+//Host objects:
+var host1 = {
+  server: {
     host:         process.env.HOST,
     port:         process.env.PORT,
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
- 
-  conParamsHost2 = {
+  commands:     ["echo Host_1"],
+  connectedMessage: "Connected to host1",
+  debug: debug,
+  verbose: verbose
+},
+
+host2 = {
+  server: {
     host:         process.env.SERVER2_HOST,
     port:         process.env.PORT,
     userName:     process.env.SERVER2_USER_NAME,
     password:     process.env.SERVER2_PASSWORD
   },
- 
-  conParamsHost3 = {
+  commands:     ["echo Host_2"],
+  connectedMessage: "Connected to host2",
+  debug: debug,
+  verbose: verbose
+},
+
+host3 = {
+  server: {
     host:         process.env.SERVER3_HOST,
     port:         process.env.PORT,
     userName:     process.env.SERVER3_USER_NAME,
     password:     process.env.SERVER3_PASSWORD
   },
-  debug = false,
-  verbose = false
-
-//
-var onCommandComplete = 
-
-
-//Host objects:
-var host1 = {
-    server:       conParamsHost1,
-    commands:     ["echo Host_1"],
-    connectedMessage: "Connected to host1",
-    debug: debug,
-    verbose: verbose
-  },
-
-  host2 = {
-    server:       conParamsHost2,
-    commands:     ["echo Host_2"],
-    debug: debug,
-    verbose: verbose
-  },
-
-  host3 = {
-    server:       conParamsHost3,
-    commands:     ["echo Host_3"],
-    debug: debug,
-    verbose: verbose,
-    //Event handler only used by this host
-    onCommandComplete: function( command, response, sshObj ) {
-      this.emit("msg", sshObj.server.host + ": commandComplete only used on this host);
-    }
+  commands:     ["echo Host_3"],
+  connectedMessage: "Connected to host3",
+  debug: debug,
+  verbose: verbose,
+  //Event handler only used by this host
+  onCommandComplete: function( command, response, sshObj ) {
+    this.emit("msg", sshObj.server.host + ": commandComplete only used on this host");
   }
+}
 
-
-var SSH2Shell = require ('../lib/ssh2shell'),
+var SSH2Shell = require ('ssh2shell'),
     SSH = new SSH2Shell([host1,host2,host3]),
     callback = function( sessionText ){
-      console.log ( "-----Callback session text:\n" + sessionText);
-      console.log ( "-----Callback end" );
+          console.log ( "-----Callback session text:\n" + sessionText);
+          console.log ( "-----Callback end" );
     }
+
+SSH.on ('end', function( sessionText, sshObj ) {
+    this.emit("msg", sshObj.server.host + ": onEnd every host");
+  })
   
 SSH.connect(callback);
 ```

@@ -56,8 +56,8 @@ var SSH2Shell = require ('../lib/ssh2shell'),
     }
 
 
-SSH.on ('commandComplete', function( command, response, sshObj ) {
-    this.emit("msg", sshObj.server.host + ": onCommandComplete, command: " + command);
+SSH.on ('end', function( sessionText, sshObj ) {
+    this.emit("msg", sshObj.server.host + ": onEnd every host");
   })
 SSH.connect(callback);
 

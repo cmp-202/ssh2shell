@@ -284,7 +284,7 @@ class SSH2Shell extends Stream
     @.emit 'msg', "#{@sshObj.server.host}: SSH to #{nextHost.server.host}" if @sshObj.debug
     @.emit 'msg', "#{@sshObj.server.host}: Clearing previous event handlers" if @sshObj.debug
     @.emit 'msg', "#{@sshObj.server.host}: Remove previous event handlers" if @sshObj.debug
-    @_removeEvents()
+    @_removeListeners()
       
     @_connections.push(@sshObj) 
    
@@ -294,16 +294,17 @@ class SSH2Shell extends Stream
     
     
   _nextPrimaryHost: ( connect )=>
-    
     if @_hosts.length > 0
-      if @sshObj.server 
+      #check this is not loading the first primary host before removing listeners
+      if @sshObj.server
         @.emit 'msg', "#{@sshObj.server.host}: Current primary host" if @sshObj.debug
         @.emit 'msg', "#{@sshObj.server.host}: Remove previous event handlers" if @sshObj.debug
-        @_removeEvents()
-      @sshObj = @_hosts.shift()      
-      @_primaryhostSessionText = "#{@sshObj.server.host}: " 
+        @.emit 'end', @_primaryhostSessionText, @sshObj
+        @_removeListeners()
+      @sshObj = @_hosts.shift()
+      @_primaryhostSessionText = "#{@sshObj.server.host}: "
       
-      @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug      
+      @.emit 'msg', "#{@sshObj.server.host}: Next primary host" if @sshObj.debug
       
       @_initiate(connect)
     else
@@ -369,8 +370,8 @@ class SSH2Shell extends Stream
     @.emit 'msg', "#{@sshObj.server.host}: Exit command: Stream: close" if @sshObj.debug
     @_stream.close() #"exit#{@sshObj.enter}"
 
-  _removeEvents: =>
-    ###
+  _removeListeners: =>
+    ####
     if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Event handler count:"
       @.emit 'msg', "keyboard-interactive: " + (@.listenerCount 'keyboard-interactive')
@@ -382,16 +383,17 @@ class SSH2Shell extends Stream
       @.emit 'msg', "commandComplete: " + (@.listenerCount 'commandComplete')
       @.emit 'msg', "commandTimeout: " + (@.listenerCount 'commandTimeout')
       @.emit 'msg', "msg: " + (@.listenerCount 'msg')    
-    ###
+    ####
+    #changed to removing host defined listeners instead of all listeners
+    @.removeListener "keyboard-interactive", @sshObj.onKeyboardInteractive if typeof @sshObj.onKeyboardInteractive == 'function'
+    @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
     @.removeListener "data", @sshObj.onData if typeof @sshObj.onData == 'function'
     @.removeListener "error", @sshObj.onError if typeof @sshObj.onError == 'function'
     @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
-    @.removeAllListeners 'end'
-    @.removeAllListeners 'keyboard-interactive'
-    @.removeAllListeners 'commandProcessing'
-    @.removeAllListeners 'commandComplete'
-    @.removeAllListeners 'commandTimeout'
-    @.removeAllListeners 'msg'
+    @.removeListener "end", @sshObj.onEnd if typeof @sshObj.onEnd == 'function'
+    @.removeListener "commandProcessing", @sshObj.onCommandProcessing if typeof @sshObj.onCommandProcessing == 'function'
+    @.removeListener "commandComplete", @sshObj.onCommandComplete if typeof @sshObj.onCommandComplete == 'function'
+    @.removeListener "commandTimeout", @sshObj.onCommandTimeout if typeof @sshObj.onCommandTimeout == 'function'
   
     clearTimeout @idleTimer if @idleTimer
     clearTimeout @dataReceivedTimer if @dataReceivedTimer
@@ -404,13 +406,16 @@ class SSH2Shell extends Stream
       @_hosts = [hosts]
     @ssh2Client = require('ssh2').Client
     
+    @.on "msg", ( message ) =>
+        console.log message
+        
     @.on "newPrimmaryHost", @_nextPrimaryHost
     
-    @.on "data", (data) =>      
+    @.on "data", (data) =>
       @_onData( data )
       
     @.on "stderrData", (data) =>
-      console.error data    
+      console.error data
      
     @.on "error", (err, type, close = false, callback) =>
       @.emit 'msg', "Class.error: #{err}, #{type}" if @sshObj.debug
@@ -444,14 +449,13 @@ class SSH2Shell extends Stream
       
   _loadDefaults: () =>
     
-    if @sshObj.msg and @sshObj.msg.send and typeof @sshObj.msg.send == 'function'
-      @.on "msg", @sshObj.msg.send
-    else if @sshObj.msg and typeof @sshObj.msg == 'function'
-      @.on "msg", @sshObj.msg
-    else
-      @.on "msg", ( message ) =>
-        console.log message
-        
+    if @sshObj.msg
+      @.removeAllListeners "msg"
+      if @sshObj.msg.send and typeof @sshObj.msg.send == 'function'
+        @.on "msg", @sshObj.msg.send
+      else if @sshObj.msg and typeof @sshObj.msg == 'function'
+        @.on "msg", @sshObj.msg
+
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
     @command = ""
     @_buffer = ""
@@ -593,7 +597,7 @@ class SSH2Shell extends Stream
       if @_hosts.length == 0
         if typeof @_callback == 'function'
           @_callback @_allSessions
-          @_removeEvents()
+          @_removeListeners()
       else        
         @.emit "newPrimaryHost", @_nextPrimaryHost(@_connect)
             
