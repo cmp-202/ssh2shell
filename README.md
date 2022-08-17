@@ -134,8 +134,9 @@ host = {
   readyMessage:        "Ready",
   closedMessage:       "Closed",
   
-  //Optional: Host event handlers .
-  //Host defined event handlers are set as the default event handlers.
+  //Optional: Host event handlers.
+  //Host defined event handlers are cleared with each change of host.
+  //Default and instance event handlers are global to all hosts and are not cleared.
   
   //Optional: 
   onKeyboardInteractive: function(name, instructions, instructionsLang, prompts, finish){
