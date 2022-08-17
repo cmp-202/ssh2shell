@@ -371,7 +371,7 @@ class SSH2Shell extends Stream
     @_stream.close() #"exit#{@sshObj.enter}"
 
   _removeListeners: =>
-    ####
+    ###
     if @sshObj.debug
       @.emit 'msg', "#{@sshObj.server.host}: Event handler count:"
       @.emit 'msg', "keyboard-interactive: " + (@.listenerCount 'keyboard-interactive')
@@ -383,7 +383,7 @@ class SSH2Shell extends Stream
       @.emit 'msg', "commandComplete: " + (@.listenerCount 'commandComplete')
       @.emit 'msg', "commandTimeout: " + (@.listenerCount 'commandTimeout')
       @.emit 'msg', "msg: " + (@.listenerCount 'msg')    
-    ####
+    ###
     #changed to removing host defined listeners instead of all listeners
     @.removeListener "keyboard-interactive", @sshObj.onKeyboardInteractive if typeof @sshObj.onKeyboardInteractive == 'function'
     @.removeListener "stderrData", @sshObj.onStderrData if typeof @sshObj.onStderrData == 'function'
@@ -394,6 +394,7 @@ class SSH2Shell extends Stream
     @.removeListener "commandProcessing", @sshObj.onCommandProcessing if typeof @sshObj.onCommandProcessing == 'function'
     @.removeListener "commandComplete", @sshObj.onCommandComplete if typeof @sshObj.onCommandComplete == 'function'
     @.removeListener "commandTimeout", @sshObj.onCommandTimeout if typeof @sshObj.onCommandTimeout == 'function'
+    @.removeListener "msg", @sshObj.msg  if typeof @sshObj.msg == 'function'
   
     clearTimeout @idleTimer if @idleTimer
     clearTimeout @dataReceivedTimer if @dataReceivedTimer
@@ -404,8 +405,10 @@ class SSH2Shell extends Stream
       @_hosts = hosts
     else
       @_hosts = [hosts]
+    
     @ssh2Client = require('ssh2').Client
     
+    #defined here to support msg events before the host is loaded
     @.on "msg", ( message ) =>
         console.log message
         
@@ -449,13 +452,19 @@ class SSH2Shell extends Stream
       
   _loadDefaults: () =>
     
-    if @sshObj.msg
+    #old hubot leftovers
+    if @sshObj.msg and @sshObj.msg.send and typeof @sshObj.msg.send == 'function'
+      @sshObj.msg = @sshObj.msg.send
+    
+    if @.listenerCount("msg") > 0
       @.removeAllListeners "msg"
-      if @sshObj.msg.send and typeof @sshObj.msg.send == 'function'
-        @.on "msg", @sshObj.msg.send
-      else if @sshObj.msg and typeof @sshObj.msg == 'function'
-        @.on "msg", @sshObj.msg
-
+    
+    if typeof @sshObj.msg == 'function'
+      @.on "msg", @sshObj.msg
+    else
+      @.on "msg", ( message ) =>
+        console.log message
+        
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
     @command = ""
     @_buffer = ""
@@ -518,7 +527,7 @@ class SSH2Shell extends Stream
     @.on "commandTimeout", @sshObj.onCommandTimeout
     @.on "end", @sshObj.onEnd if typeof @sshObj.onEnd == 'function'
     
-    @.emit 'msg', "#{@sshObj.server.host}: Host loaded" if @sshObj.verbose
+    @.emit 'msg', "#{@sshObj.server.host}: Host loaded" if @sshObj.debug
     @.emit 'msg', @sshObj if @sshObj.verbose
     
     

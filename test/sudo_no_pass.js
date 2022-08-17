@@ -14,8 +14,8 @@ var sshObj = {
   },
   commands:           ["sudo apt-get update","sudo apt-get upgrade", "sudo apt autoremove"],
   userPromptSent:     false,
-  debug:              true,
-  verbose:            true,
+  debug:              false,
+  verbose:            false,
   onCommandProcessing: function( command, response, sshObj, stream ) {
    //Check the command and prompt exits and respond with a 'y' but only does it once
    if (response.indexOf("[Y/n]") != -1 && !sshObj.userPromptSent) {

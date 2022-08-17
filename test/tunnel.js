@@ -19,7 +19,7 @@ var conParamsHost1 = {
   userName:     process.env.SERVER3_USER_NAME,
   password:     process.env.SERVER3_PASSWORD
  },
- debug = false,
+ debug = true,
  verbose = false
 
 //Host objects:
@@ -49,7 +49,7 @@ host3 = {
 
 //host2.hosts = [ host3 ];
 //Set the two hosts you are tunnelling to through host1
-host1.hosts = [ host2, host3  ];
+host1.hosts = [ host2, host3 ];
 
 //or the alternative nested tunnelling method outlined above:
 //host2.hosts = [ host3 ];ssh -q george@192.168.0.129 "echo 2>&1" && echo OK || echo NOK
