@@ -6,37 +6,37 @@ Ssh2shell uses [ssh2](https://www.npmjs.org/package/ssh2) to open a ssh shell se
 
 Index:
 ------------
-* [Instalation](#installation)
-* [Minimal Example](#minimal-example)
-* [Host Configuration](#host-configuration)
-* [ssh2shell API](#ssh2shell-api)
-* [Connecting to a single host](#connecting-to-a-single-host)
-* [Authentication](#authentication)
-* [Default Cyphers](#default-cyphers)
-* [Fingerprint Validation](#fingerprint-validation)
-* [Keyboard-interactive](#keyboard-interactive)
-* [Trouble shooting](#trouble-shooting)
-* [Verbose and Debug](#verbose-and-debug)
-* [Notification commands](#notification-commands)
-* [Sudo and su Commands](#sudo-and-su-commands)
-* [Prompt detection override](#prompt-detection-override)
-* [Text regular expression filters](#text-regular-expression-filters)
-* [Responding to non-standard command prompts](#responding-to-non-standard-command-prompts)
-* [Command Time-out event](#command-time-out-event)
-* [Multiple Primary Hosts](#multiple-primary-hosts)
-* [Tunnelling nested host objects](#tunnelling-nested-host-objects)
-* [Event Handlers](#event-handlers)
-* [Bash scripts on the fly](#bash-scripts-on-the-fly)
+* [Instalation](#installation-)
+* [Minimal Example](#minimal-example-)
+* [Host Configuration](#host-configuration-)
+* [ssh2shell API](#ssh2shell-api-)
+* [Usage](#usage-)
+* [Authentication](#authentication-)
+* [Default Cyphers](#default-cyphers-)
+* [Fingerprint Validation](#fingerprint-validation-)
+* [Keyboard-interactive](#keyboard-interactive-)
+* [Trouble shooting](#trouble-shooting-)
+* [Verbose and Debug](#verbose-and-debug-)
+* [Notification commands](#notification-commands-)
+* [Sudo and su Commands](#sudo-and-su-commands-)
+* [Prompt detection override](#prompt-detection-override-)
+* [Text regular expression filters](#text-regular-expression-filters-)
+* [Responding to non-standard command prompts](#responding-to-non-standard-command-prompts-)
+* [Command Time-out event](#command-time-out-event-)
+* [Multiple Primary Hosts](#multiple-primary-hosts-)
+* [Tunnelling nested host objects](#tunnelling-nested-host-objects-)
+* [Event Handlers](#event-handlers-)
+* [Bash scripts on the fly](#bash-scripts-on-the-fly-)
 
 
-Installation: [^](#index)
+[Installation: ^](#index)
 ------------
 ```
 npm install ssh2shell
 ```
 
 
-Minimal Example: [^](#index)
+[Minimal Example: ^](#index)
 ------------
 ```javascript
 //host configuration with connection settings and commands
@@ -60,7 +60,7 @@ SSH.connect(callback);
 ``` 
 
 
-Host Configuration: [^](#index)
+[Host Configuration: ^](#index)
 ------------
 SSH2Shell requires an object with the following structure:
 ```javascript
@@ -217,7 +217,7 @@ host = {
   variables and the current array of commands for the host. The sshObj.commands array changes with each host connection.
 
 
-ssh2shell API
+[ssh2shell API: ^](#index)
 -------------
 SSH2Shell extends events.EventEmitter
 
@@ -240,11 +240,9 @@ SSH2Shell extends events.EventEmitter
 * .command is the current command being run until a new prompt is detected and the next command replaces it.
 
 
-Usage:
-======
-Connecting to a single host: [^](#index)
-----------------------------
-
+[Usage: ^](#index)
+--------
+*Connecting to a single host*
 
 *app.js*
 ```javascript
@@ -274,7 +272,7 @@ SSH.connect(callback);
 ```
 
 
-Authentication: [^](#index)
+[Authentication: ^](#index)
 ---------------
 * Each host authenticates with its own host.server parameters.
 * When using key authentication you may require a valid pass phrase if your key was created with one.
@@ -284,7 +282,7 @@ Authentication: [^](#index)
   function...) or host.onKeyboardInteractive() must be defined.
 * Set the default cyphers and keys.
 
-Default Cyphers: [^](#index)
+[Default Cyphers: ^](#index)
 ---------------
 Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.algorithms through the host.server.algorithms option. 
 As with this property all ssh2.connect properties are set in the host.server object.
@@ -324,7 +322,7 @@ var host = {
 }
 ```
 
-Fingerprint Validation: [^](#index)
+[Fingerprint Validation: ^](#index)
 ---------------
 At connection time the hash of the server’s public key can be compared with the hash the client had previously recorded
 for that server. This stops "man in the middle" attacks where you are redirected to a different server as you connect
@@ -392,14 +390,14 @@ host.server.hashMethod only supports md5 or sha1 according to the current SSH2 d
 undesired results.__
 
 
-Keyboard-interactive
+[Keyboard-interactive: ^](#index)
 ----------------------
 Keyboard-interactive authentication is available when both host.server.tryKeyboard is set to true and the event handler
 keyboard-interactive is defined as below. The keyboard-interactive event handler can only be used on the first connection.
 
 Also see [test/keyboard-interactivetest.js](https://github.com/cmp-202/ssh2shell/blob/master/test/keyboard-interactivetest.js) for the full example 
 
-*Defining the event handler:*
+*Defining the event handler*
 ```javascript
 //this is required
 host.server.tryKeyboard = true;
@@ -446,7 +444,7 @@ host = {
 ```
 
 
-Trouble shooting: [^](#index)
+[Trouble shooting: ^](#index)
 -----------------
 
 * Adding msg command `"msg:Doing something"` to your commands array at key points will help you track the sequence of
@@ -466,7 +464,7 @@ Trouble shooting: [^](#index)
   (1000 = 1 sec)
 
 
-Verbose and Debug: [^](#index)
+[Verbose and Debug: ^](#index)
 ------------------
 * When host.verbose is set to true each command complete raises a msg event outputting the response text.
 * When host.debug is set to true each process step raises a msg event to help identify what the internal processes were.
@@ -480,7 +478,7 @@ Add your own verbose messages as follows:
 Add your own debug messages as follows:
 `if(this.sshObj.debug){this.emit("msg", this.sshObj.server.host + ": eventName");} //where eventName is the text identifying what happened`
 
-Notification commands: [^](#index)
+[Notification commands: ^](#index)
 ----------------------
 There are two notification commands that are added to the host.commands array but are not run as a command on the host.
 
@@ -489,7 +487,7 @@ There are two notification commands that are added to the host.commands array bu
  * The reason for not using echo or printf commands as a normal command is that you see both the command and the message in the sessionText which is pointless when all you want is the message.
 
 
-Sudo and su Commands: [^](#index)
+[Sudo and su Commands: ^](#index)
 --------------
 It is possible to use `sudo [command]`, `sudo su`, `su [username]` and `sudo -u [username] -i`. 
 Sudo commands uses the password for the current session and is processed by ssh2shell. Su on the other hand uses the password
@@ -501,7 +499,7 @@ See: [su VS sudo su VS sudo -u -i](http://johnkpaul.tumblr.com/post/19841381351/
 See: [test/sudosutest.js](https://github.com/cmp-202/ssh2shell/blob/master/test/sudosutest.js) for a working code example.
 
 
-Prompt detection override: [^](#index)
+[Prompt detection override: ^](#index)
 -------------------------
 Used to detect different prompts. 
 
@@ -513,7 +511,7 @@ These are optional settings.
  ``` 
  
  
-Text regular expression filters: [^](#index)
+[Text regular expression filters: ^](#index)
 -------------------------------
 There are two regular expression filters that remove unwanted text from response data.
  
@@ -528,7 +526,7 @@ host.textColorFilter = "(\[{1}[0-9;]+m{1})"
  ```
 
  
-Responding to non-standard command prompts: [^](#index)
+[Responding to non-standard command prompts: ^](#index)
 ----------------------
 In host.onCommandProcessing event handler the prompt can be detected and a response can be sent via `stream.write("y\n")`.
 
@@ -568,7 +566,7 @@ __*Note:*
 If no prompt is detected `commandTimeout` will be raised after the idleTimeOut period.__
 
 
-Command Time-out event
+[Command Time-out event: ^](#index)
 ---------------
 When onCommandTimeout event triggers after the host.idleTimeOut is exceeded. 
 This is because there is no new data and no prompt is detected to run the next command.
@@ -637,7 +635,7 @@ SSH.connect();
 ```
 
 
-Multiple Primary Hosts: [^](#index)
+[Multiple Primary Hosts: ^](#index)
 -----------------------
 Multiple hosts can be connected to one after the other as you would connecting to a single host.
 Each host config is independant of each other but can share thingsa like commands and handlers.
@@ -709,7 +707,7 @@ SSH.connect(callback);
 ```
 
 
-Tunnelling nested host objects: [^](#index)
+[Tunnelling nested host objects: ^](#index)
 ---------------------------------
 `hosts: [ host1, host2]` setting can make multiple host connections possible. 
 Each host config object has its own server settings, commands, command handlers and
@@ -918,7 +916,7 @@ SSH.connect();
 ```
 
 
-Event Handlers: [^](#index)
+[Event Handlers: ^](#index)
 ---------------
 There are a number of event handlers that enable you to add your own code to be run when those events are triggered. 
 Most of these you have already encountered in the host object. You do not have to add event handlers unless you want
@@ -1038,7 +1036,7 @@ ssh2shell.on ("Unpipe", function onUnpipe(source){
 });
 ```
 
-Bash scripts on the fly: [^](#index)
+[Bash scripts on the fly: ^](#index)
 ------------------------
 If the commands you need to run would be better suited to a bash script as part of the process it is possible to generate
 or get the script on the fly. You can echo/printf the script content into a file as a command, ensure it is executable, 
