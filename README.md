@@ -15,7 +15,7 @@ Index:
 * [Default Cyphers](#default-cyphers-)
 * [Fingerprint Validation](#fingerprint-validation-)
 * [Keyboard-interactive](#keyboard-interactive-)
-* [Trouble shooting](#trouble-shooting-)
+* [Troubleshooting](#trouble-shooting-)
 * [Verbose and Debug](#verbose-and-debug-)
 * [Notification commands](#notification-commands-)
 * [Sudo and su Commands](#sudo-and-su-commands-)
@@ -118,7 +118,7 @@ host = {
     }
   }, 
   
-  //Optional: Trouble shooting options
+  //Optional: Troubleshooting options
   verbose:             false,  //outputs all received content
   debug:               false,  //outputs information about each process step
   
@@ -444,7 +444,7 @@ host = {
 ```
 
 
-[Trouble shooting: ^](#)
+[Troubleshooting: ^](#)
 -----------------
 
 * Adding msg command `"msg:Doing something"` to your commands array at key points will help you track the sequence of
