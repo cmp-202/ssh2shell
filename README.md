@@ -6,7 +6,7 @@ Ssh2shell uses [ssh2](https://www.npmjs.org/package/ssh2) to open a ssh shell se
 
 Index:
 ------------
-* [Instalation](#installation-)
+* [Installation](#installation-)
 * [Minimal Example](#minimal-example-)
 * [Host Configuration](#host-configuration-)
 * [ssh2shell API](#ssh2shell-api-)
