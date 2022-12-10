@@ -75,11 +75,19 @@ host = {
     password:     "password",
     passPhrase:   "privateKeyPassphrase",
     privateKey:   require('fs').readFileSync('/path/to/private/key/id_rsa'),
-    //Optional: ssh2.connect options
-    //See https://github.com/mscdex/ssh2#client-methods
     
-    //Optional: ssh options only for making secondary host ssh connections.
-    //see http://man.openbsd.org/ssh for definitions of options.
+    //Optional: See https://github.com/mscdex/ssh2#client-methods for other ssh2.client.connect(config) options.
+    //like
+    algorithms:   {
+       cipher:       {},
+       compression:  {},
+       hmac:         {},
+       kex:          {},
+       serverhostkey:{}
+    },
+
+    //Optional: Ssh options are only for host to host ssh connections.
+    //See http://man.openbsd.org/ssh for definitions of options.
     ssh: { //Options }
   },
   //Optional: Array of host objects for multiple host connections
@@ -282,45 +290,14 @@ SSH.connect(callback);
   function...) or host.onKeyboardInteractive() must be defined.
 * Set the default cyphers and keys.
 
-[Default Cyphers: ^](#)
+[Default Algorithms: ^](#)
 ---------------
-Default Cyphers and Keys used in the initial ssh connection can be redefined by setting the ssh2.connect.algorithms through the host.server.algorithms option. 
-As with this property all ssh2.connect properties are set in the host.server object.
-
-*Example:*
-```javascript
-var host = {
-    server:        {  
-            host:           "<host IP>",
-            port:           "22",
-            userName:       "<username>",
-            password:       "<password>",
-            hashMethod:     "md5", //optional "md5" or "sha1" default is "md5"
-            //other ssh2.connect options
-            algorithms: {
-                kex: [
-                    'diffie-hellman-group1-sha1',
-                    'ecdh-sha2-nistp256',
-                    'ecdh-sha2-nistp384',
-                    'ecdh-sha2-nistp521',
-                    'diffie-hellman-group-exchange-sha256',
-                    'diffie-hellman-group14-sha1'],
-                cipher: [
-                    'aes128-ctr',
-                    'aes192-ctr',
-                    'aes256-ctr',
-                    'aes128-gcm',
-                    'aes128-gcm@openssh.com',
-                    'aes256-gcm',
-                    'aes256-gcm@openssh.com',
-                    'aes256-cbc'
-                ]
-            }
-
-        },
-    ......
-}
-```
+See [`ssh2.client.connect(config)`](https://github.com/mscdex/ssh2#client-methods) for a list of the supported algorithms. 
+* Ciphers.
+* Compression algorithms.
+* (H)MAC algorithms.
+* Key exchange algorithms.
+* Server host key formats.
 
 [Fingerprint Validation: ^](#)
 ---------------
