@@ -607,6 +607,7 @@ class SSH2Shell extends Stream
         if typeof @_callback == 'function'
           @_callback @_allSessions
           @_removeListeners()
+          return @_allSessions
       else        
         @.emit "newPrimaryHost", @_nextPrimaryHost(@_connect)
             
