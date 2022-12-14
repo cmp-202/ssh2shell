@@ -10,7 +10,7 @@ var host = {
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
-  commands: 	  ["echo basic test success"],
+  commands: 	  ["echo chaining test success"],
   debug: debug,
   verbose: verbose
 };
@@ -24,9 +24,7 @@ var SSH = new SSH2Shell(host)
 var SSHconnect = util.promisify(SSH.connect)
 SSHconnect()
   .then(( sessionText ) => {
-     console.log ( "-----Callback session text:\n" + sessionText);
-     console.log ( "-----Callback end" )})
+     console.log ( sessionText);})
   .catch((error) => {
-     // Handle the error.
      console.log (error);
   });
