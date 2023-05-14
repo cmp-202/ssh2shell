@@ -1040,3 +1040,29 @@ this has some risks associated with it. I like to know what is in the script I a
   "rm myscript.sh"
  ],
 ```
+
+from [issue #103](https://github.com/cmp-202/ssh2shell/issues/103)
+"I read the local script file & encoded into Base64 to avoid any special characters.
+Then with it I formed a command at the runtime to execute at the target:
+
+`echo "<>" | base64 -d | bash`
+
+and if you have command line inputs:
+`echo "<>" | base64 -d | bash -s`
+
+This worked for me without physically copying the script on target as well as running into any special character issues with echo or printf statement. 
+Hopefully it can help others who are looking to solve the same problem.
+"
+
+from [issue #104](https://github.com/cmp-202/ssh2shell/issues/104)
+```javascript
+host.commands: [ bash -s ${fs.readFileSync('./script1.sh', 'utf-8')}]
+
+//remove the output of the command content from the script result
+host.onCommandComplete: function( command, response, sshObj) {
+    if (command.indexOf("bash ") > -1){
+        //end match would most likely fail if there was a problem 
+        sshObj.sessonText = response.replace(command.substring(0, 4)+"*"+command.substring(command.length - 2),'')
+    }
+}
+```
