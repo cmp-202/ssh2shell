@@ -331,7 +331,8 @@ class SSH2Shell extends Stream
       sshOptions += " -i " + @sshObj.server.ssh.identityFile if @sshObj.server.ssh.identityFile
       sshOptions += " -l " + @sshObj.server.ssh.loginName if @sshObj.server.ssh.loginName
       sshOptions += " -m " + @sshObj.server.ssh.macSpec if @sshObj.server.ssh.macSpec
-      sshOptions += ' -o "#{option}={#value}"' for option,value of @sshObj.server.ssh.Options
+      shellQuote = (value) -> "'" + String(value).replace(/'/g, "'\\''") + "'"
+      sshOptions += " -o " + shellQuote("#{option}=#{value}") for option, value of (@sshObj.server.ssh.options or {})
     sshOptions += ' -o "StrictHostKeyChecking=no"'
     sshOptions += " -p #{@sshObj.server.port}"
     @sshObj.sshAuth = false
