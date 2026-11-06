@@ -323,7 +323,6 @@ class SSH2Shell extends Stream
       sshFlags   += "T" if @sshObj.server.ssh.disablePseudoTTY
       sshFlags   += "t" if @sshObj.server.ssh.forcePseudoTTY
       sshFlags   += "v" if @sshObj.server.ssh.verbose
-
       sshOptions += " -c " + @sshObj.server.ssh.cipherSpec if @sshObj.server.ssh.cipherSpec
       sshOptions += " -e " + @sshObj.server.ssh.escape if @sshObj.server.ssh.escape
       sshOptions += " -E " + @sshObj.server.ssh.logFile if @sshObj.server.ssh.logFile
@@ -332,7 +331,14 @@ class SSH2Shell extends Stream
       sshOptions += " -l " + @sshObj.server.ssh.loginName if @sshObj.server.ssh.loginName
       sshOptions += " -m " + @sshObj.server.ssh.macSpec if @sshObj.server.ssh.macSpec
       shellQuote = (value) -> "'" + String(value).replace(/'/g, "'\\''") + "'"
-      sshOptions += " -o " + shellQuote("#{option}=#{value}") for option, value of (@sshObj.server.ssh.options or {})
+      shellControlChars = /[;&|`$\n\r]/
+      for option, value of (@sshObj.server.ssh.options or {})
+        if shellControlChars.test(option) or shellControlChars.test(value)
+          @.emit 'error',"Malicious characters detected in SSH options.","Security Alert",true
+          return
+        safeOption = String(option).replace(/[^a-zA-Z0-9]/g, "")
+        safeValue  = shellQuote(value)        
+        sshOptions += " -o #{safeOption}=#{safeValue}"
     sshOptions += ' -o "StrictHostKeyChecking=no"'
     sshOptions += " -p #{@sshObj.server.port}"
     @sshObj.sshAuth = false
