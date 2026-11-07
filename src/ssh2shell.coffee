@@ -548,7 +548,7 @@ class SSH2Shell extends Stream
     @sshObj.passphrasePrompt  = ":" unless @sshObj.passphrasePrompt
     @sshObj.passPromptText    = "Password" unless @sshObj.passPromptText
     @sshObj.enter             = if /^[\r\n]+$/.test(@sshObj.enter or "") then @sshObj.enter else "\n"
-    @sshObj.textColorFilter   = "(\[{1}[0-9;]+m{1})" unless @sshObj.textColorFilter
+    @sshObj.textColorFilter   = "\\x1b\\[[0-9;]*m" unless @sshObj.textColorFilter
     @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
     @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
     @sshObj.disableASCIIFilter = false unless @sshObj.disableASCIIFilter is true
