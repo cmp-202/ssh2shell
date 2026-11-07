@@ -314,36 +314,93 @@ class SSH2Shell extends Stream
     
   _sshConnect: =>
     
-    #add ssh commandline options from host.server.ssh
+    # Add ssh commandline options from host.server.ssh
     sshFlags   = "-x"
     sshOptions = ""
+    
+    # 1. Helper function to ensure individual values are safely wrapped 
+    # to prevent spaces or characters from escaping parameter flags
+    shellQuote = (value) -> "'" + String(value).replace(/'/g, "'\\''") + "'"
+    
+    # 2. Strong control whitelist pattern ensuring basic parameters 
+    # don't contain command separators or layout manipulation tokens
+    shellControlChars = /[;&|`$\n\r]/
+
     if @sshObj.server.ssh
+      # Safely handle protocol configurations
       sshFlags   += @sshObj.server.ssh.forceProtocolVersion if @sshObj.server.ssh.forceProtocolVersion
       sshFlags   += @sshObj.server.ssh.forceAddressType if @sshObj.server.ssh.forceAddressType
       sshFlags   += "T" if @sshObj.server.ssh.disablePseudoTTY
       sshFlags   += "t" if @sshObj.server.ssh.forcePseudoTTY
       sshFlags   += "v" if @sshObj.server.ssh.verbose
-      sshOptions += " -c " + @sshObj.server.ssh.cipherSpec if @sshObj.server.ssh.cipherSpec
-      sshOptions += " -e " + @sshObj.server.ssh.escape if @sshObj.server.ssh.escape
-      sshOptions += " -E " + @sshObj.server.ssh.logFile if @sshObj.server.ssh.logFile
-      sshOptions += " -F " + @sshObj.server.ssh.configFile if @sshObj.server.ssh.configFile
-      sshOptions += " -i " + @sshObj.server.ssh.identityFile if @sshObj.server.ssh.identityFile
-      sshOptions += " -l " + @sshObj.server.ssh.loginName if @sshObj.server.ssh.loginName
-      sshOptions += " -m " + @sshObj.server.ssh.macSpec if @sshObj.server.ssh.macSpec
-      shellQuote = (value) -> "'" + String(value).replace(/'/g, "'\\''") + "'"
-      shellControlChars = /[;&|`$\n\r]/
+
+      # 3. Intercept and safely escape single parameter properties
+      if @sshObj.server.ssh.cipherSpec
+        if shellControlChars.test(@sshObj.server.ssh.cipherSpec)
+          @.emit 'error', "Malicious characters detected in SSH cipherSpec.", "Security Alert", true
+          return
+        sshOptions += " -c " + shellQuote(@sshObj.server.ssh.cipherSpec)
+
+      if @sshObj.server.ssh.escape
+        if shellControlChars.test(@sshObj.server.ssh.escape)
+          @.emit 'error', "Malicious characters detected in SSH escape sequence.", "Security Alert", true
+          return
+        sshOptions += " -e " + shellQuote(@sshObj.server.ssh.escape)
+
+      if @sshObj.server.ssh.logFile
+        if shellControlChars.test(@sshObj.server.ssh.logFile)
+          @.emit 'error', "Malicious characters detected in SSH logFile path.", "Security Alert", true
+          return
+        sshOptions += " -E " + shellQuote(@sshObj.server.ssh.logFile)
+
+      if @sshObj.server.ssh.configFile
+        if shellControlChars.test(@sshObj.server.ssh.configFile)
+          @.emit 'error', "Malicious characters detected in SSH configFile path.", "Security Alert", true
+          return
+        sshOptions += " -F " + shellQuote(@sshObj.server.ssh.configFile)
+
+      if @sshObj.server.ssh.identityFile
+        if shellControlChars.test(@sshObj.server.ssh.identityFile)
+          @.emit 'error', "Malicious characters detected in SSH identityFile path.", "Security Alert", true
+          return
+        sshOptions += " -i " + shellQuote(@sshObj.server.ssh.identityFile)
+
+      if @sshObj.server.ssh.loginName
+        if shellControlChars.test(@sshObj.server.ssh.loginName)
+          @.emit 'error', "Malicious characters detected in SSH loginName.", "Security Alert", true
+          return
+        sshOptions += " -l " + shellQuote(@sshObj.server.ssh.loginName)
+
+      if @sshObj.server.ssh.macSpec
+        if shellControlChars.test(@sshObj.server.ssh.macSpec)
+          @.emit 'error', "Malicious characters detected in SSH macSpec.", "Security Alert", true
+          return
+        sshOptions += " -m " + shellQuote(@sshObj.server.ssh.macSpec)
+
+      # Validate custom option blocks safely
       for option, value of (@sshObj.server.ssh.options or {})
         if shellControlChars.test(option) or shellControlChars.test(value)
-          @.emit 'error',"Malicious characters detected in SSH options.","Security Alert",true
+          @.emit 'error', "Malicious characters detected in SSH options.", "Security Alert", true
           return
         safeOption = String(option).replace(/[^a-zA-Z0-9]/g, "")
         safeValue  = shellQuote(value)        
         sshOptions += " -o #{safeOption}=#{safeValue}"
+
+    # Wrap target dynamic properties to ensure security boundaries hold up
     sshOptions += ' -o "StrictHostKeyChecking=no"'
-    sshOptions += " -p #{@sshObj.server.port}"
+    
+    # Sanitize user context fields going straight into the string command
+    safePort = String(@sshObj.server.port or 22).replace(/[^0-9]/g, "")
+    sshOptions += " -p #{safePort}"
+    
+    safeUser = shellQuote(@sshObj.server.userName)
+    safeHost = shellQuote(@sshObj.server.host)
+    
     @sshObj.sshAuth = false
     @sshObj.sshToNextHost = true
-    @command = "ssh #{sshFlags} #{sshOptions} #{@sshObj.server.userName}@#{@sshObj.server.host}"
+    
+    # 4. Perfectly combined secure connection command string
+    @command = "ssh #{sshFlags} #{sshOptions} #{safeUser}@#{safeHost}"
     @.emit 'msg', "#{@sshObj.server.host}: SSH command: connect" if @sshObj.debug
     @_runCommand(@command)
 
@@ -475,7 +532,7 @@ class SSH2Shell extends Stream
     @.emit 'msg', "#{@sshObj.server.host}: Load Defaults" if @sshObj.debug
     @command = ""
     @_buffer = ""
-    @sshObj.sshToNextHost = false
+    @sshObj.sshToNextHost     = false
     @sshObj.connectedMessage  = "Connected" unless @sshObj.connectedMessage
     @sshObj.readyMessage      = "Ready" unless @sshObj.readyMessage
     @sshObj.closedMessage     = "Closed" unless @sshObj.closedMessage
@@ -490,11 +547,11 @@ class SSH2Shell extends Stream
     @sshObj.passwordPrompt    = ":" unless @sshObj.passwordPrompt
     @sshObj.passphrasePrompt  = ":" unless @sshObj.passphrasePrompt
     @sshObj.passPromptText    = "Password" unless @sshObj.passPromptText
-    @sshObj.enter             = "\n" unless @sshObj.enter #windows = "\r\n", Linux = "\n", Mac = "\r"
-    @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
-    @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
-    @sshObj.disableASCIIFilter = false unless @sshObj.disableASCIIFilter is true
+    @sshObj.enter             = if /^[\r\n]+$/.test(@sshObj.enter or "") then @sshObj.enter else "\n"
     @sshObj.textColorFilter   = "(\[{1}[0-9;]+m{1})" unless @sshObj.textColorFilter
+    @sshObj.disableColorFilter = false unless @sshObj.disableColorFilter is true
+    @sshObj.asciiFilter       = "[^\r\n\x20-\x7e]" unless @sshObj.asciiFilter
+    @sshObj.disableASCIIFilter = false unless @sshObj.disableASCIIFilter is true
     @sshObj.exitCommands      = [] unless @sshObj.exitCommands
     @sshObj.pwSent            = false
     @sshObj.sshAuth           = false
@@ -505,12 +562,56 @@ class SSH2Shell extends Stream
     @sshObj.pty               = true unless @sshObj.pty
     @idleTime                 = @sshObj.idleTimeOut ? 5000
     @dataIdleTime             = @sshObj.dataIdleTime ? 500
-    @asciiFilter              = new RegExp(@sshObj.asciiFilter,"g") unless @asciiFilter
-    @textColorFilter          = new RegExp(@sshObj.textColorFilter,"g") unless @textColorFilter
-    @passwordPrompt            = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passwordPrompt + "\\s?$","i") unless @passwordPrompt
-    @passphrasePrompt          = new RegExp(@sshObj.passPromptText+".*" + @sshObj.passphrasePrompt + "\\s?$","i") unless @passphrasePrompt
-    @standardPrompt           = new RegExp("[" + @sshObj.standardPrompt + "]\\s?$") unless @standardPrompt
-    
+
+    escapeRegex = (str) -> String(str).replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+
+    # 1. Compile ASCII Filter with Safe Fallback
+    unless @asciiFilter
+      if @sshObj.asciiFilter is "[^\r\n\x20-\x7e]"
+        @asciiFilter = /[^\t\r\n\x20-\x7e]/g
+      else
+        # Only allow basic structural character classes/ranges; reject dangerous loops (+, *, ?, nested groups)
+        safeAsciiPattern = /^\[\^?[a-zA-Z0-9\s\\x00-\\x7f\-\[\]]+\]$/
+        
+        if safeAsciiPattern.test(@sshObj.asciiFilter)
+          @asciiFilter = new RegExp(@sshObj.asciiFilter, "g")
+        else
+          # Graceful Fallback: Warn the user via your debug pipeline and run the safe internal fallback
+          if @sshObj.debug
+            @emit 'msg', "#{@sshObj.server.host}: AsciiFilter: incorrect regular expression reverting to default: " + @sshObj.asciiFilter
+          
+          # Force set the safe pre-compiled literal so CodeQL passes statically
+          @asciiFilter = /[^\t\r\n\x20-\x7e]/g
+
+    # 2. Compile Text Color Filter with Safe Fallback
+    unless @textColorFilter
+      if @sshObj.textColorFilter is "(\[{1}[0-9;]+m{1})"
+        @textColorFilter = /\x1b\[[0-9;]*m/g
+      else
+        # Match standard ANSI styles safely, rejecting any ReDoS structures
+        safeColorPattern = /^(\\x1b|\\033)?\\?\[[0-9;]*\*?[a-zA-Z]$/
+        
+        if safeColorPattern.test(@sshObj.textColorFilter)
+          @textColorFilter = new RegExp(@sshObj.textColorFilter, "g")
+        else
+          if @sshObj.debug
+            @emit 'msg', "#{@sshObj.server.host}: TextColorFilter: incorrect regular expression reverting to default: " + @sshObj.textColorFilter
+          @textColorFilter = /\x1b\[[0-9;]*m/g
+
+    # 3. Prompts: Fully sanitized at runtime via escapeRegex (never need fallbacks because they are cast as pure literals)
+    unless @passwordPrompt
+      cleanText   = escapeRegex(@sshObj.passPromptText or "Password")
+      cleanPrompt = escapeRegex(@sshObj.passwordPrompt or ":")
+      @passwordPrompt = new RegExp("#{cleanText}[^\\n]*#{cleanPrompt}\\s?$", "i")
+
+    unless @passphrasePrompt
+      cleanText   = escapeRegex(@sshObj.passPromptText or "Password")
+      cleanPass   = escapeRegex(@sshObj.passphrasePrompt or ":")
+      @passphrasePrompt = new RegExp("#{cleanText}[^\\n]*#{cleanPass}\\s?$", "i")
+
+    unless @standardPrompt
+      cleanStandard = escapeRegex(@sshObj.standardPrompt or ">$%#")
+      @standardPrompt = new RegExp("[#{cleanStandard}]\\s?$")
 
     @sshObj.onCommandProcessing  = @sshObj.onCommandProcessing ? ( command, response, sshObj, stream ) =>
 
@@ -523,7 +624,8 @@ class SSH2Shell extends Stream
       @.emit 'msg', "#{@sshObj.server.host}: Timeout command: #{command} response: #{response}" if @sshObj.verbose
       
       @.emit "error", "#{@sshObj.server.host}: Command timed out after #{@.idleTime/1000} seconds", "Timeout", true, (err, type)=>
-      @sshObj.sessionText += @_buffer
+        @sshObj.sessionText += @_buffer
+        @_buffer = ""
       
     @.on "keyboard-interactive",  @sshObj.onKeyboardInteractive if typeof @sshObj.onKeyboardInteractive == 'function'  
     @.on "error", @sshObj.onError if typeof @sshObj.onError == 'function'

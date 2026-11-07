@@ -20,7 +20,7 @@ var conParamsHost1 = {
   password:     process.env.SERVER3_PASSWORD
  },
  debug = true,
- verbose = false
+ verbose = true
 
 //Host objects:
 var host1 = {
