@@ -1,6 +1,4 @@
-var dotenv = require('dotenv').config(),
-	debug = false,
-    verbose = false
+var dotenv = require('dotenv').config()
 
 var host = {
   server: {     
@@ -10,8 +8,8 @@ var host = {
     password:     process.env.PASSWORD
   },
   commands: 	  ["echo basic test success"],
-  debug: debug,
-  verbose: verbose
+  debug: (process.env.DEBUG === "true"),
+  verbose: (process.env.VERBOSE === "true")
 };
 
 var SSH2Shell = require ('../lib/ssh2shell');

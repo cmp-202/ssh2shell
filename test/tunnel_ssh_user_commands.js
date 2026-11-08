@@ -19,8 +19,8 @@ var conParamsHost1 = {
   userName:     process.env.SERVER3_USER_NAME,
   password:     process.env.SERVER3_PASSWORD
  },
- debug = false,
- verbose = false
+ debug = (process.env.DEBUG === "true"),
+ verbose = (process.env.VERBOSE === "true")
 
 //Host objects:
 var host1 = {
