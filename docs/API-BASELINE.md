@@ -1,11 +1,12 @@
 # API baseline and README reconciliation
 
 - **Baseline:** `refactor/L0-baseline` (`v2.0.14`)
-- **Source of truth:** `src/ssh2shell.coffee` and its compiled output `lib/ssh2shell.js`
+- **Source of truth:** `src/ssh2shell.js`, a 1:1 port of the baseline
+  `src/ssh2shell.coffee`; `lib/ssh2shell.js` is its published copy.
 - **Method:** read the implementation, exercise it with the offline harness in
   `test/unit/`, and compare every documented claim in `README.md` against the
   actual code.
-- **Status:** L1. This is a characterization document, not a design proposal.
+- **Status:** L1 baseline characterization; the L2 JavaScript port preserves it.
 
 The README is treated as *documented intent*. Where it disagrees with the code,
 the code is recorded as the current behavior and the mismatch is listed below.
@@ -101,7 +102,7 @@ turn until `_connections` is empty and `close()` runs.
 | `commandComplete` | `(command, response, sshObj)` | `_commandComplete` after a prompt is detected. |
 | `commandTimeout` | `(command, response, stream, connection)` | Idle/data-settle timers in `_onData`. |
 | `keyboard-interactive` | `(name, instructions, lang, prompts, finish)` | Re-emitted from the `ssh2.Client`. |
-| `newPrimaryHost` | value returned by `_nextPrimaryHost` (currently `undefined`) | `connect` and connection `close`. |
+| `newPrimaryHost` | value returned by `_nextPrimaryHost`, which is `_initiate`'s return value: at `connect()` time this is `_stream` (the prototype placeholder `{}` until the shell opens) | `connect` and connection `close`. |
 | `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README events section still lists them and needs an L6 rewrite. |
 
 ## Host configuration keys recognized by the code
@@ -225,14 +226,18 @@ change explicit values. `idleTime` and `dataIdleTime` already use `?`.
 Locations:
 
 - `README.md` lines 688-689 (inside the `host.server.ssh` block).
-- `src/ssh2shell.coffee` lines 331-332 (inside `_sshConnect`).
+- `src/ssh2shell.js` (inside `_sshConnect`; baseline CoffeeScript lines 331-332).
 
 Current behavior:
 
-```coffee
-sshFlags = "-x"
-sshFlags += @sshObj.server.ssh.forceProtocolVersion if @sshObj.server.ssh.forceProtocolVersion
-sshFlags += @sshObj.server.ssh.forceAddressType if @sshObj.server.ssh.forceAddressType
+```js
+let sshFlags = '-x';
+if (this.sshObj.server.ssh.forceProtocolVersion) {
+  sshFlags += this.sshObj.server.ssh.forceProtocolVersion;
+}
+if (this.sshObj.server.ssh.forceAddressType) {
+  sshFlags += this.sshObj.server.ssh.forceAddressType;
+}
 ```
 
 The value is appended directly to the flag bundle. With the documented boolean
@@ -273,7 +278,7 @@ sign-off:
 3. The constructor listens for `newPrimmaryHost` (typo) while the code emits
    `newPrimaryHost`; the constructor listener is dead code.
 4. `connect()` emits `newPrimaryHost` with the *return value* of
-   `_nextPrimaryHost` (currently `undefined`), not a handler.
+   `_nextPrimaryHost` (the shell stream placeholder, not a handler).
 5. `_removeListeners` removes the `stderrData` listener twice.
 6. `_sanitizeResponse` uses `command.substr(0, buffer.length)`; this can remove
    unintended text when the buffer is shorter than or unrelated to the command.
@@ -287,7 +292,7 @@ sign-off:
 
 ```bash
 npm run test:unit   # offline, mocked ssh2, no live hosts
-npm run build       # recompiles src/ssh2shell.coffee into lib/ssh2shell.js
+npm run build       # copies src/ssh2shell.js to lib/ssh2shell.js
 ```
 
 The harness lives in `test/unit/` and injects a fake `ssh2` module through the

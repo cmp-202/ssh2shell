@@ -100,7 +100,7 @@ Every level must satisfy all of these before it is tagged:
 | --- | --- | --- |
 | L0 | Baseline: tag pristine `v2.0.14`, add this ledger | None |
 | L1 | Offline safety net: mocked-`ssh2` harness and characterization tests | None |
-| L2 | Port `src/ssh2shell.coffee` to JavaScript 1:1, same structure and logic | None |
+| L2 | Port `src/ssh2shell.coffee` to JavaScript 1:1, same structure and logic; remove the CoffeeScript source and toolchain | None |
 | L3 | Split into focused modules behind the existing class facade | None |
 | L4 | Modernize syntax and clean up dead code, typos, duplication | None |
 | L5 | Fix defects and security issues, each covered by a test | Only with sign-off |
@@ -115,6 +115,7 @@ must be recorded here.
 | --- | --- | --- | --- | --- | --- | --- |
 | L0 | `refactor/L0-baseline` | `43ab187` | Done | Tag pristine `v2.0.14` and add this ledger | Baseline tag points at the unmodified release commit | `git reset --hard refactor/L0-baseline` |
 | L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
+| L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -133,6 +134,24 @@ its own hash. The annotated tags are the stable rollback references; use
 - `docs/API-BASELINE.md` — code-derived API inventory, host model, truthiness
   audit, `forceProtocolVersion` analysis, and every README mismatch found.
 - `package.json` - `build`, `test`, and `test:unit` scripts.
+
+### L2 deliverables
+
+- `src/ssh2shell.js` — 1:1 port of the baseline CoffeeScript. Control flow,
+  method binding order, messages, defaults, return values, and known quirks are
+  preserved. The only structural difference is that it is a native ES class
+  instead of CoffeeScript's prototype helper, so prototype methods are
+  non-enumerable (internals, not public surface).
+- `src/ssh2shell.coffee` — removed.
+- `scripts/build.js` and `package.json` — `build` now copies
+  `src/ssh2shell.js` to `lib/ssh2shell.js`.
+- `package.json` / `package-lock.json` — removed the `coffee-script`
+  devDependency; `engines.node` raised to `>=18.0.0`.
+- `lib/ssh2shell.js` — rebuilt from the new source.
+- `test/unit/port-semantics.test.js` — 4 tests that lock in the port's return
+  values and the `newPrimaryHost` payload.
+- `docs/API-BASELINE.md` — updated source-of-truth, `newPrimaryHost` payload,
+  and build-command references.
 
 ## Backlog and future work
 
@@ -179,7 +198,7 @@ These are sensible defaults until confirmed:
 - **README reconciliation:** deferred to L6. The README is documentation, not a
   source of truth; it is corrected to match the code as a separate tidy-up, not
   used to drive code changes.
-- **Node target:** `>=18` (current `engines` says `>=4.5.0`).
+- **Node target:** `>=18` (applied at L2: `engines.node` is now `>=18.0.0`).
 - **`lib/` artifact:** keep `lib/ssh2shell.js` committed and in sync during the
   refactor; decide whether it becomes build-only at L6.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
