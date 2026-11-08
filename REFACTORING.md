@@ -117,6 +117,7 @@ must be recorded here.
 | L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
 | L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
 | L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
+| L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -169,6 +170,22 @@ its own hash. The annotated tags are the stable rollback references; use
   module tree into `lib/`.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
+### L4 deliverables
+
+- `src/ssh2shell.js` — consolidated module requires, `node:` core import,
+  `??` instead of `!= null` ternaries, `slice` instead of the deprecated
+  `substr`, and merged consecutive `debug` guards without changing message
+  order.
+- Dead code removed: the constructor's misspelled `newPrimmaryHost` listener
+  (nothing emits that event), the duplicate `stderrData` removal in
+  `_removeListeners`, the redundant `_previousHost` branch, and the unreachable
+  `_runExit` reference at the end of `_nextPrimaryHost`.
+- `src/ssh2shell/util.js` — `typeIsArray` now aliases the built-in
+  `Array.isArray`; the legacy fallback is gone.
+- `test/unit/hosts.test.js` — locks in that an empty primary queue leaves
+  `_nextPrimaryHost` returning `undefined`.
+- `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -192,9 +209,8 @@ observable behavior or security posture and needs its own level and sign-off.
   README reconciliation is deferred to L6; the refactor levels stay code-only.
 - **Correct `forceProtocolVersion` / `forceAddressType`** so values map to valid
   `ssh` flags (`-1` / `-2`, `-4` / `-6`) instead of being appended literally.
-- **Remove `_nextPrimaryHost`'s bare `@_runExit` reference** as dead code. The
-  normal back-out path is `_runExit` via `_previousHost`; the empty-primary-queue
-  branch is not reachable in the normal flow.
+- **Done at L4:** removed `_nextPrimaryHost`'s bare `@_runExit` reference as
+  dead code; the normal back-out path is `_runExit` via `_previousHost`.
 - **Remove prototype-shared `_connections` / `sshObj` state.**
 - **Emit sudo authentication errors regardless of `debug`.**
 - **Compile prompts/filters per host, not once per instance.**

@@ -108,11 +108,11 @@ describe('host lifecycle', () => {
       initiated = true;
     };
 
-    ssh._nextPrimaryHost('ACTION');
+    const result = ssh._nextPrimaryHost('ACTION');
 
     // `_nextPrimaryHost` only iterates primary hosts. Backing out of secondary
     // hosts is `_runExit`'s job, so an empty primary queue starts nothing.
-    // (The source's bare `@_runExit` reference here is a latent no-op.)
+    assert.equal(result, undefined);
     assert.equal(initiated, false);
   });
 });
