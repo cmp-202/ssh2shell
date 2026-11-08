@@ -14,7 +14,11 @@
     "coffee-script": "^1.12.7",
     "dotenv": "^8.6.0"
   },
-  "scripts": {},
+  "scripts": {
+    "build": "coffee -c -o lib src/ssh2shell.coffee",
+    "test": "node --test test/unit",
+    "test:unit": "node --test test/unit"
+  },
   "keywords": [
     "SSH",
     "ssh2",

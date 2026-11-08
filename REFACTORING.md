@@ -20,12 +20,16 @@ level, verify it, and roll back to it without guessing.
 The following must remain identical throughout the refactor:
 
 - `require('ssh2shell')` returns the same constructible class.
-- The class extends `Stream` and supports `connect(callback)`, `pipe`, `unpipe`.
+- The class extends `Stream` and supports `connect(callback)` and the inherited
+  `pipe`. (`unpipe` is documented but absent at baseline; adding it would be a
+  behavior change, so it is not part of the strict contract.)
 - Public instance properties: `.sshObj`, `.command`.
-- All documented events: `msg`, `data`, `stderrData`, `error`, `end`,
-  `commandProcessing`, `commandComplete`, `commandTimeout`,
-  `keyboard-interactive`.
-- All documented host/config keys in `README.md`.
+- All events the code actually emits: `msg`, `data`, `stderrData`, `error`,
+  `end`, `commandProcessing`, `commandComplete`, `commandTimeout`,
+  `keyboard-interactive`, `newPrimaryHost`.
+- All host/config keys the code actually reads (see `docs/API-BASELINE.md`).
+  README claims that the code ignores are recorded as discrepancies, not
+  silently adopted.
 - Default prompts, filters, timeouts, and session-text behavior.
 
 Internals (private `_methods`, file layout, helper functions) may change freely
@@ -34,6 +38,22 @@ as long as the contract above holds.
 > Note: a bug fix that changes observable behavior conflicts with "strict"
 > compatibility. Such fixes need explicit sign-off and must be recorded in the
 > ledger as behavior changes, not silent cleanups.
+
+## Host model
+
+Two host layers exist and must stay distinct:
+
+- **Primary hosts** live in `_hosts` and are opened with a new `ssh2.Client`
+  connection. `_nextPrimaryHost` iterates this array.
+- **Secondary (nested) hosts** live in the current host's `hosts` array and are
+  opened by typing an `ssh ...` command into the current shell (`_sshConnect`).
+  `_nextHost` iterates this array. Several secondary hosts may be chained.
+
+`_runExit` is the "finish this host" routine. It runs queued exit commands, then
+opens the next secondary host if one remains, otherwise backs out through
+`_connections` via `_previousHost`, and finally closes. Backing out to a previous
+host re-runs `_runExit`, so that host's remaining `hosts` entries are resumed
+rather than discarded. See `docs/API-BASELINE.md` for the exact order.
 
 ## Branch and tag policy
 
@@ -94,11 +114,71 @@ must be recorded here.
 | Level | Tag | Commit | Status | Goal | Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- |
 | L0 | `refactor/L0-baseline` | `43ab187` | Done | Tag pristine `v2.0.14` and add this ledger | Baseline tag points at the unmodified release commit | `git reset --hard refactor/L0-baseline` |
+| L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
+
+Commit SHAs are deliberately omitted from this table: a commit cannot contain
+its own hash. The annotated tags are the stable rollback references; use
+`git rev-parse refactor/LN^{commit}` when a commit SHA is needed.
+
+### L1 deliverables
+
+- `test/unit/helpers/fake-ssh2.js` — deterministic fake `ssh2.Client` and shell
+  stream; no network access.
+- `test/unit/helpers/harness.js` — require-cache injection, host factory, wait
+  helpers.
+- `test/unit/*.test.js` — 57 tests covering the public surface, defaults,
+  prompt/filter compilation, command flow, notifications, timeouts, sudo and
+  nested-SSH prompts, host lifecycle, primary/secondary host chains, `_runExit`
+  ordering, and SSH command construction/injection guards.
+- `docs/API-BASELINE.md` — code-derived API inventory, host model, truthiness
+  audit, `forceProtocolVersion` analysis, and every README mismatch found.
+- `package.json` - `build`, `test`, and `test:unit` scripts.
+
+## Backlog and future work
+
+Items explicitly deferred until after the mechanical refactor. Each one changes
+observable behavior or security posture and needs its own level and sign-off.
+
+- **Replace the nested-host `ssh ...` command string with chained `ssh2`
+  connections.** Today `_sshConnect` builds a shell command (`ssh -x ...`) and
+  types it into the current shell. Chaining `ssh2.Client` objects would avoid
+  shell quoting, remove the dependency on a remote `ssh` binary, and make
+  authentication/fingerprint handling consistent for nested hosts. This is the
+  largest planned behavioral change and should be its own level with dedicated
+  tests.
+- **Map the documented `dataIdleTimeOut` to the internal `dataIdleTime` timer**
+  (default 500 ms). The internal variable keeps its name; the public key should
+  be `dataIdleTimeOut`, optionally accepting the undocumented `dataIdleTime` as
+  a fallback.
+- **Audit truthiness-based defaults.** `window` and `pty` currently force an
+  explicit `false` back to `true`; use nullish/undefined checks so `false`
+  survives. Keep this audit for any new boolean host property.
+- **Add or remove the documented `unpipe` surface** so docs and code agree.
+  README reconciliation is deferred to L6; the refactor levels stay code-only.
+- **Correct `forceProtocolVersion` / `forceAddressType`** so values map to valid
+  `ssh` flags (`-1` / `-2`, `-4` / `-6`) instead of being appended literally.
+- **Remove `_nextPrimaryHost`'s bare `@_runExit` reference** as dead code. The
+  normal back-out path is `_runExit` via `_previousHost`; the empty-primary-queue
+  branch is not reachable in the normal flow.
+- **Remove prototype-shared `_connections` / `sshObj` state.**
+- **Emit sudo authentication errors regardless of `debug`.**
+- **Compile prompts/filters per host, not once per instance.**
+- **Make `keyboard-interactive` call `finish(prompts)` when no host handler is
+  supplied.**
+- **Known multi-host `sessionText` duplication.** When a connection moves to
+  another host, an event handler that appends `sessionText` to the final output
+  is not removed, so the final session text can repeat earlier host text and
+  grow with each host change. This has not been reported as an issue. It needs
+  a characterization test against the original code first, then a fix with
+  explicit sign-off on the expected final text.
 
 ## Open items
 
 These are sensible defaults until confirmed:
 
+- **README reconciliation:** deferred to L6. The README is documentation, not a
+  source of truth; it is corrected to match the code as a separate tidy-up, not
+  used to drive code changes.
 - **Node target:** `>=18` (current `engines` says `>=4.5.0`).
 - **`lib/` artifact:** keep `lib/ssh2shell.js` committed and in sync during the
   refactor; decide whether it becomes build-only at L6.
@@ -112,5 +192,6 @@ These are sensible defaults until confirmed:
 - Version: `2.0.14`
 - Source: `src/ssh2shell.coffee` (739 lines)
 - Compiled: `lib/ssh2shell.js` (~1044 lines, in sync modulo line endings)
-- Tests: 19 live integration scripts in `test/`; no runner or CI
+- Tests: 19 live integration scripts in `test/`, plus 57 offline unit tests in
+  `test/unit/`; no CI yet
 - Tooling: Node 26.13.0, npm 12.2.2, CoffeeScript 1.12.7
