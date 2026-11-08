@@ -7,8 +7,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const source = path.join(root, 'src', 'ssh2shell.js');
-const target = path.join(root, 'lib', 'ssh2shell.js');
+const srcDir = path.join(root, 'src');
+const libDir = path.join(root, 'lib');
 
-fs.copyFileSync(source, target);
-console.log('Built lib/ssh2shell.js from src/ssh2shell.js');
+fs.copyFileSync(
+  path.join(srcDir, 'ssh2shell.js'),
+  path.join(libDir, 'ssh2shell.js')
+);
+
+const helpersSource = path.join(srcDir, 'ssh2shell');
+const helpersTarget = path.join(libDir, 'ssh2shell');
+if (fs.existsSync(helpersSource)) {
+  fs.rmSync(helpersTarget, { recursive: true, force: true });
+  fs.cpSync(helpersSource, helpersTarget, { recursive: true });
+}
+
+console.log('Built lib/ from src/');

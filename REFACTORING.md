@@ -116,6 +116,7 @@ must be recorded here.
 | L0 | `refactor/L0-baseline` | `43ab187` | Done | Tag pristine `v2.0.14` and add this ledger | Baseline tag points at the unmodified release commit | `git reset --hard refactor/L0-baseline` |
 | L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
 | L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
+| L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -152,6 +153,21 @@ its own hash. The annotated tags are the stable rollback references; use
   values and the `newPrimaryHost` payload.
 - `docs/API-BASELINE.md` — updated source-of-truth, `newPrimaryHost` payload,
   and build-command references.
+
+### L3 deliverables
+
+- `src/ssh2shell/util.js` — pure helpers: `typeIsArray`, `escapeRegex`,
+  `shellQuote`, `shellControlChars`, `compileAsciiFilter`,
+  `compileTextColorFilter`, and `compilePrompts`.
+- `src/ssh2shell/defaults.js` — `applyHostDefaults`, the in-place host default
+  application extracted from `_loadDefaults`.
+- `src/ssh2shell/ssh-command.js` — `buildSshCommand`, the nested-host `ssh ...`
+  command builder extracted from `_sshConnect`.
+- `src/ssh2shell.js` — class facade now delegates to the modules. No control
+  flow, message, default, return-value, or event changes.
+- `scripts/build.js` — copies `src/ssh2shell.js` and the `src/ssh2shell/`
+  module tree into `lib/`.
+- `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
 ## Backlog and future work
 
