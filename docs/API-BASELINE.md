@@ -287,13 +287,25 @@ sign-off:
    can hang.
 8. `_loadDefaults` only compiles filters and prompt regexes when the instance
    property is empty, so they persist across hosts.
+9. `_previousHost` does not call `_removeListeners`, unlike `_nextHost` and
+   `_nextPrimaryHost`. The previous secondary host's event handlers stay
+   attached, so a later `commandComplete` (or similar) can fire a stale handler
+   with the now-current host as `sshObj`. A handler that appends
+   `sshObj.sessionText` to the final output therefore repeats the current host's
+   text each time the chain changes. Characterized by
+   `test/unit/hosts.test.js` ("keeps the secondary host commandComplete handler
+   after backing out"); fixing it changes observable output and needs sign-off.
 
 ## Verification
 
 ```bash
-npm run test:unit   # offline, mocked ssh2, no live hosts
-npm run build       # copies src/ssh2shell.js to lib/ssh2shell.js
+npm run test:unit       # offline, mocked ssh2, current lib/
+npm run test:baseline   # same suite against the frozen L0 artifact
+npm test                # both of the above
+npm run build           # copies src/ssh2shell.js to lib/ssh2shell.js
 ```
 
 The harness lives in `test/unit/` and injects a fake `ssh2` module through the
-require cache, so it never opens a network connection.
+require cache, so it never opens a network connection. `test:baseline` sets
+`SSH2SHELL_TEST_MODULE` to `test/fixtures/baseline-ssh2shell.js`, the frozen
+compiled L0 artifact.

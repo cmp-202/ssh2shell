@@ -1,6 +1,32 @@
 'use strict';
 
+const path = require('node:path');
+
 const fakeSsh2 = require('./fake-ssh2');
+
+const repoRoot = path.join(__dirname, '..', '..', '..');
+const currentModulePath = path.join(repoRoot, 'lib', 'ssh2shell.js');
+const baselineModulePath = path.join(
+  repoRoot,
+  'test',
+  'fixtures',
+  'baseline-ssh2shell.js'
+);
+
+/**
+ * Tests run against the current build by default. Set SSH2SHELL_TEST_MODULE to
+ * the frozen baseline fixture to run the same characterizations against the
+ * original JavaScript artifact.
+ */
+function targetModulePath() {
+  return process.env.SSH2SHELL_TEST_MODULE || currentModulePath;
+}
+
+function isBaseline() {
+  return (
+    path.resolve(targetModulePath()) === path.resolve(baselineModulePath)
+  );
+}
 
 /**
  * Replace the real ssh2 module in the require cache. ssh2shell resolves
@@ -28,7 +54,7 @@ function installFakeSsh2(fake = fakeSsh2) {
 }
 
 function loadSSH2Shell() {
-  const modulePath = require.resolve('../../../lib/ssh2shell');
+  const modulePath = targetModulePath();
   delete require.cache[modulePath];
   return require(modulePath);
 }
@@ -111,10 +137,13 @@ function once(emitter, event, timeout = 2000) {
 }
 
 module.exports = {
+  baselineModulePath,
   createHost,
+  currentModulePath,
   delay,
   fakeSsh2,
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   once,
   waitFor,

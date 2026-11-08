@@ -12,7 +12,7 @@ level, verify it, and roll back to it without guessing.
 | --- | --- |
 | End state | Modern JavaScript (CoffeeScript toolchain removed) |
 | Compatibility | Strict: same public API, events, config keys, and observable behavior |
-| Verification | Offline unit harness with a mocked `ssh2` (live hosts not required) |
+| Verification | Offline unit harness with a mocked `ssh2`; the same suite also runs against the frozen baseline artifact (live hosts not required) |
 | Rollback tracking | One annotated tag per level plus this ledger |
 
 ## Compatibility contract
@@ -87,12 +87,32 @@ git checkout refactor/L2 -- path/to/file
 Every level must satisfy all of these before it is tagged:
 
 1. Scope is limited to the level's stated goal.
-2. Characterization/unit tests pass.
-3. `lib/ssh2shell.js` is rebuilt and in sync (until L6 changes the publish flow).
-4. Public API/event smoke checks pass.
-5. `REFACTORING.md` ledger row is updated.
-6. Commit created and annotated tag `refactor/LN` applied.
-7. `git status` is clean.
+2. Characterization/unit tests pass against the current build.
+3. New tests also run against the frozen baseline artifact, so they describe
+   real original behavior rather than the refactored implementation.
+4. `lib/ssh2shell.js` is rebuilt and in sync (until L6 changes the publish flow).
+5. Public API/event smoke checks pass.
+6. `REFACTORING.md` ledger row is updated.
+7. Commit created and annotated tag `refactor/LN` applied.
+8. `git status` is clean.
+
+## Baseline dual-run
+
+`test/fixtures/baseline-ssh2shell.js` is the frozen L0 compiled artifact.
+`npm run test:baseline` sets `SSH2SHELL_TEST_MODULE` so the same unit suite loads
+that artifact instead of `lib/`. This checks that every characterization still
+describes the original behavior and separates real regressions from intentional
+differences.
+
+When adding a test:
+
+1. Run it against the current build (`npm run test:unit`).
+2. Run it against the baseline (`npm run test:baseline`).
+3. Passes on both: it characterizes shared behavior.
+4. Fails on baseline, passes on current: it covers an intentional change. Make
+   the expectation level-aware and record why.
+5. Fails on both: it characterizes a bug. Keep the current (buggy) expectation
+   and mark it as a known defect until a signed-off fix changes it.
 
 ## Level ladder (proposed, adjustable)
 
@@ -117,7 +137,7 @@ must be recorded here.
 | L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
 | L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
 | L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
-| L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
+| L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 62 tests pass; the same 62 pass against the frozen baseline artifact, with only the `_nextPrimaryHost` empty-queue assertion level-aware; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -183,7 +203,15 @@ its own hash. The annotated tags are the stable rollback references; use
 - `src/ssh2shell/util.js` — `typeIsArray` now aliases the built-in
   `Array.isArray`; the legacy fallback is gone.
 - `test/unit/hosts.test.js` — locks in that an empty primary queue leaves
-  `_nextPrimaryHost` returning `undefined`.
+  `_nextPrimaryHost` returning `undefined`; the same assertion accepts the
+  baseline's implicit `_runExit` return when run in baseline mode. Also adds a
+  characterization test for the known stale-secondary-handler bug.
+- `test/fixtures/baseline-ssh2shell.js` — frozen L0 compiled artifact used as
+  the dual-run target.
+- `test/unit/helpers/harness.js` — `SSH2SHELL_TEST_MODULE` support and
+  `isBaseline()`.
+- `scripts/run-tests.js` and `package.json` — `test:baseline`, plus `test` now
+  runs both the current and baseline suites.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
 ## Backlog and future work
@@ -219,9 +247,14 @@ observable behavior or security posture and needs its own level and sign-off.
 - **Known multi-host `sessionText` duplication.** When a connection moves to
   another host, an event handler that appends `sessionText` to the final output
   is not removed, so the final session text can repeat earlier host text and
-  grow with each host change. This has not been reported as an issue. It needs
-  a characterization test against the original code first, then a fix with
-  explicit sign-off on the expected final text.
+  grow with each host change. This has not been reported as an issue.
+  - Characterization: `test/unit/hosts.test.js` — "keeps the secondary host
+    commandComplete handler after backing out (known bug)". It passes against
+    both the frozen baseline and the current build, confirming the bug predates
+    the refactor.
+  - Cause: `_previousHost` does not call `_removeListeners`, unlike `_nextHost`
+    and `_nextPrimaryHost`.
+  - Status: awaiting sign-off on the expected final text before an L5 fix.
 
 ## Open items
 

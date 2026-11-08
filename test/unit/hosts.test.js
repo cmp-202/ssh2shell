@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   createHost,
 } = require('./helpers/harness');
@@ -112,7 +113,17 @@ describe('host lifecycle', () => {
 
     // `_nextPrimaryHost` only iterates primary hosts. Backing out of secondary
     // hosts is `_runExit`'s job, so an empty primary queue starts nothing.
-    assert.equal(result, undefined);
+    //
+    // The original CoffeeScript artifact implicitly returned the `_runExit`
+    // function here (its `else` branch ended with `@_runExit`). L4 made that
+    // dead return explicit, so the baseline and current builds differ only in
+    // this unobservable value.
+    if (isBaseline()) {
+      assert.equal(typeof result, 'function');
+      assert.equal(result, ssh._runExit);
+    } else {
+      assert.equal(result, undefined);
+    }
     assert.equal(initiated, false);
   });
 });
@@ -194,6 +205,49 @@ describe('primary and secondary host chains', () => {
     assert.equal(ssh.sshObj, a);
     assert.deepEqual(ssh._connections, []);
     assert.deepEqual(events[events.length - 1], ['close']);
+  });
+
+  it('keeps the secondary host commandComplete handler after backing out (known bug)', () => {
+    const primary = chainHost('primary.test');
+    const secondary = chainHost('secondary.test');
+    primary.hosts = [secondary];
+
+    const ssh = new SSH2Shell(primary);
+    ssh.sshObj = primary;
+    ssh._hosts = [];
+    ssh._connections = [];
+    ssh._stream = new FakeStream();
+    ssh.command = '';
+    ssh._initiate = () => {};
+
+    const fired = [];
+    primary.onCommandComplete = (command, response, sshObj) => {
+      fired.push({ handler: 'primary', host: sshObj.server.host, response });
+    };
+    secondary.onCommandComplete = (command, response, sshObj) => {
+      fired.push({ handler: 'secondary', host: sshObj.server.host, response });
+    };
+
+    ssh._loadDefaults();
+    ssh._nextHost(); // moves to secondary and removes the primary's handlers
+    ssh._loadDefaults(); // normally called by _initiate
+
+    assert.equal(ssh.sshObj, secondary);
+
+    ssh._previousHost(); // backs out; _previousHost does not call _removeListeners
+
+    assert.equal(ssh.sshObj, primary);
+    assert.equal(ssh.listenerCount('commandComplete'), 1);
+
+    ssh.emit('commandComplete', 'cmd', 'response', ssh.sshObj);
+
+    // The stale secondary handler fires with the primary host as sshObj. A
+    // handler that appends sshObj.sessionText therefore repeats the current
+    // host's text, which is the multi-host duplication reported by users.
+    // Characterizes the baseline behavior until a fix is signed off.
+    assert.deepEqual(fired, [
+      { handler: 'secondary', host: 'primary.test', response: 'response' },
+    ]);
   });
 });
 
