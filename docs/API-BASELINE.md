@@ -6,7 +6,8 @@
 - **Method:** read the implementation, exercise it with the offline harness in
   `test/unit/`, and compare every documented claim in `README.md` against the
   actual code.
-- **Status:** L1 baseline characterization; the L2 JavaScript port preserves it.
+- **Status:** L1 baseline characterization, preserved through L4; L5 records the
+  signed-off behavior changes separately.
 
 The README is treated as *documented intent*. Where it disagrees with the code,
 the code is recorded as the current behavior and the mismatch is listed below.
@@ -42,11 +43,12 @@ back-out branch is what returns to the previous connection. Its order is:
 4. Otherwise, if the command is the literal `exit`, send it.
 5. Otherwise, `close()`.
 
-`_previousHost()` pops one entry from `_connections`, makes it current again,
-and calls `_runExit()` on it. That is what lets the code resume a previous
-host's *remaining* `hosts` array: backing out does not discard unvisited
-secondary hosts. A chain may be several levels deep; each level is backed out in
-turn until `_connections` is empty and `close()` runs.
+`_previousHost()` emits `end` for the outgoing host, detaches that host's
+listeners (L5), pops one entry from `_connections`, makes it current again, and
+calls `_runExit()` on it. That is what lets the code resume a previous host's
+*remaining* `hosts` array: backing out does not discard unvisited secondary
+hosts. A chain may be several levels deep; each level is backed out in turn
+until `_connections` is empty and `close()` runs.
 
 ## Public surface (code-derived)
 
@@ -158,28 +160,54 @@ wrong, not because the code changed:
 - Removed the `callback` host property. Only `connect(callback)` is read.
 - Corrected the `host.idleTimeout` comment to `host.idleTimeOut`.
 
+## L5 behavior changes (signed off)
+
+These changes intentionally differ from the L0 baseline. Each is covered by a
+test that runs against both the current build and the frozen baseline artifact.
+
+- **Debug/verbose gating.** `_systemMsg` emits debug and verbose messages only
+  when the host's `debug` / `verbose` flags are enabled. Normal `msg` output is
+  unchanged.
+- **Listener lifecycle.** Default listeners are installed once; host listeners
+  replace defaults; leaving a host detaches both the cached handler and the
+  current host handler. Reloading defaults does not attach duplicates.
+- **Multi-host back-out.** `_previousHost` now detaches the outgoing host's
+  handlers, so a stale `commandComplete` (or similar) handler cannot fire
+  against the new current host and repeat `sessionText`. This is the signed-off
+  fix for the known multi-host duplication defect.
+- **Host tracking.** `this.host` is updated when moving to the next nested host
+  and the next primary host, so session/callback text starts with the correct
+  host name.
+- **Keyboard-interactive.** The event is registered and dispatched under the
+  dashed name, host handlers are honored, and the default handler calls
+  `finish([''])` instead of stalling the handshake.
+- **Restored baseline payloads.** `commandComplete` emits the raw `_buffer`;
+  `hostHash` is written to `sshObj.server.hostHash`; the legacy
+  `msg: { send }` shape is mapped to `msg`; the default keyboard response is
+  `''`.
+
 ## README vs code discrepancies
 
 | # | README claim | Code reality | Impact | Action |
 | --- | --- | --- | --- | --- |
-| 1 | `dataIdleTimeOut: 500` | Reads `dataIdleTime`; the internal timer variable has the same name | Documented key is ignored | L5: map `dataIdleTimeOut` to internal `dataIdleTime` |
-| 2 | `window: false` default | `window` is forced to `true` when falsy | Explicit `false` cannot be used | L5: nullish/undefined check |
-| 3 | `pty` is not documented | `pty` defaults to and is forced to `true` | `{ pty: false }` cannot be used | L5: nullish/undefined check |
-| 4 | `.unpipe(stream)` | `unpipe` is undefined on instances | Calling it throws `TypeError` | L5/L6: add it or remove the claim |
+| 1 | `dataIdleTimeOut: 500` | Reads `dataIdleTime`; the internal timer variable has the same name | Documented key is ignored | Open (future L5+): map `dataIdleTimeOut` to internal `dataIdleTime` |
+| 2 | `window: false` default | `window` is forced to `true` when falsy | Explicit `false` cannot be used | Open (future L5+): nullish/undefined check |
+| 3 | `pty` is not documented | `pty` defaults to and is forced to `true` | `{ pty: false }` cannot be used | Open (future L5+): nullish/undefined check |
+| 4 | `.unpipe(stream)` | `unpipe` is undefined on instances | Calling it throws `TypeError` | Open (future L5+/L6): add it or remove the claim |
 | 5 | `onPipe` / `onUnpipe` host handlers | Never read | Redundant | **Resolved at L1** (removed from README) |
 | 6 | `pipe` / `Unpipe` events on the instance | Not emitted by the class; stream-level only | Listeners never fire | L6: rewrite the events section |
 | 7 | `host.callback` | Only `connect(callback)` is read | Ignored | **Resolved at L1** (removed from README) |
 | 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | L6: document accurately |
-| 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | L5: valid flag mapping |
-| 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | L5: valid flag mapping |
+| 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | Open (future L5+): valid flag mapping |
+| 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | Open (future L5+): valid flag mapping |
 | 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | L6: align docs and code |
 | 12 | `host.idleTimeout` in a comment | Actual key is `idleTimeOut` | Documentation typo | **Resolved at L1** |
 | 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | L6: correct docs |
 | 14 | `.emit("eventName", function, parms, ...)` | `emit(name, ...args)` | Misleading API description | L6: correct docs |
 | 15 | `passwordPromt` / `passphrasePromt` | Supported aliases, undocumented | Works, but undocumented | L6: document aliases |
-| 16 | `window` passed to `ssh2` | Code passes the value as the `window` argument to `connection.shell` | A forced `true` may not match the intended pty settings | L5: see truthiness audit |
-| 17 | Prompts/filters are per host | Compiled once per instance and reused across hosts | Nested/primary hosts can inherit the first host's filters | L5: compile per host |
-| 18 | Sudo errors are reported | Error is only emitted when `debug` is true | Incorrect sudo passwords can fail silently | L5: emit regardless of `debug` |
+| 16 | `window` passed to `ssh2` | Code passes the value as the `window` argument to `connection.shell` | A forced `true` may not match the intended pty settings | Open (future L5+): see truthiness audit |
+| 17 | Prompts/filters are per host | Compiled once per instance and reused across hosts | Nested/primary hosts can inherit the first host's filters | Open (future L5+): compile per host |
+| 18 | Sudo errors are reported | Error is only emitted when `debug` is true | Incorrect sudo passwords can fail silently | Open (future L5+): emit regardless of `debug` |
 
 ## `dataIdleTimeOut` and the internal timer
 
@@ -193,9 +221,10 @@ The intended shape is:
 - public host key: `dataIdleTimeOut` (milliseconds, default 500)
 - internal instance variable: `dataIdleTime` (used by the timer)
 
-L5 should set `@dataIdleTime = @sshObj.dataIdleTimeOut ? 500`, optionally
-falling back to `@sshObj.dataIdleTime` for anyone who used the undocumented
-name. This is a behavior fix, not a rename of the internal variable.
+A future fix should set `@dataIdleTime = @sshObj.dataIdleTimeOut ? 500`,
+optionally falling back to `@sshObj.dataIdleTime` for anyone who used the
+undocumented name. This is a behavior fix, not a rename of the internal
+variable.
 
 The timer's purpose is to stop the script hanging when a command response does
 not satisfy the state-engine tests (for example, a standard prompt is never
@@ -250,7 +279,7 @@ Valid `ssh` CLI flags for the underlying concepts are:
 - `-1` / `-2` — force protocol version 1 / 2.
 - `-4` / `-6` — force IPv4 / IPv6 address family.
 
-There is no boolean `-x` variant. Proposed L5 handling, subject to sign-off
+There is no boolean `-x` variant. Proposed future handling, subject to sign-off
 because it changes behavior for anyone who currently passes these keys:
 
 - Accept an explicit value and map it to an allow-listed flag, appended as a
@@ -275,6 +304,8 @@ sign-off:
    [Host model](#host-model-primary-and-secondary-hosts)).
 2. `_connections` and `sshObj` are class-body objects on the prototype. Before
    `connect()` assigns an own `sshObj`, two instances share them.
+   **Fixed at L5:** the constructor now assigns per-instance `sshObj` and
+   `_connections`.
 3. The constructor listens for `newPrimmaryHost` (typo) while the code emits
    `newPrimaryHost`; the constructor listener is dead code.
 4. `connect()` emits `newPrimaryHost` with the *return value* of
@@ -284,7 +315,7 @@ sign-off:
    unintended text when the buffer is shorter than or unrelated to the command.
 7. The constructor's `keyboard-interactive` listener only logs; it never calls
    `finish(prompts)`. A host that enables `tryKeyboard` without its own handler
-   can hang.
+   can hang. **Fixed at L5:** the default handler calls `finish([''])`.
 8. `_loadDefaults` only compiles filters and prompt regexes when the instance
    property is empty, so they persist across hosts.
 9. `_previousHost` does not call `_removeListeners`, unlike `_nextHost` and
@@ -292,9 +323,9 @@ sign-off:
    attached, so a later `commandComplete` (or similar) can fire a stale handler
    with the now-current host as `sshObj`. A handler that appends
    `sshObj.sessionText` to the final output therefore repeats the current host's
-   text each time the chain changes. Characterized by
-   `test/unit/hosts.test.js` ("keeps the secondary host commandComplete handler
-   after backing out"); fixing it changes observable output and needs sign-off.
+   text each time the chain changes. **Fixed at L5 (signed off):** `_previousHost`
+   calls `_removeListeners`, and `test/unit/hosts.test.js` asserts the baseline
+   leak and the current clean result in the same test.
 
 ## Verification
 

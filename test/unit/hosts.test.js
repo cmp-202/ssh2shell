@@ -207,7 +207,7 @@ describe('primary and secondary host chains', () => {
     assert.deepEqual(events[events.length - 1], ['close']);
   });
 
-  it('keeps the secondary host commandComplete handler after backing out (known bug)', () => {
+  it('drops the secondary host commandComplete handler after backing out', () => {
     const primary = chainHost('primary.test');
     const secondary = chainHost('secondary.test');
     primary.hosts = [secondary];
@@ -234,20 +234,24 @@ describe('primary and secondary host chains', () => {
 
     assert.equal(ssh.sshObj, secondary);
 
-    ssh._previousHost(); // backs out; _previousHost does not call _removeListeners
+    ssh._previousHost();
 
     assert.equal(ssh.sshObj, primary);
-    assert.equal(ssh.listenerCount('commandComplete'), 1);
 
     ssh.emit('commandComplete', 'cmd', 'response', ssh.sshObj);
 
-    // The stale secondary handler fires with the primary host as sshObj. A
-    // handler that appends sshObj.sessionText therefore repeats the current
-    // host's text, which is the multi-host duplication reported by users.
-    // Characterizes the baseline behavior until a fix is signed off.
-    assert.deepEqual(fired, [
-      { handler: 'secondary', host: 'primary.test', response: 'response' },
-    ]);
+    if (isBaseline()) {
+      // The baseline leaves the outgoing secondary handler attached. It fires
+      // with the primary host as sshObj and duplicates session text.
+      assert.equal(ssh.listenerCount('commandComplete'), 1);
+      assert.deepEqual(fired, [
+        { handler: 'secondary', host: 'primary.test', response: 'response' },
+      ]);
+    } else {
+      // L5 removes the outgoing host's handlers so nothing stale can fire.
+      assert.equal(ssh.listenerCount('commandComplete'), 0);
+      assert.deepEqual(fired, []);
+    }
   });
 });
 

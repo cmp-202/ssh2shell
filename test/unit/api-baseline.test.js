@@ -4,7 +4,12 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const Stream = require('stream');
 
-const { installFakeSsh2, loadSSH2Shell, createHost } = require('./helpers/harness');
+const {
+  installFakeSsh2,
+  isBaseline,
+  loadSSH2Shell,
+  createHost,
+} = require('./helpers/harness');
 
 installFakeSsh2();
 const SSH2Shell = loadSSH2Shell();
@@ -52,13 +57,20 @@ describe('public API baseline', () => {
     assert.equal(ssh.unpipe, undefined);
   });
 
-  it('characterizes shared prototype state before connect()', () => {
+  it('keeps per-instance state independent before connect()', () => {
     const first = new SSH2Shell(createHost());
     const second = new SSH2Shell(createHost());
 
-    // Class-body objects are prototype properties until connect() assigns an own host.
-    assert.equal(first.sshObj, second.sshObj);
-    assert.equal(first._connections, second._connections);
+    if (isBaseline()) {
+      // The baseline shares class-body objects through the prototype until
+      // connect() assigns an own host.
+      assert.equal(first.sshObj, second.sshObj);
+      assert.equal(first._connections, second._connections);
+    } else {
+      // L5 assigns host state per instance in the constructor.
+      assert.notEqual(first.sshObj, second.sshObj);
+      assert.notEqual(first._connections, second._connections);
+    }
   });
 });
 

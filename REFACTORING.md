@@ -138,6 +138,7 @@ must be recorded here.
 | L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
 | L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
 | L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 62 tests pass; the same 62 pass against the frozen baseline artifact, with only the `_nextPrimaryHost` empty-queue assertion level-aware; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
+| L5 | `refactor/L5` | — | Done | Debug/verbose message gating, per-host listener lifecycle, and the signed-off multi-host/payload fixes | 72 tests pass; the same 72 pass against the frozen baseline artifact with L5 expectations level-aware; `npm run build` leaves `lib/` in sync; backing out of a nested host no longer fires stale handlers or duplicates session text | `git reset --hard refactor/L5` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -214,6 +215,39 @@ its own hash. The annotated tags are the stable rollback references; use
   runs both the current and baseline suites.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
+### L5 deliverables
+
+- `src/ssh2shell.js` — centralized `_systemMsg(type, message, object)` gate so
+  `debug` and `verbose` messages are emitted only when their host flags are
+  enabled, while normal messages are unaffected.
+- `_loadDefaultListeners`, `_boundListener`, and `_detachListener` — default
+  listeners are installed once, host listeners replace defaults, and both the
+  cached handler and the current host handler are removed when a host is left.
+  Reloading defaults no longer attaches duplicate handlers.
+- Listener lifecycle across host changes — `_nextHost`, `_nextPrimaryHost`, and
+  `_previousHost` detach the outgoing host's handlers. Backing out of a nested
+  host no longer leaves a stale `commandComplete` (or similar) handler that
+  fires against the new current host and duplicates `sessionText`.
+- `this.host` is kept in sync when moving to the next nested host and the next
+  primary host, so callback/session text starts with the correct host name.
+- `keyboard-interactive` is registered and dispatched under the dashed event
+  name, host handlers are honored, and the default handler calls
+  `finish([''])` instead of stalling the handshake.
+- Restored baseline payloads/defaults that the branch had changed accidentally:
+  `commandComplete` emits the raw `_buffer`, `hostHash` is written to
+  `sshObj.server.hostHash`, the legacy `msg: { send }` shape is mapped to
+  `msg`, and the default keyboard response is an empty string.
+- `test/unit/l5-behavior.test.js` — 10 tests covering debug/verbose gating,
+  listener detach/reload behavior, `keyboard-interactive` dispatch and cleanup,
+  raw `commandComplete`, `msg.send`, and `server.hostHash`.
+- `test/unit/hosts.test.js` — the former known-bug characterization now asserts
+  the signed-off result: the baseline leaves the stale handler attached, while
+  L5 removes it.
+- `test/unit/api-baseline.test.js` and `test/unit/prompts.test.js` — level-aware
+  expectations for per-instance state, the renamed `_processSudoPrompt`, and
+  baseline-only behavior.
+- `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -239,22 +273,19 @@ observable behavior or security posture and needs its own level and sign-off.
   `ssh` flags (`-1` / `-2`, `-4` / `-6`) instead of being appended literally.
 - **Done at L4:** removed `_nextPrimaryHost`'s bare `@_runExit` reference as
   dead code; the normal back-out path is `_runExit` via `_previousHost`.
-- **Remove prototype-shared `_connections` / `sshObj` state.**
-- **Emit sudo authentication errors regardless of `debug`.**
-- **Compile prompts/filters per host, not once per instance.**
-- **Make `keyboard-interactive` call `finish(prompts)` when no host handler is
-  supplied.**
-- **Known multi-host `sessionText` duplication.** When a connection moves to
-  another host, an event handler that appends `sessionText` to the final output
-  is not removed, so the final session text can repeat earlier host text and
-  grow with each host change. This has not been reported as an issue.
-  - Characterization: `test/unit/hosts.test.js` — "keeps the secondary host
-    commandComplete handler after backing out (known bug)". It passes against
-    both the frozen baseline and the current build, confirming the bug predates
-    the refactor.
-  - Cause: `_previousHost` does not call `_removeListeners`, unlike `_nextHost`
-    and `_nextPrimaryHost`.
-  - Status: awaiting sign-off on the expected final text before an L5 fix.
+- **Emit sudo authentication errors regardless of `debug`.** Not part of L5.
+- **Compile prompts/filters per host, not once per instance.** Not part of L5.
+- **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
+  constructor, so instances no longer share prototype state before `connect()`.
+- **Done at L5:** the default `keyboard-interactive` handler now calls
+  `finish([''])` (baseline default response) so the handshake cannot stall.
+- **Done at L5:** multi-host `sessionText` duplication. `_previousHost` now
+  removes the outgoing host's handlers, so no stale `commandComplete` (or
+  similar) handler fires against the new current host.
+  - Test: `test/unit/hosts.test.js` — "drops the secondary host
+    commandComplete handler after backing out". The baseline branch still
+    characterizes the old leak; the current branch asserts no stale handler.
+  - Sign-off: remove stale handlers; each host's text appears once.
 
 ## Open items
 
@@ -268,7 +299,8 @@ These are sensible defaults until confirmed:
   refactor; decide whether it becomes build-only at L6.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
 - **Live hosts:** not used; verification is offline per the decision above.
-- **Behavior-changing fixes:** require explicit sign-off before L5.
+- **Behavior-changing fixes:** require explicit sign-off. L5 changes were
+  approved; the remaining defect fixes above still need their own sign-off.
 
 ## Environment snapshot (at baseline)
 

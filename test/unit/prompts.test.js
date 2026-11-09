@@ -22,6 +22,15 @@ function make(overrides = {}) {
   return { ssh, host };
 }
 
+// The baseline exposes the sudo handler as _processPasswordPrompt; L5 renamed
+// it to _processSudoPrompt to match its actual purpose.
+function processSudo(ssh) {
+  if (typeof ssh._processSudoPrompt === 'function') {
+    return ssh._processSudoPrompt();
+  }
+  return ssh._processPasswordPrompt();
+}
+
 describe('sudo prompt handling', () => {
   it('sends the sudo password once when a password prompt is detected', () => {
     const { ssh } = make({ server: { password: 'secret' }, debug: true });
@@ -30,7 +39,7 @@ describe('sudo prompt handling', () => {
     ssh.command = 'sudo ls';
     ssh._buffer = 'Password: ';
 
-    ssh._processPasswordPrompt();
+    processSudo(ssh);
 
     assert.deepEqual(writes, ['secret']);
     assert.equal(ssh.sshObj.pwSent, true);
@@ -44,7 +53,7 @@ describe('sudo prompt handling', () => {
     ssh._buffer = 'Password: ';
     ssh.sshObj.pwSent = true;
 
-    ssh._processPasswordPrompt();
+    processSudo(ssh);
 
     assert.equal(ssh.sshObj.pwSent, false);
     assert.equal(ssh.command, '');
@@ -59,7 +68,7 @@ describe('sudo prompt handling', () => {
     ssh.command = 'sudo ls';
     ssh._buffer = 'Password: ';
 
-    ssh._processPasswordPrompt();
+    processSudo(ssh);
 
     assert.equal(ssh.sshObj.pwSent, false);
     assert.equal(ssh.command, '');
@@ -76,7 +85,7 @@ describe('sudo prompt handling', () => {
     ssh._buffer = '$ ';
     ssh.sshObj.pwSent = true;
 
-    ssh._processPasswordPrompt();
+    processSudo(ssh);
 
     assert.equal(completed, true);
     assert.equal(ssh.sshObj.pwSent, false);
