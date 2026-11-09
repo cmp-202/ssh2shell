@@ -15,7 +15,7 @@ var host = {
   verbose: (process.env.VERBOSE === "true"),/*
   msg: function(message) {
       console.log(message);
-    }*/
+    }
   msg: function(message){
     const formattedMessage = typeof message === 'object' && message !== null 
     ? JSON.stringify(message, (key, value) => {
@@ -30,7 +30,7 @@ var host = {
       if (err) throw err;
     });    
     
-  }
+  }*/
 }
 
 var SSH2Shell = require ('../lib/ssh2shell');
