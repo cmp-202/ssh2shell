@@ -51,6 +51,9 @@ class SSH2Shell extends Stream {
     this.onCommandComplete = this.onCommandComplete.bind(this);
     this.onCommandProcessing = this.onCommandProcessing.bind(this);
     this._callback = this._callback.bind(this);
+    this._systemMsg = this._systemMsg.bind(this);
+    this._detach = this._detach.bind(this);
+    this._boundListener = this._boundListener.bind(this);
     
     if (typeIsArray(hosts) && hosts.length > 0) {
       this._hosts = hosts;
@@ -59,24 +62,27 @@ class SSH2Shell extends Stream {
     }
 
     this.ssh2Client = require('ssh2').Client;
-
-    // Defined here to support msg events before the host is loaded.
-    this.on('msg', (message) => {
-      console.log(message);
-    });
-
-    this.on('data', (data) => {
+    
+    //bonds listener functions for correct later removal when changing hosts
+    this._boundListeners = {};
+    this.msg = (message) => {
+        console.log(message);
+      };
+    this._boundListener('msg', this.msg);  
+    
+    const data = (data) => {
       this._onData(data);
-    });
-
-    this.on('stderrData', (data) => {
+    };
+    this._boundListener ( 'data', data);
+    
+    const stderrData = (data) => {
       console.error(data);
-    });
-
-    this.on('error', (err, type, close = false, callback) => {
-      if (this.sshObj.debug) {
-        this.emit('msg', `Class.error: ${err}, ${type}`);
-      }
+    };
+    this._boundListener ( 'stderrData', stderrData);
+    
+    const error = (err, type, close = false, callback) => {
+      this._systemMsg('debug',`Class.error: ${err}, ${type}`);
+      
       if (err instanceof Error) {
         this.emit('msg', `Error: ${err.message}, Level: ${err.level}`);
       } else {
@@ -86,31 +92,75 @@ class SSH2Shell extends Stream {
       if (close) {
         this._stream.close();
       }
-    });
-
+    };
+    this._boundListener ( 'error', error);
+    
     if (this._hosts[0].server.tryKeyboard) {
-      this.on(
-        'keyboard-interactive',
-        (name, instructions, instructionsLang, prompts, finish) => {
-          if (this.sshObj.debug) {
-            this.emit(
-              'msg',
-              `${this.sshObj.server.host}: Class.keyboard-interactive`
-            );
+      this.keyboardInteractive = (name, instructions, instructionsLang, prompts, finish) => {
+        this._systemMsg('debug',`keyboard-interactive:`);
+        
+        this._systemMsg('verbose',`name: ${name}`);
+        this._systemMsg('verbose',`instructions: ${instructions}`);
+        
+        const responses = prompts.map(p => {
+          /* handle prompts here     
+          if (p.prompt.toLowerCase().includes('password')) {
+            return "YOUR_ACTUAL_PASSWORD"; 
           }
-          if (this.sshObj.verbose) {
-            this.emit('msg', `name: ${name}`);
-            this.emit('msg', `instructions: ${instructions}`);
-            const str = JSON.stringify(prompts, null, 4);
-            this.emit('msg', `Prompts object: ${str}`);
-          }
-        }
-      );
+          */
+          return ""; // Default fallback response
+        });
+        this._systemMsg('verbose',`Prompts object: ${responses}`);
+        // 2. CRITICAL: You must execute finish() and pass the responses as an array of strings.
+        // Skipping this will freeze the SSH connection handshake.
+        finish(responses);
+      };
+      this._boundListener ( 'keyboard-interactive', this.keyboardInteractive);
     }
-
-    this._allSessions = '';
+    this.host = "No host";
+    this._allSessions = '';    
   }
-
+  
+  _boundListener ( eventName, listener ) {
+    if ( typeof listener === `function` ){
+      this._boundListeners[eventName] = listener;
+      this.on(eventName, this._boundListeners[eventName]);
+      return;
+    }
+    return;
+  }
+  
+  // Helper to safely detach listeners using cached references
+  _detach(eventName, currentKey) {
+    const targetHandler = this._boundListeners[eventName] || this.sshObj[currentKey];
+    if (typeof targetHandler === `function` ) {
+      this.removeListener(eventName, targetHandler);
+      delete this._boundListeners[eventName]; // clear cache
+    }
+  };
+  
+  //handles check against debug and verbose flags for proccessing messages
+  _systemMsg(type, message, object = null){
+    // Check if message is an object (and not null)
+    
+    switch (true) {
+      case type === 'debug' && this.debug:
+        this.emit('msg', `${this.host}: ${message}`);
+        if( typeof object === 'object' && object !== null) {
+          this.emit('msg', object);
+        }
+        return;
+      case type === 'verbose' && this.verbose:
+        this.emit('msg', `${this.host}: ${message}`);
+        if( typeof object === 'object' && object !== null) {
+          this.emit('msg', object);
+        }
+        return; // Added missing return to prevent falling through to default
+      default:
+        return;
+    }
+  }
+  
   _onData(data) {
     this._buffer += data;
     if (
@@ -173,45 +223,34 @@ class SSH2Shell extends Stream {
       switch (true) {
         // Check if sudo password is needed.
         case this.command.length > 0 && this.command.indexOf('sudo ') !== -1:
-          if (this.sshObj.debug) {
-            this.emit('msg', `${this.sshObj.server.host}: onData: Sudo command data`);
-          }
+          this._systemMsg('debug', `onData: Sudo command data`);
+          
           return this._processSudoPrompt();
         // Check if ssh authentication needs to be handled.
         case this.sshObj.sshToNextHost &&
           this.command.length > 0 &&
           this.command.indexOf('ssh ') === 0:
-          if (this.sshObj.debug) {
-            this.emit('msg', `${this.sshObj.server.host}: onData: SSH command data`);
-          }
+          this._systemMsg('debug', `onData: SSH command data`);
+          
           return this._processSSHPrompt();
         // Check for standard prompt from a command.
         case this.command.length > 0 &&
           this.standardPrompt.test(this._sanitizeResponse()):
-          if (this.sshObj.debug) {
-            this.emit(
-              'msg',
-              `${this.sshObj.server.host}: onData: Normal prompt detected`
-            );
-          }
+          this._systemMsg('debug', `onData: Normal prompt detected`);
+          
           this.sshObj.pwSent = false;
           return this._commandComplete();
         // Check for no command but first prompt detected.
         case this.command.length < 1 && this.standardPrompt.test(this._buffer):
-          if (this.sshObj.debug) {
-            this.emit(
-              'msg',
-              `${this.sshObj.server.host}: onData: First prompt detected`
-            );
-          }
+          this._systemMsg('debug', `onData: First prompt detected`);
+          
           if (this.sshObj.showBanner) {
             this.sshObj.sessionText += this._buffer;
           }
           return this._nextCommand();
         default:
-          if (this.sshObj.debug) {
-            this.emit('msg', `${this.sshObj.server.host}: onData: Reset timeout`);
-          }
+          this._systemMsg('debug', `onData: Reset timeout`);
+          
           return (this.idleTimer = setTimeout(() => {
             this.emit(
               'commandTimeout',
@@ -236,89 +275,53 @@ class SSH2Shell extends Stream {
     const response = this._sanitizeResponse().trim();
     const passwordPrompt = this.passwordPrompt.test(response);
     const standardPrompt = this.standardPrompt.test(response);
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: processSudoPrompt: Password handling`
+    this._systemMsg('debug', `processSudoPrompt: Password handling`);
+    
+    this._systemMsg(
+        'verbose',
+        `processSudoPrompt: Password prompt: ${passwordPrompt}, Standard prompt: ${standardPrompt}, Password previously sent: ${this.sshObj.pwSent}`
       );
-    }
-    if (this.sshObj.verbose) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: processSudoPrompt: Password prompt: ${passwordPrompt}, Standard prompt: ${standardPrompt}, Password previously sent: ${this.sshObj.pwSent}`
-      );
-    }
 
     // Prompt detection.
     switch (true) {
       // No password.
       case passwordPrompt && !this.sshObj.server.password:
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: No password set`
-          );
-        }
+        this._systemMsg('debug', `processSudoPrompt: No password set`);
+        
         return this._resetFromSudoError();
       case passwordPrompt && !this.sshObj.pwSent:
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Send password`
-          );
-        }               
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Password: ${this.sshObj.server.password}`
-          );
-        }
+        this._systemMsg('debug', `processSudoPrompt: Send password`);
+                      
+        this._systemMsg('verbose',`processSudoPrompt: Password: ${this.sshObj.server.password}`);
+        
         // Send password.
         this.sshObj.pwSent = true;
         return this._runCommand(`${this.sshObj.server.password}`);
       case passwordPrompt && this.sshObj.pwSent:
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Failed login`
-          );
-        }
-        if (this.sshObj.debug) {
+        this._systemMsg('debug', `processSudoPrompt: Failed login`);
+        
+        if (this.debug) {
           this.emit(
             'error',
-            `${this.sshObj.server.host}: Password was incorrect for ${this.sshObj.server.userName}`, 
+            `${this.host}: Password was incorrect for ${this.sshObj.server.userName}`, 
             'Sudo authentication failed'
           );
         }
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Failed login: Response: ${response}`
-          );
-        }        
+        this._systemMsg('verbose',`processSudoPrompt: Failed login: Response: ${response}`);
         
         this.sshObj.pwSent = false;
         // Add buffer to sessionText so the sudo response can be seen.
         return this._resetFromSudoError();
       case standardPrompt:
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Password accepted`
-          );
-        }
+        this._systemMsg('debug', `processSudoPrompt: Password accepted`);
+        
         this.sshObj.pwSent = false;
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSudoPrompt: Successful response: ${response}`
-          );
-        }
+        this._systemMsg('verbose',`processSudoPrompt: Successful response: ${response}`);
+        
         return this._commandComplete();
       default:
-        if (this.sshObj.debug) {
-            this.emit('msg', `${this.sshObj.server.host}: processSudoPrompt: Reset timeout`);
-        }
+        this._systemMsg('debug', `processSudoPrompt: Reset timeout`);
+        
         return (this.idleTimer = setTimeout(() => {
           this.emit(
             'commandTimeout',
@@ -352,9 +355,8 @@ class SSH2Shell extends Stream {
 
     // Perfectly combined secure connection command string.
     this.command = result.command;
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: SSH command: connect`);
-    }
+    this._systemMsg('debug',`SSH command: connect`);
+    
     return this._runCommand(this.command);
   }
   
@@ -372,118 +374,85 @@ class SSH2Shell extends Stream {
       this.sshObj.server.hasOwnProperty('passPhrase');
     const standardPrompt = this.standardPrompt.test(response);
     
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: processSSHPrompt: SSH password handling`
+    this._systemMsg('debug', `processSSHPrompt: SSH password handling`);
+    
+    this._systemMsg(
+        'verbose',
+        `processSSHPrompt: Password prompt: ${passwordPrompt}, Passphase prompt: ${passphrasePrompt}, Standard prompt: ${standardPrompt}, Password previously sent: ${this.sshObj.sshAuth}`
       );
-    }
-    if (this.sshObj.verbose) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: processSSHPrompt: Password prompt: ${passwordPrompt}, Passphase prompt: ${passphrasePrompt}, Standard prompt: ${standardPrompt}, Password previously sent: ${this.sshObj.sshAuth}`
-      );
-    }
 
     if (!this.sshObj.sshAuth) {
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: processSSHPrompt: First prompt detection`
+      this._systemMsg(
+        'debug',
+          `processSSHPrompt: First prompt detection`
         );
-      }
 
       // Provide password.
       if (passwordPrompt) {
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: processSSHPrompt: send password`);
-        }
+        this._systemMsg('debug', `processSSHPrompt: send password`);
+        
         this.sshObj.sshAuth = true;
         this._buffer = '';
 
         return this._runCommand(`${this.sshObj.server.password}`);
       } else if (passphrasePrompt) {
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: processSSHPrompt: send passphrase`);
-        }
+        this._systemMsg('debug', `processSSHPrompt: send passphrase`);
+        
         this.sshObj.sshAuth = true;
         this._buffer = '';
         return this._runCommand(`${this.sshObj.server.passPhrase}`);
       } else if (standardPrompt) {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: standard prompt: connection failed`
-          );
-        }
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: SSH failed: Response: ${response}`
-          );
-        }
-        this.sshObj.sessionText += `${this.sshObj.server.host}: SSH failed: Response: ${response}`;
+        this._systemMsg('debug', `processSSHPrompt: standard prompt: connection failed`);
+        
+        this._systemMsg('verbose',`processSSHPrompt: SSH failed: Response: ${response}`);
+        
+        this.sshObj.sessionText += `${this.host}: SSH failed: Response: ${response}`;
         return this._runExit();
       } else {
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: processSSHPrompt: No prompt detected`);
-        }
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: Response: ${response}`
-          );
-        }
-        if (this.sshObj.verbose){
+        this._systemMsg('debug', `processSSHPrompt: No prompt detected`);
+        
+        this._systemMsg('verbose',`processSSHPrompt: Response: ${response}`);
+        
+        if (this.verbose){
           if (!this.sshObj.server.hasOwnProperty('password')) 
           {
-            this.emit(
-              'msg',
-              `${this.sshObj.server.host}: processSSHPrompt: SSH password prompt: ${this.sshObj.passwordPrompt}`
+            this._systemMsg(
+              'verbose',
+              `processSSHPrompt: SSH password prompt: ${this.sshObj.passwordPrompt}`
             );
           }
           if (this.sshObj.server.hasOwnProperty('passPhrase')) 
           {
-            this.emit(
-              'msg',
-              `${this.sshObj.server.host}: processSSHPrompt: SSH passphrase prompt: ${this.sshObj.passphrasePrompt}`
+            this._systemMsg(
+              'verbose',
+              `processSSHPrompt: SSH passphrase prompt: ${this.sshObj.passphrasePrompt}`
             );
           }
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: SSH standard prompt: ${this.sshObj.standardPrompt}`
+          this._systemMsg(
+            'verbose',
+            `processSSHPrompt: SSH standard prompt: ${this.sshObj.standardPrompt}`
           );
         }
 
         return this._runExit();
       }
     } else {
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: processSSHPrompt: Post authentication prompt detection`
+      this._systemMsg(
+        'debug',
+          `processSSHPrompt: Post authentication prompt detection`
         );
-      }
     
       if (standardPrompt) {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: SSH complete: normal prompt`
-          );
-        }
+        this._systemMsg('debug', `processSSHPrompt: SSH complete: normal prompt`);
+        
         if (this.sshObj.showBanner) {
           this.sshObj.sessionText += `\n ${response}`;
         }
         this.sshObj.exitCommands.push('exit');
         this.emit('msg', `${this.sshObj.connectedMessage}`);
         this.emit('msg', `${this.sshObj.readyMessage}`);
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: next command`
-          );
-        }
+        this._systemMsg('debug', `processSSHPrompt: next command`);
+        
         this.sshObj.sshToNextHost = false;
         return this._nextCommand();
       } else if (passwordPrompt || passphrasePrompt) {
@@ -491,17 +460,12 @@ class SSH2Shell extends Stream {
         // indicates failure.
         this.emit(
           'msg',
-          `${this.sshObj.server.host}: SSH authentication failed`
+          `SSH authentication failed`
         );
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: processSSHPrompt: Authentication failed`);
-        }
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processSSHPrompt: failed response: ${response}`
-          );
-        }
+        this._systemMsg('debug', `processSSHPrompt: Authentication failed`);
+        
+        this._systemMsg('verbose',`processSSHPrompt: failed response: ${response}`);
+        
         this.sshObj.sshAuth = false;
         let using;
         switch (true) {
@@ -514,7 +478,7 @@ class SSH2Shell extends Stream {
         }
         this.emit(
           'error',
-          `${this.sshObj.server.host}: SSH authentication failed for ${this.sshObj.server.userName}@${this.sshObj.server.host}`,
+          `${this.host}: SSH authentication failed for ${this.sshObj.server.userName}@${this.host}`,
           'SSH multi host authentication failure'
         );
         
@@ -534,42 +498,29 @@ class SSH2Shell extends Stream {
       // This is a message for the sessionText like an echo command in bash.
       const sessionNote = this.command.match(/^`(.*)`$/);
       if (sessionNote) {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processNotifications: sessionText output`
-          );
-        }
+        this._systemMsg('debug', `processNotifications: sessionText output`);
+        
         if (this._connections.length > 0) {
-          this.sshObj.sessionText += `${this.sshObj.server.host}: Note: ${sessionNote[1]}${this.sshObj.enter}`;
+          this.sshObj.sessionText += `${this.host}: Note: ${sessionNote[1]}${this.sshObj.enter}`;
         } else {
           this.sshObj.sessionText += `Note: ${sessionNote[1]}${this.sshObj.enter}`;
         }
-        if (this.sshObj.verbose) {
-          this.emit('msg', sessionNote[1]);
-        }
+        this._systemMsg('verbose', sessionNote[1]);
+        
         return this._nextCommand();
       }
 
       // This is a message to output in process.
       const msgNote = this.command.match(/^msg:(.*)$/);
       if (msgNote) {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: processNotifications: msg to output`
-          );
-        }
-        this.emit('msg', `${this.sshObj.server.host}: Note: ${msgNote[1]}`);
+        this._systemMsg('debug', `processNotifications: msg to output`);
+        
+        this.emit('msg', `${this.host}: Note: ${msgNote[1]}`);
         return this._nextCommand();
       }
 
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: processNotifications: Normal Command to run`
-        );
-      }
+      this._systemMsg('debug', `processNotifications: Normal Command to run`);
+      
       return this._checkCommand();
     }
   }
@@ -582,18 +533,15 @@ class SSH2Shell extends Stream {
       this.command !== 'exit' &&
       this.sshObj.sshToNextHost !== true
     ) {
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: commandComplete: Raising commandComplete event`
+      this._systemMsg(
+        'debug',
+          `commandComplete: Raising commandComplete event`
         );
-      }      
-      if (this.sshObj.verbose) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: commandComplete:\nCommand:\n ${this.command}\nResponse: ${response}`
-        );
-      }
+      
+      this._systemMsg(
+        'verbose',
+        `commandComplete:\nCommand:\n ${this.command}\nResponse: ${response}`
+      );
       this.sshObj.sessionText += response;
       
       this.emit('commandComplete', this.command, this._buffer, this.sshObj);
@@ -605,30 +553,24 @@ class SSH2Shell extends Stream {
     this._buffer = '';
     // Process the next command if there are any.
     if (this.sshObj.commands.length > 0) {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: nextCommand: Setting next command`);
-      }
+      this._systemMsg('debug',`nextCommand: Setting next command`);      
       
-      if (this.sshObj.verbose) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: nextCommand: Host commands: ${this.sshObj.commands}`
-        );
-      }
+      this._systemMsg(
+        'verbose',
+        `nextCommand: Host commands: ${this.sshObj.commands}`
+      );
       
       this.command = this.sshObj.commands.shift();
-      if (this.sshObj.verbose) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: nextCommand: Next command: ${this.command}`
+      this._systemMsg(
+        'verbose',
+          `nextCommand: Next command: ${this.command}`
         );
-      }
+      
       return this._processNotifications();
     }
 
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: nextCommand: No commands so exit`);
-    }
+    this._systemMsg('debug',`nextCommand: No commands so exit`);
+    
     // No more commands so exit.
     return this._runExit();
   }
@@ -640,44 +582,37 @@ class SSH2Shell extends Stream {
     }
 
     // No more commands so exit.
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: checkCommand: No command so exit`);
-    }
+    this._systemMsg('debug',`checkCommand: No command so exit`);
+    
     return this._runExit();
   }
 
   _runCommand(command) {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: runCommand:`);
-    }
-    if (this.sshObj.verbose) {
-      this.emit('msg', `${this.sshObj.server.host}: runCommand: Command: ${command}`);
-    }
+    this._systemMsg('debug',`runCommand:`);
+    
+    this._systemMsg('verbose',`runCommand: Command: ${command}`);
     
     return this._stream.write(`${command}${this.sshObj.enter}`);
   }
 
   _previousHost() {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: previousHost: raise end event on current connection: ${this.sshObj.server.host}`);
-    }
+    this._systemMsg('debug',`previousHost: raise end event on current connection: ${this.host}`);
+    
     this.emit(
       'end',
-      `${this.sshObj.server.host}: \n${this.sshObj.sessionText}`,
+      `${this.host}: \n${this.sshObj.sessionText}`,
       this.sshObj
     );
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: previousHost: Check for previous connections and reload its configuration if one exists`
-      );
-    }
+    this._systemMsg(
+      'debug', 
+      `previousHost: Check for previous connections and reload its configuration if one exists`
+    );
 
     if (this._connections.length > 0) {
       this.sshObj = this._connections.pop();
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: previousHost: previous host loaded: ${this.sshObj.server.host} `);
-      }
+      this.host = this.sshObj.server.host;
+      this._systemMsg('debug',`previousHost: previous host loaded: ${this.host} `);
+      
     }
 
     return this._runExit();
@@ -685,12 +620,11 @@ class SSH2Shell extends Stream {
 
   _nextHost() {
     const nextHost = this.sshObj.hosts.shift();
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: nextHost: load ${nextHost.server.host} config, prepare and start SSH connection`
-      );
-    }
+    this._systemMsg(
+      'debug', 
+      `nextHost: load ${nextHost.server.host} config, prepare and start SSH connection`
+    );
+    
     this._removeListeners();
 
     this._connections.push(this.sshObj);
@@ -702,69 +636,57 @@ class SSH2Shell extends Stream {
 
   _nextPrimaryHost(connect) {
     if (this._hosts.length > 0) {
-      if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: nextPrimaryHost: load next host for ssh2 connection`);
-      }
+      this._systemMsg('debug', `nextPrimaryHost: load next host for ssh2 connection`);
+      
       // Check this is not loading the first primary host before removing
       // listeners.
       if (this.sshObj.server) {
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: nextPrimaryHost: end current host ${this.sshObj.server.host}`);
-        }
+        this._systemMsg('debug', `nextPrimaryHost: end current host ${this.host}`);
+        
         this.emit('end', this._primaryhostSessionText, this.sshObj);
         this._removeListeners();
       }
       
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: nextPrimaryHost: Load next primary host: ${this.sshObj.server.host}`);
-      }
+      this._systemMsg('debug',`nextPrimaryHost: Load next primary host: ${this.host}`);
+      
       this.sshObj = this._hosts.shift();
-      this._primaryhostSessionText = `${this.sshObj.server.host}: `;
+      this._primaryhostSessionText = `${this.host}: `;
 
       return this._initiate(connect);
     }
   }
 
   _runExit() {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: runExit: Process an exit`);
-    }
+    this._systemMsg('debug',`runExit: Process an exit`);
+    
     // Run the exit commands loaded by ssh and sudo su commands.
     if (this.sshObj.exitCommands && this.sshObj.exitCommands.length > 0) {
-      if (this.sshObj.verbose) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: runExit: Queued exit commands: ${this.sshObj.exitCommands.length}`
+      this._systemMsg(
+        'verbose',
+          `runExit: Queued exit commands: ${this.sshObj.exitCommands.length}`
         );
-      }
+      
       this.command = this.sshObj.exitCommands.pop();
       if (this._connections && this._connections.length > 0) {
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: runExit: Primary host: ${this._connections[0].server.host}`
-          );
-        }
-        this._connections[0].sessionText += `\n${this.sshObj.server.host}: ${this.sshObj.sessionText}`;
+        this._systemMsg('verbose',`runExit: Primary host: ${this._connections[0].server.host}`);
+        
+        this._connections[0].sessionText += `\n${this.host}: ${this.sshObj.sessionText}`;
       }
       return this._runCommand(this.command);
     } else if (this.sshObj.hosts && this.sshObj.hosts.length > 0) {
       // More hosts to connect to so process the next one.
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: runExit: Load next host`);
-      }
+      this._systemMsg('debug',`runExit: Load next host`);
+      
       return this._nextHost();
     } else if (this._connections && this._connections.length > 0) {
       // Leaving last host so load previous host.
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: runExit: load previous host`);
-      }
-      this.emit('msg', `${this.sshObj.server.host}: ${this.sshObj.closedMessage}`);
+      this._systemMsg('debug',`runExit: load previous host`);
+      
+      this.emit('msg', `${this.host}: ${this.sshObj.closedMessage}`);
       return this._previousHost();
     } else if (this.command === 'exit') {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: runExit: run exit command`);
-      }
+      this._systemMsg('debug',`runExit: run exit command`);
+      
       return this._runCommand('exit');
       // Nothing more to do so end the stream with last exit.
     } else {
@@ -773,38 +695,28 @@ class SSH2Shell extends Stream {
   }
 
   close() {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: Stream: close`);
-    }
+    this._systemMsg('debug',`Stream: close`);
+    
     return this._stream.close();
   }
 
   _removeListeners() {
-    if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: removeListeners: removing event listeners linked to a host`);
-      }
+    this._systemMsg('debug',`removeListeners: removing event listeners linked to a host`);
+      
     // Initialize tracking object if it doesn't exist yet
     this._boundListeners = this._boundListeners || {};
 
-    // Helper to safely detach listeners using cached references
-    const detach = (eventName, currentKey) => {
-      const targetHandler = this._boundListeners[eventName] || this.sshObj[currentKey];
-      if (typeof targetHandler === 'function') {
-        this.removeListener(eventName, targetHandler);
-        delete this._boundListeners[eventName]; // clear cache
-      }
-    };
-    // Remove host-defined listeners instead of all listeners.
-    detach('keyboard-interactive', 'onKeyboardInteractive');
-    detach('stderrData', 'onStderrData');
-    detach('data', 'onData');
-    detach('error', 'onError');
-    detach('end', 'onEnd');
-    detach('commandProcessing', 'onCommandProcessing');
-    detach('commandComplete', 'onCommandComplete');
-    detach('commandTimeout', 'onCommandTimeout');
-    detach('msg', 'msg');
     
+    // Remove host-defined listeners instead of all listeners.
+    this._detach('keyboard-interactive', 'onKeyboardInteractive');
+    this._detach('stderrData', 'onStderrData');
+    this._detach('data', 'onData');
+    this._detach('error', 'onError');
+    this._detach('end', 'onEnd');
+    this._detach('commandProcessing', 'onCommandProcessing');
+    this._detach('commandComplete', 'onCommandComplete');
+    this._detach('commandTimeout', 'onCommandTimeout');
+    this._detach('msg', 'msg');
     
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
@@ -815,13 +727,10 @@ class SSH2Shell extends Stream {
   }
 
   _initiate(action) {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: initiate`);
-    }
-
+    
+    this._systemMsg('debug',`Initalise`);
     this._loadDefaults();
-    // Event handlers.
-
+    
     if (typeof action === 'function') {
       return action();
     }
@@ -831,15 +740,25 @@ class SSH2Shell extends Stream {
     this.command = '';
     this._buffer = '';
     this._boundListeners = {};
-
+    this.debug = this.sshObj.debug ?? false;
+    this.verbose = this.sshObj.verbose ?? false;
+    this.host = this.sshObj.server.host;
+    
+    if (typeof this.msg === 'function') {
+      this.removeListener('msg', this.msg);
+      delete this._boundListeners['msg'];
+      this.msg = '';
+    }    
     if (typeof this.sshObj.msg === 'function') {
-      this._boundListeners['msg'] = this.sshObj.msg;
-      this.on('msg', this._boundListeners['msg']);
+      this._boundListener('msg', this.sshObj.msg);
+    } else {
+      const msg = (message) => {
+        console.log(message);
+      };
+      this._boundListener('msg', msg);
     }
     
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: Load Defaults`);
-    }
+    this._systemMsg('debug',`Load Defaults`);
     
     applyHostDefaults(this.sshObj);
 
@@ -850,10 +769,10 @@ class SSH2Shell extends Stream {
     if (!this.asciiFilter) {
       const ascii = compileAsciiFilter(this.sshObj.asciiFilter);
       this.asciiFilter = ascii.filter;
-      if (ascii.usedFallback && this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: loadDefaults: AsciiFilter: incorrect regular expression reverting to default: ${this.sshObj.asciiFilter}`
+      if (ascii.usedFallback && this.debug) {
+        this._systemMsg(
+          'debug',
+          `loadDefaults: AsciiFilter: incorrect regular expression reverting to default: ${this.sshObj.asciiFilter}`
         );
       }
     }
@@ -862,10 +781,10 @@ class SSH2Shell extends Stream {
     if (!this.textColorFilter) {
       const color = compileTextColorFilter(this.sshObj.textColorFilter);
       this.textColorFilter = color.filter;
-      if (color.usedFallback && this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: loadDefaults: TextColorFilter: incorrect regular expression reverting to default: ${this.sshObj.textColorFilter}`
+      if (color.usedFallback && this.debug) {
+        this._systemMsg(
+          'debug',
+          `loadDefaults: TextColorFilter: incorrect regular expression reverting to default: ${this.sshObj.textColorFilter}`
         );
       }
     }
@@ -883,6 +802,7 @@ class SSH2Shell extends Stream {
       this.standardPrompt = prompts.standardPrompt;
     }
 
+    //listeners defaults for command processing
     this.sshObj.onCommandProcessing =
       this.sshObj.onCommandProcessing ??
       ((command, response, sshObj, stream) => {});
@@ -890,31 +810,20 @@ class SSH2Shell extends Stream {
     this.sshObj.onCommandComplete =
       this.sshObj.onCommandComplete ??
       ((command, response, sshObj) => {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: onCommandComplete:`
-          );
-        }
+        this._systemMsg('debug', `onCommandComplete:`);
       });
 
     this.sshObj.onCommandTimeout =
       this.sshObj.onCommandTimeout ??
       ((command, response, stream, connection) => {
         response = response.replace(this.command, '');
-        if (this.sshObj.debug) {
-          this.emit('msg', `${this.sshObj.server.host}: loadDefaults: Class.commandTimeout`);
-        }
-        if (this.sshObj.verbose) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: loadDefaults: Timeout command: ${command} response: ${response}`
-          );
-        }
+        this._systemMsg('debug', `loadDefaults: Class.commandTimeout`);
+        
+        this._systemMsg('verbose',`loadDefaults: Timeout command: ${command} response: ${response}`);
 
         this.emit(
           'error',
-          `${this.sshObj.server.host}: Command timed out after ${this.idleTime / 1000} seconds`,
+          `${this.host}: Command timed out after ${this.idleTime / 1000} seconds`,
           'Command Timeout',
           true,
           (err, type) => {
@@ -926,42 +835,38 @@ class SSH2Shell extends Stream {
 
     // Explicitly cache references right before binding them to the event emitter
     if (typeof this.sshObj.onKeyboardInteractive === 'function') {
-      this._boundListeners['keyboard-interactive'] = this.sshObj.onKeyboardInteractive;
-      this.on('keyboard-interactive', this._boundListeners['keyboard-interactive']);
+      if ( this.keyboardInteractive === 'function' ){
+        this.removeListener('keyboard-interactive', this.keyboardInteractive);
+        delete this._boundListeners['keyboard-interactive'];
+        this.keyboardInteractive = '';
+      }
+      this._boundListener('keyboard-interactive', this.sshObj.onKeyboardInteractive);
     }
     if (typeof this.sshObj.onError === 'function') {
-      this._boundListeners['error'] = this.sshObj.onError;
+      this._boundListener('error', this.sshObj.onError);
       this.on('error', this._boundListeners['error']);
     }
     if (typeof this.sshObj.onData === 'function') {
-      this._boundListeners['data'] = this.sshObj.onData;
-      this.on('data', this._boundListeners['data']);
+      this._boundListener('data', this.sshObj.onData);
     }
     if (typeof this.sshObj.onStderrData === 'function') {
-      this._boundListeners['stderrData'] = this.sshObj.onStderrData;
-      this.on('stderrData', this._boundListeners['stderrData']);
+      this._boundListener('stderrData', this.sshObj.onStderrData);
     }
-
-    this._boundListeners['commandProcessing'] = this.sshObj.onCommandProcessing;
-    this.on('commandProcessing', this._boundListeners['commandProcessing']);
-
-    this._boundListeners['commandComplete'] = this.sshObj.onCommandComplete;
-    this.on('commandComplete', this._boundListeners['commandComplete']);
-
-    this._boundListeners['commandTimeout'] = this.sshObj.onCommandTimeout;
-    this.on('commandTimeout', this._boundListeners['commandTimeout']);
-
     if (typeof this.sshObj.onEnd === 'function') {
-      this._boundListeners['end'] = this.sshObj.onEnd;
-      this.on('end', this._boundListeners['end']);
+      this._boundListener('end', this.sshObj.onEnd);
     }
+    
+    this._boundListener('commandProcessing', this.sshObj.onCommandProcessing);
 
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: loadDefaults: Host loaded`);
-    }
-    if (this.sshObj.verbose) {
-      return this.emit('msg', this.sshObj);
-    }
+    this._boundListener('commandComplete', this.sshObj.onCommandComplete);
+
+    this._boundListener('commandTimeout', this.sshObj.onCommandTimeout);
+
+    
+
+    this._systemMsg('debug',`loadDefaults: Host loaded`);
+    
+    this._systemMsg('verbose', 'loadDefaults: Config:', this.sshObj);
   }
 
   connect(callback) {
@@ -978,12 +883,8 @@ class SSH2Shell extends Stream {
     this.connection.on(
       'keyboard-interactive',
       (name, instructions, instructionsLang, prompts, finish) => {
-        if (this.sshObj.debug) {
-          this.emit(
-            'msg',
-            `${this.sshObj.server.host}: Connection.keyboard-interactive`
-          );
-        }
+        this._systemMsg('debug', `Connection.keyboard-interactive`);
+        
         this.emit(
           'keyboard-interactive',
           name,
@@ -996,16 +897,14 @@ class SSH2Shell extends Stream {
     );
 
     this.connection.on('connect', () => {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: connect: Connection.connect`);
-      }
+      this._systemMsg('debug',`connect: Connection.connect`);
+      
       this.emit('msg', this.sshObj.connectedMessage);
     });
 
     this.connection.on('ready', () => {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: connect: Connection.ready`);
-      }
+      this._systemMsg('debug',`connect: Connection.ready`);
+      
       this.emit('msg', this.sshObj.readyMessage);
 
       // Open a shell.
@@ -1018,25 +917,19 @@ class SSH2Shell extends Stream {
             this.emit('error', err, 'Shell', true);
             return;
           }
-          if (this.sshObj.debug) {
-            this.emit('msg', `${this.sshObj.server.host}: connect: Connection.shell`);
-          }
+          this._systemMsg('debug', `connect: Connection.shell`);
+          
           this._stream.setEncoding(this.sshObj.streamEncoding);
 
           this._stream.on('error', (err) => {
-            if (this.sshObj.debug) {
-              this.emit('msg', `${this.sshObj.server.host}: connect: Stream.error`);
-            }
+            this._systemMsg('debug', `connect: Stream.error`);
+            
             this.emit('error', err, 'Stream');
           });
 
           this._stream.stderr.on('data', (data) => {
-            if (this.sshObj.debug) {
-              this.emit(
-                'msg',
-                `${this.sshObj.server.host}: connect: Stream.stderr.data`
-              );
-            }
+            this._systemMsg('debug', `connect: Stream.stderr.data`);
+            
             this.emit('stderrData', data);
           });
 
@@ -1051,9 +944,7 @@ class SSH2Shell extends Stream {
           });
 
           this._stream.on('finish', () => {
-            if (this.sshObj.debug) {
-              this.emit('msg', `${this.sshObj.server.host}: connect: Stream.finish`);
-            }
+            this._systemMsg('debug', `connect: Stream.finish`);
 
             this._primaryhostSessionText += `${this.sshObj.sessionText}\n`;
             this._allSessions += this._primaryhostSessionText;
@@ -1063,9 +954,8 @@ class SSH2Shell extends Stream {
           });
 
           this._stream.on('close', (code, signal) => {
-            if (this.sshObj.debug) {
-              this.emit('msg', `${this.sshObj.server.host}: connect: Stream.close`);
-            }
+            this._systemMsg('debug', `connect: Stream.close`);
+            
             this.connection.end();
           });
         }
@@ -1073,16 +963,14 @@ class SSH2Shell extends Stream {
     });
 
     this.connection.on('error', (err) => {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: connect: Connection.error`);
-      }
+      this._systemMsg('debug',`connect: Connection.error`);
+      
       this.emit('error', err, 'Connection');
     });
 
     this.connection.on('close', (had_error) => {
-      if (this.sshObj.debug) {
-        this.emit('msg', `${this.sshObj.server.host}: connect: Connection.close`);
-      }
+      this._systemMsg('debug',`connect: Connection.close`);
+      
       if (this.idleTimer) {
         clearTimeout(this.idleTimer);
       }
@@ -1113,8 +1001,8 @@ class SSH2Shell extends Stream {
         if (!this.sshObj.server.username) {
           this.sshObj.server.username = this.sshObj.server.userName;
         }
-        if (!this.sshObj.server.hostHash) {
-          this.sshObj.server.hostHash = this.sshObj.server.hashMethod;
+        if (!this.hostHash) {
+          this.hostHash = this.sshObj.server.hashMethod;
         }
         if (!this.sshObj.server.passphrase) {
           this.sshObj.server.passphrase = this.sshObj.server.passPhrase;

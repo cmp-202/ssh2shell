@@ -28,7 +28,7 @@ function compileAsciiFilter(configured) {
 }
 
 function compileTextColorFilter(configured) {
-  if (configured === '(\\[{1}[0-9;]+m{1})') {
+  if (configured === '\\x1b\\[[0-9;]*m') {
     return { filter: /\x1b\[[0-9;]*m/g, usedFallback: false };
   }
 
