@@ -22,13 +22,17 @@ var conParamsHost1 = {
  debug = (process.env.DEBUG === "true"),
  verbose = (process.env.VERBOSE === "true")
 
+//Live VMs can be slow to return the nested SSH prompt.
+var tunnelIdleTimeOut = 15000;
+
 //Host objects:
 var host1 = {
   server:       conParamsHost1,
   commands:     [ "echo host1", "ssh -V"],
   connectedMessage: "Connected to host1",
   debug: debug,
-  verbose: verbose
+  verbose: verbose,
+  idleTimeOut: tunnelIdleTimeOut
 },
 
 host2 = {
@@ -36,7 +40,8 @@ host2 = {
   commands:     [ "echo host2", "echo ssh" ],
   connectedMessage: "Connected to host2",
   debug: debug,
-  verbose: verbose
+  verbose: verbose,
+  idleTimeOut: tunnelIdleTimeOut
 },
 
 host3 = {
@@ -44,7 +49,8 @@ host3 = {
   commands:     [ "echo host3", "echo ssh middle"],
   connectedMessage: "Connected to host3",
   debug: debug,
-  verbose: verbose
+  verbose: verbose,
+  idleTimeOut: tunnelIdleTimeOut
 }
 
 //host2.hosts = [ host3 ];
