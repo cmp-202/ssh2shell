@@ -145,6 +145,7 @@ must be recorded here.
 | L6 | `refactor/L6` | — | Done | Signed-off post-L5 fixes: backlog config/flags, per-host prompt/filter compilation, and error-handling termination | 88 tests pass; the same 88 pass against the frozen baseline artifact with L6 expectations level-aware; `npm run build` leaves `lib/` in sync; pre-shell errors no longer throw, host `onError` observes the error before close, and each host recompiles its own prompts/filters | `git reset --hard refactor/L6` |
 | L6.1 | `refactor/L6.1` | — | Done | Approved optimisation and robustness follow-ups: comment accuracy, `_systemMsg` and timer de-duplication, `buildSshCommand` option table, test helpers, build-sync guard, and four signed-off fixes (post-auth SSH timeout, guarded `close()`, empty-command skip, own-property SSH options) | 92 tests pass; the same 92 pass against the frozen baseline artifact with L6.1 expectations level-aware; `npm run check:build` and `npm run build` leave `lib/` in sync | `git reset --hard refactor/L6.1` |
 | L7 | `refactor/L7` | — | Done | Tooling, docs, CI, and publish pipeline | 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes; `npm pack --dry-run` contains only `lib/`, the README, and `package.json`; CI runs the suite on Node 18, 20, 22, and 24 | `git reset --hard refactor/L7` |
+| L7.1 | `refactor/L7.1` | — | Done | Post-L7 fixes: drop the misspelled prompt aliases, document the `stream.Stream` base, and finish README reconciliation | 112 tests pass on the current build and the frozen baseline; the README discrepancy table is fully resolved; `npm pack --dry-run` still contains only `lib/`, the README, and `package.json` | `git reset --hard refactor/L7.1` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -385,8 +386,7 @@ were after L6.1.
   `prepublishOnly` runs `npm test` so a stale build or failing baseline cannot
   be published.
 - `docs/API-BASELINE.md` — verification commands include `npm pack --dry-run`;
-  the README discrepancy table records the remaining README-only items under
-  L7 docs ownership and marks items 16-18 resolved.
+  the README discrepancy table is fully resolved.
 - `REFACTORING.md` — this L7 section and ledger row.
 - The README itself is corrected by the project owner. The L7 README pass
   aligned the `stream.Stream` base, both `asciiFilter` examples, the `onError`
@@ -401,6 +401,22 @@ were after L6.1.
 - `npm pack --dry-run` — the tarball contains `README.md`, `lib/ssh2shell.js`,
   the three `lib/ssh2shell/*` helpers, and `package.json`.
 - CI runs the same commands on Node 18, 20, 22, and 24.
+
+### L7.1 deliverables (post-L7 fixes)
+
+- `src/ssh2shell/defaults.js` — removed the misspelled `passwordPromt` /
+  `passphrasePromt` fallbacks; only `passwordPrompt` and `passphrasePrompt`
+  are read. The frozen baseline still honours the aliases, so
+  `test/unit/api-baseline.test.js` is level-aware.
+- `README.md` — documents the `stream.Stream` base and uses the tab-preserving
+  `asciiFilter` default in both examples.
+- `docs/API-BASELINE.md` — the README discrepancy table is fully resolved.
+
+#### Verification
+
+- `npm test` — 112 tests pass on the current build and 112 on the frozen
+  baseline artifact, with `check:build` confirming `lib/` is in sync first.
+- `npm pack --dry-run` — still only `README.md`, `lib/`, and `package.json`.
 
 ## Backlog and future work
 
