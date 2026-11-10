@@ -466,13 +466,17 @@ sign-off:
 
 ```bash
 npm run test:unit       # offline, mocked ssh2, current lib/
+npm run test:src        # same suite against src/ before building
+npm run test:lib        # same suite against lib/
 npm run test:baseline   # same suite against the frozen L0 artifact
-npm test                # check:build, then both of the above
+npm test                # check:build, then lib and baseline
 npm run check:build     # fails if lib/ differs from src/
 npm run build           # copies src/ssh2shell.js to lib/ssh2shell.js
 ```
 
 The harness lives in `test/unit/` and injects a fake `ssh2` module through the
-require cache, so it never opens a network connection. `test:baseline` sets
-`SSH2SHELL_TEST_MODULE` to `test/fixtures/baseline-ssh2shell.js`, the frozen
-compiled L0 artifact.
+require cache, so it never opens a network connection. `test:src`, `test:lib`,
+and `test:baseline` all use `scripts/run-tests.js` to set
+`SSH2SHELL_TEST_MODULE` to `src/ssh2shell.js`, `lib/ssh2shell.js`, or
+`test/fixtures/baseline-ssh2shell.js`. You can also pass a module path directly:
+`node scripts/run-tests.js src/ssh2shell.js`.

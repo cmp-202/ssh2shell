@@ -18,7 +18,9 @@
     "check:build": "node scripts/check-build.js",
     "test": "npm run check:build && npm run test:unit && npm run test:baseline",
     "test:unit": "node --test test/unit",
-    "test:baseline": "node scripts/run-tests.js"
+    "test:src": "node scripts/run-tests.js src",
+    "test:lib": "node scripts/run-tests.js lib",
+    "test:baseline": "node scripts/run-tests.js baseline"
   },
   "keywords": [
     "SSH",

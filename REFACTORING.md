@@ -216,8 +216,9 @@ its own hash. The annotated tags are the stable rollback references; use
   the dual-run target.
 - `test/unit/helpers/harness.js` — `SSH2SHELL_TEST_MODULE` support and
   `isBaseline()`.
-- `scripts/run-tests.js` and `package.json` — `test:baseline`, plus `test` now
-  runs both the current and baseline suites.
+- `scripts/run-tests.js` and `package.json` — `test:src`, `test:lib`, and
+  `test:baseline`; `test` now runs the build check, the lib suite, and the
+  baseline suite.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
 ### L5 deliverables
