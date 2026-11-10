@@ -15,6 +15,9 @@ const {
   compileAsciiFilter,
   compilePrompts,
   compileTextColorFilter,
+  credentialSecrets,
+  redactCredentials,
+  redactString,
   typeIsArray,
 } = require('./ssh2shell/util');
 
@@ -191,9 +194,15 @@ class SSH2Shell extends Stream {
       return;
     }
 
-    this.emit('msg', `${this.host}: ${message}`);
+    // Credentials are hidden in debug/verbose output unless the host opts in
+    // with `exposeCredentials: true`. Strings are scrubbed for the configured
+    // password/passphrase; object dumps have credential keys replaced.
+    const expose = this.exposeCredentials === true;
+    const secrets = expose ? [] : credentialSecrets(this.sshObj);
+
+    this.emit('msg', `${this.host}: ${redactString(message, secrets)}`);
     if (typeof object === 'object' && object !== null) {
-      this.emit('msg', object);
+      this.emit('msg', expose ? object : redactCredentials(object));
     }
   }
 
@@ -813,6 +822,7 @@ class SSH2Shell extends Stream {
     this._buffer = '';
     this.debug = this.sshObj.debug ?? false;
     this.verbose = this.sshObj.verbose ?? false;
+    this.exposeCredentials = this.sshObj.exposeCredentials ?? false;
     this.host = this.sshObj.server.host;
 
     // Support the legacy { send: fn } message handler shape.
@@ -1091,7 +1101,11 @@ class SSH2Shell extends Stream {
         'Parameters',
         false,
         function (err, type, close) {
-          this.emit('msg', this.sshObj.server);
+          const expose = this.exposeCredentials === true;
+          this.emit(
+            'msg',
+            expose ? this.sshObj.server : redactCredentials(this.sshObj.server)
+          );
           this.emit('msg', this.sshObj.commands);
         }
       );

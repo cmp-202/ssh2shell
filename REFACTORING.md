@@ -412,6 +412,14 @@ observable behavior or security posture and needs its own level and sign-off.
   sanitized response without logging, matching the baseline. Test:
   `test/unit/api-baseline.test.js` — "does not emit the command echo as a
   verbose message".
+- **Done post-L6.1 (signed off):** hide credentials in debug/verbose output by
+  default and add the per-host `exposeCredentials` opt-in. `_systemMsg` scrubs
+  the configured password/passphrase from strings and masks credential keys in
+  object dumps, so the sudo/nested-SSH password messages, the verbose
+  `runCommand` echo, and the config dump show `[REDACTED]`. The frozen baseline
+  still leaks the raw values; `test/unit/credentials.test.js` is level-aware.
+  A live verbose tunnel run confirmed no plaintext password in the log and
+  `[REDACTED]` in its place.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls

@@ -111,9 +111,9 @@ until `_connections` is empty and `close()` runs.
 
 **Connection and session:** `server`, `hosts`, `commands`, `msg`,
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
-`debug`, `enter`, `streamEncoding`, `window`, `pty`, `idleTimeOut`,
-`dataIdleTimeOut` (public timer key; falls back to the undocumented
-`dataIdleTime`), `sessionText`, `exitCommands`.
+`debug`, `exposeCredentials`, `enter`, `streamEncoding`, `window`, `pty`,
+`idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
+undocumented `dataIdleTime`), `sessionText`, `exitCommands`.
 
 **Prompts and filters:** `standardPrompt`, `passwordPrompt`, `passphrasePrompt`,
 `passPromptText`, `asciiFilter`, `disableASCIIFilter`, `textColorFilter`,
@@ -211,6 +211,19 @@ are covered by level-aware tests that also run against the frozen baseline.
   `server.ssh.options` with `Object.entries`, so inherited enumerable
   properties cannot leak into the generated `ssh` command. Baseline used
   `for...in`.
+
+## Post-L6.1 behavior changes (signed off)
+
+- **Credential redaction in debug/verbose output.** `_systemMsg` now scrubs the
+  configured password and passphrase from every debug/verbose string and masks
+  `password` / `passphrase` keys in object dumps (including nested `hosts`
+  config). The sudo and nested-SSH credential messages, the verbose
+  `runCommand` echo, and the config dump therefore show `[REDACTED]` instead of
+  the plaintext value. The frozen baseline logs the raw credentials.
+- **`exposeCredentials` (default `false`).** A per-host opt-in that restores the
+  raw credential output for fault-finding. It is applied in `_loadDefaults` and
+  read by `_systemMsg`; it does not change the connection itself. Test:
+  `test/unit/credentials.test.js`.
 
 ## README vs code discrepancies
 

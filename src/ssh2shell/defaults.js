@@ -22,6 +22,9 @@ function applyHostDefaults(sshObj) {
   if (!sshObj.debug) {
     sshObj.debug = false;
   }
+  if (sshObj.exposeCredentials !== true) {
+    sshObj.exposeCredentials = false;
+  }
   if (!sshObj.hosts) {
     sshObj.hosts = [];
   }
