@@ -445,6 +445,12 @@ were after L6.1.
 Items explicitly deferred until after the mechanical refactor. Each one changes
 observable behavior or security posture and needs its own level and sign-off.
 
+- **Audit the legacy live test scripts.** `test/*.js` still includes older
+  example and development scripts such as `devtest.js`,
+  `Config-poperties-test.js`, and `issue_69.js`. Review each one, keep and
+  modernize the scenarios that still matter, and delete the rest. Decide which
+  scenarios should become automated offline tests instead of manual live-host
+  scripts.
 - **Replace the nested-host `ssh ...` command string with chained `ssh2`
   connections.** Today `_sshConnect` builds a shell command (`ssh -x ...`) and
   types it into the current shell. Chaining `ssh2.Client` objects would avoid
