@@ -301,7 +301,6 @@ class SSH2Shell extends Stream {
   }
 
   _sanitizeResponse() {
-    this._systemMsg('verbose',this.command.slice(0, this._buffer.length));
     return this._buffer.replace(
       this.command.slice(0, this._buffer.length),
       ''

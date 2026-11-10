@@ -308,4 +308,18 @@ describe('_sanitizeResponse baseline', () => {
 
     assert.equal(ssh._sanitizeResponse(), '\none\n$ ');
   });
+
+  it('does not emit the command echo as a verbose message', () => {
+    const { ssh } = makeLoaded();
+    ssh.removeAllListeners('msg');
+    ssh.verbose = true;
+    ssh.command = 'echo one';
+    ssh._buffer = 'echo one\none\n$ ';
+
+    const messages = [];
+    ssh.on('msg', (message) => messages.push(message));
+
+    assert.equal(ssh._sanitizeResponse(), '\none\n$ ');
+    assert.deepEqual(messages, []);
+  });
 });

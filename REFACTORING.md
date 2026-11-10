@@ -405,6 +405,13 @@ observable behavior or security posture and needs its own level and sign-off.
   instance. `_loadDefaults` rebuilds the compiled regexes from the current
   `sshObj` on every call. See
   [Per-host prompt/filter compilation](docs/API-BASELINE.md#per-host-promptfilter-compilation-resolved-post-l5).
+- **Done post-L6.1 (signed off):** remove the L5-added verbose log in
+  `_sanitizeResponse`. It re-printed the command-echo prefix on every prompt
+  check, so verbose tunnel runs repeated bare command lines (`echo ...`, `exit`,
+  `ssh ...`) and showed a stray `ss` prefix. The method now returns the
+  sanitized response without logging, matching the baseline. Test:
+  `test/unit/api-baseline.test.js` — "does not emit the command echo as a
+  verbose message".
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls
