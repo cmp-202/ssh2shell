@@ -326,6 +326,12 @@ sign-off:
    text each time the chain changes. **Fixed at L5 (signed off):** `_previousHost`
    calls `_removeListeners`, and `test/unit/hosts.test.js` asserts the baseline
    leak and the current clean result in the same test.
+10. Error handling has several latent defects and one L5 behavior change:
+    `_stream.close()` is unguarded, connection/stream errors gained `close=true`
+    at L5 (baseline only reported them), the default listener ignores its
+    callback, and default `error` listeners can accumulate after a host with
+    `onError` is followed by one without. See `docs/ERROR-HANDLING.md` for the
+    full emit-site map, findings F1-F11, and the sign-off list.
 
 ## Verification
 

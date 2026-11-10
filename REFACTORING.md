@@ -248,6 +248,20 @@ its own hash. The annotated tags are the stable rollback references; use
   baseline-only behavior.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
+### Post-L5 error-handling review
+
+- `docs/ERROR-HANDLING.md` — maps every `error` emit site to its payload,
+  `close` flag, follow-up flow, and connection/process outcome. It also records
+  the default listener contract and findings F1-F11 (pre-shell close crash,
+  L5 close-flag changes, ignored callbacks, listener accumulation, stale
+  `_stream`, and related quirks).
+- `test/unit/error-handling.test.js` — 10 characterization tests. They pass
+  against both the current build and the frozen baseline, with level-aware
+  expectations where L5 intentionally differs (connection/stream close flags,
+  pre-shell connection errors, default listener counts).
+- This review did not change source behavior and is not a new level tag. The
+  recommended fixes in the review still need sign-off.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -274,6 +288,12 @@ observable behavior or security posture and needs its own level and sign-off.
 - **Done at L4:** removed `_nextPrimaryHost`'s bare `@_runExit` reference as
   dead code; the normal back-out path is `_runExit` via `_previousHost`.
 - **Emit sudo authentication errors regardless of `debug`.** Not part of L5.
+- **Resolve the error-handling findings in `docs/ERROR-HANDLING.md`.** In
+  particular: guard `_stream.close()` before the shell opens (F1/F3), decide
+  whether `Connection`/`Stream` errors keep L5's `close=true` or return to the
+  baseline `close=false` (F2), invoke the optional `error` callback (F4),
+  install the default `error` listener exactly once (F6), and reset or validate
+  `_stream` per primary host (F10).
 - **Compile prompts/filters per host, not once per instance.** Not part of L5.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
