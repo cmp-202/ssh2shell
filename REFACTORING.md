@@ -262,6 +262,28 @@ its own hash. The annotated tags are the stable rollback references; use
 - This review did not change source behavior and is not a new level tag. The
   recommended fixes in the review still need sign-off.
 
+### Post-L5 backlog fixes
+
+Signed-off-by: user review of the backlog, before further error-handling work.
+
+- `src/ssh2shell/defaults.js` — `window` and `pty` use nullish checks so an
+  explicit `false` is preserved.
+- `src/ssh2shell.js` — `_loadDefaults` maps `dataIdleTimeOut` to the internal
+  `dataIdleTime`, with `dataIdleTime` as a fallback.
+- `src/ssh2shell.js` — sudo password rejection is a debug `msg` notification,
+  not an `error` event. The command is still cancelled with `Ctrl-C`.
+- `src/ssh2shell/ssh-command.js` — `forceProtocolVersion` and
+  `forceAddressType` map to allow-listed `ssh` flags. `true` selects `-2` / `-4`;
+  invalid truthy values return a `Security Alert` error.
+- `README.md` — removed `onPipe`/`onUnpipe` host handlers and the `.pipe` /
+  `.unpipe` method/event documentation. `pipe` is a stream-level operation on
+  the instance, not host config.
+- `test/unit/api-baseline.test.js`, `test/unit/ssh-connect.test.js`,
+  `test/unit/prompts.test.js`, and `test/unit/error-handling.test.js` — updated
+  with level-aware expectations for the baseline and the fixed behavior.
+- `docs/API-BASELINE.md` — records the fixes and clarifies the still-pending
+  per-host prompt/filter compilation requirement.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -274,27 +296,30 @@ observable behavior or security posture and needs its own level and sign-off.
   authentication/fingerprint handling consistent for nested hosts. This is the
   largest planned behavioral change and should be its own level with dedicated
   tests.
-- **Map the documented `dataIdleTimeOut` to the internal `dataIdleTime` timer**
-  (default 500 ms). The internal variable keeps its name; the public key should
-  be `dataIdleTimeOut`, optionally accepting the undocumented `dataIdleTime` as
-  a fallback.
-- **Audit truthiness-based defaults.** `window` and `pty` currently force an
-  explicit `false` back to `true`; use nullish/undefined checks so `false`
-  survives. Keep this audit for any new boolean host property.
-- **Add or remove the documented `unpipe` surface** so docs and code agree.
-  README reconciliation is deferred to L6; the refactor levels stay code-only.
-- **Correct `forceProtocolVersion` / `forceAddressType`** so values map to valid
-  `ssh` flags (`-1` / `-2`, `-4` / `-6`) instead of being appended literally.
+- **Done post-L5 (signed off):** map the documented `dataIdleTimeOut` to the
+  internal `dataIdleTime` timer (default 500 ms). `dataIdleTimeOut` wins; the
+  undocumented `dataIdleTime` remains as a fallback.
+- **Done post-L5 (signed off):** audit truthiness-based defaults. `window` and
+  `pty` now use nullish checks, so an explicit `false` survives.
+- **Done post-L5 (signed off):** remove the documented `pipe`/`unpipe` surface
+  from the README. They are stream-level operations on the instance, not host
+  config or host events; the inherited `pipe` remains available.
+- **Done post-L5 (signed off):** map `forceProtocolVersion` / `forceAddressType`
+  to valid `ssh` flags (`-1` / `-2`, `-4` / `-6`). `true` selects `-2` / `-4`;
+  invalid values return a `Security Alert` error.
 - **Done at L4:** removed `_nextPrimaryHost`'s bare `@_runExit` reference as
   dead code; the normal back-out path is `_runExit` via `_previousHost`.
-- **Emit sudo authentication errors regardless of `debug`.** Not part of L5.
+- **Done post-L5 (signed off):** sudo password rejection is a debug notification,
+  not an `error` event. The command is cancelled and the session continues.
 - **Resolve the error-handling findings in `docs/ERROR-HANDLING.md`.** In
   particular: guard `_stream.close()` before the shell opens (F1/F3), decide
   whether `Connection`/`Stream` errors keep L5's `close=true` or return to the
   baseline `close=false` (F2), invoke the optional `error` callback (F4),
   install the default `error` listener exactly once (F6), and reset or validate
   `_stream` per primary host (F10).
-- **Compile prompts/filters per host, not once per instance.** Not part of L5.
+- **Pending sign-off: compile prompts/filters per host, not once per instance.**
+  See [Per-host prompt/filter compilation](docs/API-BASELINE.md#per-host-promptfilter-compilation-clarification)
+  for the requirement, proposed change, and test impact.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls

@@ -51,7 +51,7 @@ call to `close()`.
 
 | # | Source | Trigger | Emitted payload `(err, type, close, callback)` | Close | Flow immediately after emit | Effect on session |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `_processSudoPrompt` | Sudo password rejected (`pwSent` true) | `("<host>: Password was incorrect for <user>", "Sudo authentication failed")` | `false` | `_resetFromSudoError()`: append buffer to `sessionText`, clear buffer/command, write `Ctrl-C` | Connection stays open; the sudo command is cancelled. **Emitted only when `debug` is true.** |
+| 1 | `_processSudoPrompt` | Sudo password rejected (`pwSent` true) | **No `error` event** (current). Baseline emitted `("<host>: Sudo password was incorrect...", "Sudo authentication")` when `debug` was on. | n/a | `_resetFromSudoError()`: append buffer to `sessionText`, clear buffer/command, write `Ctrl-C` | Notification only. Connection stays open; the sudo command is cancelled. Current emits a debug `msg`. |
 | 2 | `_sshConnect` | `buildSshCommand` returns an error (security alert) | `(result.error, "Security Alert", true)` | `true` | `return` | Closes the current shell stream, which ends the connection. Remaining secondary hosts are not resumed. |
 | 3 | `_processSSHPrompt` | Nested SSH authentication fails after the password/passphrase was sent | `("<host>: SSH authentication failed for <user>@<host>", "SSH multi host authentication failure")` | `false` | `_previousHost()` if `_connections` is non-empty, otherwise `_runExit()` | No direct close. The back-out/exit path eventually closes or resumes the previous host. |
 | 4 | `_loadDefaults` default `onCommandTimeout` | Command idle timer fires | `("<host>: Command timed out after <n> seconds", "Command Timeout", true, callback)` | `true` | None | Closes the stream and ends the session. The callback that would append `_buffer` to `sessionText` and clear it **never runs**. |
@@ -62,6 +62,22 @@ call to `close()`.
 | 9 | `_connect` connection `close` | `ssh2` reports `had_error` truthy | `(had_error, "Connection close")` | `false` | Clear timers, then call `_callback(_allSessions)` or start the next primary host | Non-fatal. The error is reported and the session still finishes or advances. |
 | 10 | `_connect` connect `try` | `connection.connect` throws synchronously | `(e + " " + e.stack, "Connection.connect", true)` | `true` | None | Attempts to close the stream. Before the shell opens this throws; on a later primary host it can close a stale stream from the previous host. |
 | 11 | `_connect` missing parameters | No `sshObj.server` or no `sshObj.commands` | `("Missing connection parameters", "Parameters", false, callback)` | `false` | None | No close and no callback. The diagnostic callback that would print `server` and `commands` never runs; the session neither starts nor ends. |
+
+## Notification vs terminator
+
+Not every failure should be an `error` event. The current classification is:
+
+| Class | Emit sites | Meaning |
+| --- | --- | --- |
+| **Terminator** (`close=true`) | Security Alert, Command Timeout, Shell, Stream, Stream.read error, Connection, Connection.connect | The current connection cannot continue; closing the stream is the intended way to end it. |
+| **Flow control** (`close=false`) | Nested SSH authentication failure, Connection close (`had_error`) | The error is reported, but the existing back-out/advance logic decides what happens next. |
+| **Notification** | Sudo password rejection (current: debug `msg`; baseline: conditional `error`) | The command was cancelled and the session continues. Raising `error` added noise without changing termination. |
+| **Unclassified** | Missing connection parameters | No close and no callback. The session neither starts nor ends, so it is neither a notification nor a clean terminator. Needs a decision. |
+
+The rule going forward: only emit `error` when the caller must know the
+connection is ending or the flow has changed. Otherwise use `_systemMsg` or a
+non-error event. Sudo rejection now follows that rule; the remaining
+`close=false` sites still need their own sign-off before changing.
 
 ## How a close actually terminates the session
 
@@ -96,7 +112,7 @@ Consequences:
 
 ## Findings
 
-| ID | Finding | Baseline | Current L5 | Severity | Sign-off needed |
+| ID | Finding | Baseline | Current | Severity | Sign-off needed |
 | --- | --- | --- | --- | --- | --- |
 | F1 | A connection `error` before the shell opens throws `TypeError: this._stream.close is not a function`, so the host `onError` listener never runs. | Does not throw: `Connection` errors are emitted with no close. | Throws, because L5 passes `close=true`. | High (crash) | Yes: restore the baseline close flag and/or guard `_stream.close()`. |
 | F2 | `Connection` and `Stream` errors close the shell stream and end the session. | Only report the error; stream and connection stay open. | Close the stream, which triggers `connection.end()`, the callback, or the next primary host. | High (behavior change) | Yes: keep the new behavior or restore baseline. |
@@ -104,7 +120,7 @@ Consequences:
 | F4 | The default listener ignores `callback`. | Same. | Same. | Medium: command-timeout text is not appended to `sessionText`; missing-parameter diagnostics are never printed. | Yes: calling it changes observable behavior. |
 | F5 | The default listener is registered before the host `onError`, and closes the stream before the host handler runs. | Same. | Same. | Medium: a host cannot observe the error before termination. | Yes if listener order changes. |
 | F6 | Default `error` listeners accumulate. After a host with `onError` is followed by a host without it, `_loadDefaultListeners` installs another default. | One default listener is installed in the constructor and never duplicated by `_loadDefaults`. | Count grows across that host pattern (`1 -> 2 -> 3 ...`). | Medium (duplicate messages, repeated closes) | Arguably an L5 regression fix; confirm. |
-| F7 | Sudo authentication failure emits `error` only when `debug` is true. | Same. | Same. | Medium: silent failure in normal use. | Yes: documented defect. |
+| F7 | Sudo authentication failure was emitted as `error` only when `debug` was true. | Conditional `error`. | **Fixed in the backlog:** debug `msg` notification, no `error`. | Resolved | Done. |
 | F8 | `Connection close` emits the boolean `had_error` as `err`, then still advances or calls back. | Same. | Same. | Informational: errors are non-fatal on this path; the message is `Connection close error: true`. | Only if the semantics change. |
 | F9 | No `process.exit`; a path that never closes can hang the process. | Same. | Same. | Informational | Design decision. |
 | F10 | `_stream` is not reset between primary hosts. | Same. | Same. | Medium: an early error on a later host can close the previous host's stream. | Yes if resetting. |
@@ -161,8 +177,8 @@ ssh._loadDefaults();       // current: adds another default = 2; baseline: 1
    from the host `onError` cache, or do not delete the cache entry when detaching
    a host handler, so `_loadDefaultListeners` cannot add duplicates.
 
-5. **Emit sudo authentication failures regardless of `debug`.** This is already
-   in the backlog; it remains a behavior change.
+5. **Done in the backlog: sudo authentication failures are a debug `msg`, not
+   an `error`.** No further sign-off needed for that notification change.
 
 6. **Reset or validate `_stream` per host.** Set it to `null`/`{}` when starting
    a primary host, or check that it belongs to the current connection before

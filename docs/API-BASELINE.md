@@ -73,7 +73,7 @@ until `_connections` is empty and `close()` runs.
 | `close()` | Implemented | Calls `_stream.close()`. |
 | `on`, `emit`, `once`, `removeListener` | Inherited | Normal `EventEmitter` API. |
 | `pipe(destination)` | Inherited | Legacy `Stream.prototype.pipe`; works by listening to `data`/`end`. |
-| `unpipe(destination)` | **Missing** | `Stream.prototype.unpipe` is undefined; README documents it. |
+| `unpipe(destination)` | **Missing** | `Stream.prototype.unpipe` is undefined. The README no longer documents it; `pipe`/`unpipe` are stream-level operations on the instance, not host config. |
 
 ### Public properties
 
@@ -105,15 +105,15 @@ until `_connections` is empty and `close()` runs.
 | `commandTimeout` | `(command, response, stream, connection)` | Idle/data-settle timers in `_onData`. |
 | `keyboard-interactive` | `(name, instructions, lang, prompts, finish)` | Re-emitted from the `ssh2.Client`. |
 | `newPrimaryHost` | value returned by `_nextPrimaryHost`, which is `_initiate`'s return value: at `connect()` time this is `_stream` (the prototype placeholder `{}` until the shell opens) | `connect` and connection `close`. |
-| `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README events section still lists them and needs an L6 rewrite. |
+| `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README no longer lists them. |
 
 ## Host configuration keys recognized by the code
 
 **Connection and session:** `server`, `hosts`, `commands`, `msg`,
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
 `debug`, `enter`, `streamEncoding`, `window`, `pty`, `idleTimeOut`,
-`dataIdleTime` (undocumented; see `dataIdleTimeOut` below), `sessionText`,
-`exitCommands`.
+`dataIdleTimeOut` (public timer key; falls back to the undocumented
+`dataIdleTime`), `sessionText`, `exitCommands`.
 
 **Prompts and filters:** `standardPrompt`, `passwordPrompt`, `passphrasePrompt`,
 `passPromptText`, `asciiFilter`, `disableASCIIFilter`, `textColorFilter`,
@@ -154,11 +154,17 @@ for `passwordPrompt` and `passphrasePrompt`.
 These documentation-only corrections were made at L1 because the README was
 wrong, not because the code changed:
 
-- Removed `onPipe` / `onUnpipe` from the host configuration block. Pipe and
-  unpipe are stream-level operations, already covered by the API section; the
-  class never reads these host handlers.
 - Removed the `callback` host property. Only `connect(callback)` is read.
 - Corrected the `host.idleTimeout` comment to `host.idleTimeOut`.
+
+## Post-L5 README corrections (signed off)
+
+- Removed `onPipe` / `onUnpipe` from the host configuration block, the
+  `.pipe` / `.unpipe` methods, and the `pipe` / `Unpipe` events. Pipe and unpipe
+  are stream-level operations on the instance, not host config or host events.
+  The inherited `pipe` remains available.
+- Updated `forceProtocolVersion` / `forceAddressType` to show their accepted
+  values instead of `true/false`.
 
 ## L5 behavior changes (signed off)
 
@@ -190,16 +196,16 @@ test that runs against both the current build and the frozen baseline artifact.
 
 | # | README claim | Code reality | Impact | Action |
 | --- | --- | --- | --- | --- |
-| 1 | `dataIdleTimeOut: 500` | Reads `dataIdleTime`; the internal timer variable has the same name | Documented key is ignored | Open (future L5+): map `dataIdleTimeOut` to internal `dataIdleTime` |
-| 2 | `window: false` default | `window` is forced to `true` when falsy | Explicit `false` cannot be used | Open (future L5+): nullish/undefined check |
-| 3 | `pty` is not documented | `pty` defaults to and is forced to `true` | `{ pty: false }` cannot be used | Open (future L5+): nullish/undefined check |
-| 4 | `.unpipe(stream)` | `unpipe` is undefined on instances | Calling it throws `TypeError` | Open (future L5+/L6): add it or remove the claim |
-| 5 | `onPipe` / `onUnpipe` host handlers | Never read | Redundant | **Resolved at L1** (removed from README) |
-| 6 | `pipe` / `Unpipe` events on the instance | Not emitted by the class; stream-level only | Listeners never fire | L6: rewrite the events section |
+| 1 | `dataIdleTimeOut: 500` | Reads `dataIdleTime`; the internal timer variable has the same name | Documented key is ignored | **Resolved post-L5:** `dataIdleTimeOut` is mapped, with `dataIdleTime` fallback |
+| 2 | `window: false` default | `window` is forced to `true` when falsy | Explicit `false` cannot be used | **Resolved post-L5:** nullish check preserves `false` |
+| 3 | `pty` is not documented | `pty` defaults to and is forced to `true` | `{ pty: false }` cannot be used | **Resolved post-L5:** nullish check preserves `false` |
+| 4 | `.unpipe(stream)` | `unpipe` is undefined on instances | Calling it throws `TypeError` | **Resolved post-L5:** removed from the README; `pipe` is inherited |
+| 5 | `onPipe` / `onUnpipe` host handlers | Never read | Redundant | **Resolved post-L5:** removed from the README |
+| 6 | `pipe` / `Unpipe` events on the instance | Not emitted by the class; stream-level only | Listeners never fire | **Resolved post-L5:** removed from the README |
 | 7 | `host.callback` | Only `connect(callback)` is read | Ignored | **Resolved at L1** (removed from README) |
 | 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | L6: document accurately |
-| 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | Open (future L5+): valid flag mapping |
-| 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | Open (future L5+): valid flag mapping |
+| 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-1`/`-2`; `true` → `-2` |
+| 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-4`/`-6`; `true` → `-4` |
 | 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | L6: align docs and code |
 | 12 | `host.idleTimeout` in a comment | Actual key is `idleTimeOut` | Documentation typo | **Resolved at L1** |
 | 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | L6: correct docs |
@@ -212,7 +218,7 @@ test that runs against both the current build and the frozen baseline artifact.
 ## `dataIdleTimeOut` and the internal timer
 
 `_onData` schedules `dataReceivedTimer` with `@dataIdleTime` (source line 84).
-The internal variable is `dataIdleTime`. `_loadDefaults` currently reads
+The internal variable is `dataIdleTime`. At baseline, `_loadDefaults` reads
 `@sshObj.dataIdleTime` (source line 564), so the documented public key
 `dataIdleTimeOut` (README line 137) is ignored.
 
@@ -221,14 +227,19 @@ The intended shape is:
 - public host key: `dataIdleTimeOut` (milliseconds, default 500)
 - internal instance variable: `dataIdleTime` (used by the timer)
 
-A future fix should set `@dataIdleTime = @sshObj.dataIdleTimeOut ? 500`,
-optionally falling back to `@sshObj.dataIdleTime` for anyone who used the
-undocumented name. This is a behavior fix, not a rename of the internal
-variable.
+**Fixed post-L5:** `_loadDefaults` now uses:
 
-The timer's purpose is to stop the script hanging when a command response does
-not satisfy the state-engine tests (for example, a standard prompt is never
-detected). It is separate from `idleTimeOut`, which is the command timeout.
+```js
+this.dataIdleTime =
+  this.sshObj.dataIdleTimeOut ?? this.sshObj.dataIdleTime ?? 500;
+```
+
+`dataIdleTimeOut` wins; the undocumented `dataIdleTime` remains as a fallback
+for existing callers. This is a behavior fix, not a rename of the internal
+variable. The timer's purpose is to stop the script hanging when a command
+response does not satisfy the state-engine tests (for example, a standard prompt
+is never detected). It is separate from `idleTimeOut`, which is the command
+timeout.
 
 ## Truthiness defaults audit (`_loadDefaults`)
 
@@ -246,8 +257,10 @@ object. Both should use an undefined/null check (`?`) rather than truthiness so
 `false` survives. The same audit should be applied to any new boolean host
 property: use `?` (nullish) or `isnt undefined`, not `unless`.
 
-`hosts`, `commands`, `exitCommands`, and `sessionText` also use `unless`, but
-empty arrays/strings are truthy or the replacement is equivalent, so they do not
+**Fixed post-L5:** `applyHostDefaults` now uses `== null` for both, so explicit
+`window: false` and `pty: false` are preserved. `hosts`, `commands`,
+`exitCommands`, and `sessionText` still use truthiness checks, but empty
+arrays/strings are truthy or the replacement is equivalent, so they do not
 change explicit values. `idleTime` and `dataIdleTime` already use `?`.
 
 ## `forceProtocolVersion` / `forceAddressType`
@@ -279,17 +292,78 @@ Valid `ssh` CLI flags for the underlying concepts are:
 - `-1` / `-2` — force protocol version 1 / 2.
 - `-4` / `-6` — force IPv4 / IPv6 address family.
 
-There is no boolean `-x` variant. Proposed future handling, subject to sign-off
-because it changes behavior for anyone who currently passes these keys:
+There is no boolean `-x` variant.
 
-- Accept an explicit value and map it to an allow-listed flag, appended as a
-  separate token: `forceProtocolVersion: 2` → ` -2`; `forceAddressType: 4` →
-  ` -4`. (The current code appends without a separator, so the mapping must
-  include one.)
-- Reject anything outside the allow-list with a clear `error` event.
-- If boolean compatibility is required, define `true` as a sane default
-  (`-2` for protocol, `-4` for address) and document it. Otherwise, treat
-  `true` as invalid and explain the required value.
+**Fixed post-L5:** `buildSshCommand` maps these options through an allow-list:
+
+- `forceProtocolVersion: 1` or `2` (number or string) → ` -1` / ` -2`.
+  `true` selects the modern default, ` -2`.
+- `forceAddressType: 4` or `6` (number or string) → ` -4` / ` -6`.
+  `true` selects the IPv4 default, ` -4`.
+- `false`, `null`, and `undefined` disable the option.
+- Any other truthy value returns a `Security Alert` error
+  (`Invalid forceProtocolVersion: <value>` or
+  `Invalid forceAddressType: <value>`) instead of producing an invalid flag.
+
+The flags are appended as separate tokens (`ssh -x -2 ...`), so they no longer
+merge with `-x`.
+
+## Per-host prompt/filter compilation (clarification)
+
+`_loadDefaults` runs for every primary host (`_initiate`) and every nested host
+(`_nextHost`), so it always has the current `sshObj`. The problem is that it
+only compiles the regexes when the **instance** property is falsy:
+
+- `asciiFilter` when `this.asciiFilter` is falsy
+- `textColorFilter` when `this.textColorFilter` is falsy
+- `passwordPrompt` when `this.passwordPrompt` is falsy
+- `passphrasePrompt` when `this.passphrasePrompt` is falsy
+- `standardPrompt` when `this.standardPrompt` is falsy
+
+After the first host these instance properties are set, so later hosts reuse the
+first host's compiled regexes. `applyHostDefaults` still updates the `sshObj`
+strings, but they are never recompiled.
+
+**Consequence:** a second host with a different `standardPrompt`,
+`passwordPrompt`, `passphrasePrompt`, `asciiFilter`, or `textColorFilter` is
+still detected and filtered with the first host's patterns. In a chain this can
+miss a prompt, time out a command, or filter output incorrectly.
+
+**What "per-host" means:** the compiled regexes must be derived from the current
+`sshObj` every time `_loadDefaults` runs. The instance properties
+(`this.asciiFilter`, `this.passwordPrompt`, ...) are internal compiled state, not
+public config; the public config is `sshObj.*`. The fix is to always assign the
+compilation result instead of guarding on the instance property:
+
+```js
+const ascii = compileAsciiFilter(this.sshObj.asciiFilter);
+this.asciiFilter = ascii.filter;
+
+const color = compileTextColorFilter(this.sshObj.textColorFilter);
+this.textColorFilter = color.filter;
+
+const prompts = compilePrompts(this.sshObj);
+this.passwordPrompt = prompts.passwordPrompt;
+this.passphrasePrompt = prompts.passphrasePrompt;
+this.standardPrompt = prompts.standardPrompt;
+```
+
+The fallback debug messages stay conditional on `debug`.
+
+**Impact:**
+
+- Single-host behavior is unchanged.
+- Multi-host behavior changes for hosts with different prompt/filter config.
+  That is the intended fix.
+- `test/unit/api-baseline.test.js` currently has "does not recompile filters on
+  a second `_loadDefaults` call", which locks the stale behavior. It would
+  become level-aware (baseline: stale; current: recompiled), and a new test
+  should load two hosts with different prompts and assert that the second host's
+  regex matches.
+- Directly assigning `ssh.passwordPrompt = /.../` on the instance is not a
+  documented config path and would be overwritten; use `host.passwordPrompt`.
+
+**Sign-off:** still pending. This is a behavior change for multi-host chains.
 
 ## Defects and quirks confirmed by the L1 harness
 
@@ -317,7 +391,8 @@ sign-off:
    `finish(prompts)`. A host that enables `tryKeyboard` without its own handler
    can hang. **Fixed at L5:** the default handler calls `finish([''])`.
 8. `_loadDefaults` only compiles filters and prompt regexes when the instance
-   property is empty, so they persist across hosts.
+   property is empty, so they persist across hosts. **Pending sign-off:** see
+   [Per-host prompt/filter compilation](#per-host-promptfilter-compilation-clarification).
 9. `_previousHost` does not call `_removeListeners`, unlike `_nextHost` and
    `_nextPrimaryHost`. The previous secondary host's event handlers stay
    attached, so a later `commandComplete` (or similar) can fire a stale handler
@@ -331,7 +406,8 @@ sign-off:
     at L5 (baseline only reported them), the default listener ignores its
     callback, and default `error` listeners can accumulate after a host with
     `onError` is followed by one without. See `docs/ERROR-HANDLING.md` for the
-    full emit-site map, findings F1-F11, and the sign-off list.
+    full emit-site map, findings F1-F11, and the sign-off list. Sudo rejection
+    was converted from a conditional `error` to a debug notification.
 
 ## Verification
 

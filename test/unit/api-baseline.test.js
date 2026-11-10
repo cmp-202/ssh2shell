@@ -166,8 +166,8 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.passwordPrompt.test('Pass for x pass: '), true);
     assert.equal(ssh.passphrasePrompt.test('Pass phrase: '), true);
 
-    // pty is forced to true even when explicitly false.
-    assert.equal(ssh.sshObj.pty, true);
+    // pty is forced to true on baseline; current keeps an explicit false.
+    assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
   });
 
   it('honours the legacy passwordPromt/passphrasePromt aliases', () => {
@@ -180,18 +180,24 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.sshObj.passphrasePrompt, 'legacyphrase:');
   });
 
-  it('characterizes dataIdleTimeOut being ignored', () => {
+  it('maps dataIdleTimeOut to the internal dataIdleTime timer', () => {
     const { ssh } = makeLoaded({ dataIdleTime: undefined, dataIdleTimeOut: 999 });
 
-    // README documents dataIdleTimeOut; the implementation reads dataIdleTime.
-    assert.equal(ssh.dataIdleTime, 500);
+    // README documents dataIdleTimeOut; baseline reads only dataIdleTime.
+    assert.equal(ssh.dataIdleTime, isBaseline() ? 500 : 999);
   });
 
-  it('characterizes window and pty being forced to true', () => {
+  it('prefers dataIdleTimeOut over the legacy dataIdleTime fallback', () => {
+    const { ssh } = makeLoaded({ dataIdleTime: 45, dataIdleTimeOut: 999 });
+
+    assert.equal(ssh.dataIdleTime, isBaseline() ? 45 : 999);
+  });
+
+  it('keeps explicit window and pty false instead of forcing true', () => {
     const { ssh } = makeLoaded({ window: false, pty: false });
 
-    assert.equal(ssh.sshObj.window, true);
-    assert.equal(ssh.sshObj.pty, true);
+    assert.equal(ssh.sshObj.window, isBaseline() ? true : false);
+    assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
   });
 
   it('compiles the default prompt regexes', () => {

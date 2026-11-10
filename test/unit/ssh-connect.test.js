@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   createHost,
 } = require('./helpers/harness');
@@ -123,21 +124,72 @@ describe('_sshConnect command construction', () => {
     );
   });
 
-  it('characterizes forceProtocolVersion being appended literally', () => {
-    const { ssh, writes } = build({ forceProtocolVersion: true });
+  it('maps forceProtocolVersion to a valid ssh flag', () => {
+    const boolean = build({ forceProtocolVersion: true });
+    boolean.ssh._sshConnect();
 
-    ssh._sshConnect();
+    if (isBaseline()) {
+      assert.ok(boolean.writes[0].startsWith('ssh -xtrue '));
+    } else {
+      assert.ok(boolean.writes[0].startsWith('ssh -x -2 '));
+    }
 
-    // README describes a boolean flag; the implementation appends the value.
-    assert.ok(writes[0].startsWith('ssh -xtrue '));
+    const explicit = build({ forceProtocolVersion: 1 });
+    explicit.ssh._sshConnect();
+
+    if (isBaseline()) {
+      assert.ok(explicit.writes[0].startsWith('ssh -x1 '));
+    } else {
+      assert.ok(explicit.writes[0].startsWith('ssh -x -1 '));
+    }
   });
 
-  it('characterizes forceAddressType being appended literally', () => {
-    const { ssh, writes } = build({ forceAddressType: true });
+  it('maps forceAddressType to a valid ssh flag', () => {
+    const boolean = build({ forceAddressType: true });
+    boolean.ssh._sshConnect();
 
-    ssh._sshConnect();
+    if (isBaseline()) {
+      assert.ok(boolean.writes[0].startsWith('ssh -xtrue '));
+    } else {
+      assert.ok(boolean.writes[0].startsWith('ssh -x -4 '));
+    }
 
-    // README describes a boolean flag; the implementation appends the value.
-    assert.ok(writes[0].startsWith('ssh -xtrue '));
+    const explicit = build({ forceAddressType: 6 });
+    explicit.ssh._sshConnect();
+
+    if (isBaseline()) {
+      assert.ok(explicit.writes[0].startsWith('ssh -x6 '));
+    } else {
+      assert.ok(explicit.writes[0].startsWith('ssh -x -6 '));
+    }
+  });
+
+  it('rejects invalid force flag values on current', () => {
+    const protocol = build({ forceProtocolVersion: 3 });
+    protocol.ssh._sshConnect();
+
+    const address = build({ forceAddressType: 5 });
+    address.ssh._sshConnect();
+
+    if (isBaseline()) {
+      assert.ok(protocol.writes[0].startsWith('ssh -x3 '));
+      assert.ok(address.writes[0].startsWith('ssh -x5 '));
+    } else {
+      assert.equal(protocol.writes.length, 0);
+      assert.ok(
+        protocol.errors.some((args) =>
+          String(args[0]).includes('Invalid forceProtocolVersion: 3')
+        )
+      );
+      assert.equal(protocol.ssh._stream.closed, true);
+
+      assert.equal(address.writes.length, 0);
+      assert.ok(
+        address.errors.some((args) =>
+          String(args[0]).includes('Invalid forceAddressType: 5')
+        )
+      );
+      assert.equal(address.ssh._stream.closed, true);
+    }
   });
 });

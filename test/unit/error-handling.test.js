@@ -45,7 +45,9 @@ function sudoFailure(debug) {
   ssh._stream = new FakeStream();
 
   const errors = [];
+  const messages = [];
   ssh.on('error', (...args) => errors.push(args));
+  ssh.on('msg', (message) => messages.push(message));
 
   ssh.command = 'sudo ls';
   ssh._buffer = 'Password: ';
@@ -53,7 +55,7 @@ function sudoFailure(debug) {
 
   processSudo(ssh);
 
-  return { ssh, errors };
+  return { ssh, errors, messages };
 }
 
 describe('error handling and connection termination', () => {
@@ -241,15 +243,26 @@ describe('error handling and connection termination', () => {
     assert.equal(callbackValue, '');
   });
 
-  it('emits sudo authentication failures only when debug is on', () => {
+  it('reports sudo authentication failures as a notification', () => {
     const quiet = sudoFailure(false);
     assert.equal(quiet.errors.length, 0);
     assert.equal(quiet.ssh._stream.closed, false);
     assert.deepEqual(quiet.ssh._stream.writes, ['\x03']);
 
     const loud = sudoFailure(true);
-    assert.ok(loud.errors.length >= 1);
     assert.equal(loud.ssh._stream.closed, false);
+
+    if (isBaseline()) {
+      assert.ok(loud.errors.length >= 1);
+    } else {
+      // Current: a rejected sudo password is a debug notification, not an error.
+      assert.equal(loud.errors.length, 0);
+      assert.ok(
+        loud.messages.some((message) =>
+          String(message).includes('Password was incorrect for tester')
+        )
+      );
+    }
   });
 
   it('tracks default error listeners across hosts (F6)', () => {

@@ -317,13 +317,13 @@ class SSH2Shell extends Stream {
       case passwordPrompt && this.sshObj.pwSent:
         this._systemMsg('debug', `processSudoPrompt: Failed login`);
         
-        if (this.debug) {
-          this.emit(
-            'error',
-            `${this.host}: Password was incorrect for ${this.sshObj.server.userName}`, 
-            'Sudo authentication failed'
-          );
-        }
+        // A rejected sudo password is a notification, not a terminator: the
+        // command is cancelled and the session continues. Report it as debug
+        // output instead of raising a non-closing `error`.
+        this._systemMsg(
+          'debug',
+          `Password was incorrect for ${this.sshObj.server.userName}`
+        );
         this._systemMsg('verbose',`processSudoPrompt: Failed login: Response: ${response}`);
         
         this.sshObj.pwSent = false;
@@ -803,7 +803,10 @@ class SSH2Shell extends Stream {
     applyHostDefaults(this.sshObj);
 
     this.idleTime = this.sshObj.idleTimeOut ?? 5000;
-    this.dataIdleTime = this.sshObj.dataIdleTime ?? 500;
+    // Public key is `dataIdleTimeOut` (README). Keep the undocumented
+    // `dataIdleTime` as a fallback for existing callers.
+    this.dataIdleTime =
+      this.sshObj.dataIdleTimeOut ?? this.sshObj.dataIdleTime ?? 500;
 
     // Compile ASCII Filter with Safe Fallback.
     if (!this.asciiFilter) {

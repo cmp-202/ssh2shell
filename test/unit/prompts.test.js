@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   createHost,
 } = require('./helpers/harness');
@@ -45,10 +46,12 @@ describe('sudo prompt handling', () => {
     assert.equal(ssh.sshObj.pwSent, true);
   });
 
-  it('resets and reports an error when the sudo password is rejected', () => {
+  it('resets and reports the sudo password rejection', () => {
     const { ssh } = make({ server: { password: 'secret' }, debug: true });
     const errors = [];
+    const messages = [];
     ssh.on('error', (...args) => errors.push(args));
+    ssh.on('msg', (message) => messages.push(message));
     ssh.command = 'sudo ls';
     ssh._buffer = 'Password: ';
     ssh.sshObj.pwSent = true;
@@ -60,7 +63,18 @@ describe('sudo prompt handling', () => {
     assert.equal(ssh._buffer, '');
     assert.ok(ssh.sshObj.sessionText.includes('Password: '));
     assert.deepEqual(ssh._stream.writes, ['\x03']);
-    assert.ok(errors.length >= 1);
+
+    if (isBaseline()) {
+      assert.ok(errors.length >= 1);
+    } else {
+      // A rejected sudo password is a notification, not a terminator.
+      assert.equal(errors.length, 0);
+      assert.ok(
+        messages.some((message) =>
+          String(message).includes('Password was incorrect for tester')
+        )
+      );
+    }
   });
 
   it('cancels the command when sudo needs a password but none is configured', () => {

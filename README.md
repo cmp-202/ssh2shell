@@ -103,7 +103,9 @@ host = {
   //Optional: exclude or include host banner after connection
   showBanner:         false,
   //https://github.com/mscdex/ssh2#pseudo-tty-settings
+  //`false` is honoured for both; they default to `true`.
   window:             false, 
+  pty:                false,
   
   //Optional: Enter key character to send as end of line.
   enter:              "\n",
@@ -154,16 +156,6 @@ host = {
   //Optional:
   onData: function( data ) {
     //data is the raw response from the host
-  },
-  
-  //Optional: 
-  onPipe: function( stream ) {
-    //a read stream that will receive raw resonse data
-  },
-  
-  //Optional: 
-  onUnpipe: function( steam ) {
-    //removes the steam added in onPipe.
   },
   
   //Optional: 
@@ -237,10 +229,6 @@ SSH2Shell extends events.EventEmitter
 * .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
   
-* .pipe(stream) binds a writable stream to the output of the read stream but only after the connection is established.
-
-* .unpipe(stream) removes a piped stream but can only be called after a connection has been made.
-
 *Variables*
 
 * .sshObj is the host object as defined above along with some instance variables.
@@ -700,8 +688,8 @@ current host to the next. A number of ssh command options are set using an optio
 var host = {
     server: { ...,
         ssh: {
-            forceProtocolVersion: true/false,
-            forceAddressType: true/false,
+            forceProtocolVersion: 2, //1 or 2; true defaults to 2
+            forceAddressType: 4,     //4 or 6; true defaults to 4
             disablePseudoTTY: true/false,
             forcePseudoTTY: true/false,
             verbose: true/false,
@@ -1002,14 +990,6 @@ ssh2shell.on ("keyboard-interactive",
 
 ssh2shell.on ("data", function onData(data){
   //data is a string chunk received from the stream.data event
-});
-
-ssh2shell.on ("pipe", function onPipe(source){
-  //Source is the read stream to output data from
-});
-
-ssh2shell.on ("Unpipe", function onUnpipe(source){
-  //Source is the read stream to remove from outputting data
 });
 ```
 

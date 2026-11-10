@@ -73,10 +73,12 @@ function applyHostDefaults(sshObj) {
   if (sshObj.streamEncoding == null) {
     sshObj.streamEncoding = 'utf8';
   }
-  if (!sshObj.window) {
+  // `window` and `pty` default to true, but an explicit `false` is meaningful
+  // (no PTY / no window settings), so only replace null/undefined.
+  if (sshObj.window == null) {
     sshObj.window = true;
   }
-  if (!sshObj.pty) {
+  if (sshObj.pty == null) {
     sshObj.pty = true;
   }
 }
