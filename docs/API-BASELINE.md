@@ -248,7 +248,7 @@ are covered by level-aware tests that also run against the frozen baseline.
 | 5 | `onPipe` / `onUnpipe` host handlers | Never read | Redundant | **Resolved post-L5:** removed from the README |
 | 6 | `pipe` / `Unpipe` events on the instance | Not emitted by the class; stream-level only | Listeners never fire | **Resolved post-L5:** removed from the README |
 | 7 | `host.callback` | Only `connect(callback)` is read | Ignored | **Resolved at L1** (removed from README) |
-| 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | L7 docs (README owner): document the actual base |
+| 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | **Resolved at L7 (README):** now documents `stream.Stream` |
 | 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-1`/`-2`; `true` → `-2` |
 | 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-4`/`-6`; `true` → `-4` |
 | 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | **Resolved at L7 (README):** the config default now includes `\t`; one example later in the README still shows the old value |

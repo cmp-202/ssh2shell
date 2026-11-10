@@ -389,9 +389,9 @@ were after L6.1.
   L7 docs ownership and marks items 16-18 resolved.
 - `REFACTORING.md` — this L7 section and ledger row.
 - The README itself is corrected by the project owner. The L7 README pass
-  aligned the `asciiFilter` default, the `onError` close guidance, and the
-  `emit` signature; the `stream.Stream` base remains to be documented, and one
-  later `asciiFilter` example still uses the old value. The misspelled
+  aligned the `stream.Stream` base, the `asciiFilter` default, the `onError`
+  close guidance, and the `emit` signature; one later `asciiFilter` example
+  still uses the old value. The misspelled
   `passwordPromt` / `passphrasePromt` aliases were removed rather than
   documented (see the post-L7 entry in the backlog).
 

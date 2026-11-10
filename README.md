@@ -219,7 +219,7 @@ host = {
 
 [ssh2shell API: ^](#)
 -------------
-SSH2Shell extends events.EventEmitter
+SSH2Shell extends stream.Stream
 
 *Methods*
 
