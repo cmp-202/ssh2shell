@@ -24,4 +24,4 @@ var SSH = new SSH2Shell(host),
       }
       
 SSH.on('msg', log); 
-SSH.connect(callback)
+SSH.connect(callback);

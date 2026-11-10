@@ -70,14 +70,15 @@ class SSH2Shell extends Stream {
     this._allSessions = '';
     this._defaultErrorListener = null;
     this._loadDefaultListeners();
-    this.msg;   
   }
   
   _loadDefaultListeners() {
-    if(!this._boundListeners['msg']){
+    if (!this.msg) {
       this.msg = (message) => {
           console.log(message);
         };
+    }
+    if(!this._boundListeners['msg']){
       this._boundListener('msg', this.msg); 
     }    
     if(!this._boundListeners['data']){
@@ -802,11 +803,14 @@ class SSH2Shell extends Stream {
       this._detachListener('error', 'onError');
     }
     if (
-      typeof this.sshObj.msg === 'function' &&
+      typeof this.sshObj.msg === 'function' ||
       typeof this._boundListeners['msg'] === 'function'
     ){
       this._detachListener('msg', 'msg');
     }
+    // Keep a message sink for _systemMsg between leaving this host and loading
+    // the next one. _loadDefaults swaps in a host handler when one exists.
+    this._boundListener('msg', this.msg);
     
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);

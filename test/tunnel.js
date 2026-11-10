@@ -1,16 +1,6 @@
 var dotenv = require('dotenv').config();
-const fs = require('node:fs');
-const path = require('node:path');
-
 const { logFile, log } = require('./utils/logging.js');
 logFile('tunnel.js');
-
-const msg = function (message) {
-    if (typeof message === 'object') {
-        message = JSON.stringify(message, null, '\t');
-    }
-    fs.appendFileSync(logFile, `${message}\n`, 'utf8');
-}
 
 var conParamsHost1 = {
   host:         process.env.HOST,

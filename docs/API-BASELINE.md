@@ -229,6 +229,12 @@ are covered by level-aware tests that also run against the frozen baseline.
   500 defaults. A host's `idleTimeOut` / `dataIdleTimeOut` still overrides them,
   and leaving a host restores the base. `idleTime` is accepted as a legacy host
   alias for `idleTimeOut`. Test: `test/unit/timers.test.js`.
+- **Message listener continuity.** `_removeListeners` keeps the default `msg`
+  listener attached while a host is being swapped, so `_systemMsg` debug/verbose
+  output is not dropped between hosts. `_loadDefaults` swaps in a host `msg`
+  handler when one exists and falls back to the default handler otherwise.
+  Tests: `test/unit/l5-behavior.test.js` — message-sink and duplicate-listener
+  cases.
 
 ## README vs code discrepancies
 

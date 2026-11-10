@@ -429,6 +429,13 @@ observable behavior or security posture and needs its own level and sign-off.
   value does not leak into the next. `idleTime` is accepted as a legacy host
   alias. Non-positive/non-numeric values are treated as unset. Test:
   `test/unit/timers.test.js`.
+- **Done post-L6.1 (signed off):** keep the default `msg` listener attached
+  while hosts are swapped so `_systemMsg` output is not lost between
+  `_removeListeners` and the next `_loadDefaults`. `_loadDefaults` now falls
+  back to the stored default handler when a host has no `msg`. The live test
+  scripts share `test/utils/logging.js` and run against `src/` so they can be
+  used before a build. Tests: `test/unit/l5-behavior.test.js` — message-sink,
+  duplicate-listener, and default-handler restoration cases.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls

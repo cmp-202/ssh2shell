@@ -72,6 +72,73 @@ describe('L5 listener lifecycle', () => {
       assert.equal(ssh.listenerCount('commandComplete'), 0);
     }
   });
+
+  it('keeps a message sink between removing and loading host listeners', () => {
+    if (isBaseline()) {
+      // The baseline removes the host msg handler and leaves no listener
+      // behind until the next _loadDefaults call.
+      return;
+    }
+
+    const messages = [];
+    const { ssh } = make({
+      msg: (message) => messages.push(`host:${message}`),
+    });
+    ssh.msg = (message) => messages.push(`default:${message}`);
+    ssh.debug = true;
+
+    ssh._removeListeners();
+    assert.equal(ssh.listenerCount('msg'), 1);
+
+    ssh._systemMsg('debug', 'after remove');
+    assert.ok(
+      messages.some(
+        (message) =>
+          message.startsWith('default:') && message.includes('after remove')
+      )
+    );
+  });
+
+  it('does not duplicate the msg listener when switching hosts', () => {
+    if (isBaseline()) {
+      return;
+    }
+
+    const { ssh } = make({ msg: () => {} });
+    assert.equal(ssh.listenerCount('msg'), 1);
+
+    ssh._removeListeners();
+    assert.equal(ssh.listenerCount('msg'), 1);
+
+    ssh.sshObj = createHost();
+    ssh._loadDefaults();
+    assert.equal(ssh.listenerCount('msg'), 1);
+  });
+
+  it('restores the default msg handler for a host without msg', () => {
+    if (isBaseline()) {
+      return;
+    }
+
+    const messages = [];
+    const { ssh } = make({
+      msg: (message) => messages.push(`host:${message}`),
+    });
+    ssh.msg = (message) => messages.push(`default:${message}`);
+
+    ssh._removeListeners();
+    ssh.sshObj = createHost({ msg: undefined });
+    ssh._loadDefaults();
+    ssh.debug = true;
+    ssh._systemMsg('debug', 'next host');
+
+    assert.ok(
+      messages.some(
+        (message) =>
+          message.startsWith('default:') && message.includes('next host')
+      )
+    );
+  });
 });
 
 describe('L5 keyboard-interactive handling', () => {
