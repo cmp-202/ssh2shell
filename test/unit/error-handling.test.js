@@ -235,6 +235,65 @@ describe('error handling and connection termination', () => {
     assert.equal(ssh._stream.closed, true);
   });
 
+  it('characterizes a nested host command timeout as fatal', async () => {
+    const primary = createHost({
+      server: { host: 'primary.test' },
+      commands: [],
+    });
+    const nested = createHost({
+      server: { host: 'nested.test' },
+      commands: ['sleep 1'],
+      idleTimeOut: 10,
+      dataIdleTime: 5,
+    });
+    primary.hosts = [nested];
+
+    const ssh = new SSH2Shell(primary);
+    ssh.removeAllListeners('msg');
+    ssh.sshObj = nested;
+    ssh._connections = [primary];
+    ssh._stream = new FakeStream();
+    ssh._loadDefaults();
+    ssh.command = 'sleep 1';
+    ssh._buffer = '';
+
+    const timeouts = [];
+    const errors = [];
+    ssh.on('commandTimeout', (...args) => timeouts.push(args));
+    ssh.on('error', (...args) => errors.push(args));
+
+    // Data without a prompt arms the nested host's idle timer.
+    ssh._onData('partial output');
+
+    await waitFor(() => errors.length > 0, { label: 'nested timeout' });
+
+    assert.equal(timeouts.length, 1);
+    assert.equal(timeouts[0][0], 'sleep 1');
+    assert.ok(String(timeouts[0][1]).includes('partial output'));
+
+    const timeoutError = errors.find(
+      (entry) => entry[1] === 'Command Timeout' || entry[1] === 'Timeout'
+    );
+    assert.ok(timeoutError);
+    assert.equal(timeoutError[2], true);
+    assert.equal(ssh._stream.closed, true);
+
+    // Fatal by default: the failed nested host stays current and the previous
+    // host is not resumed automatically.
+    assert.equal(ssh.sshObj, nested);
+    assert.deepEqual(ssh._connections, [primary]);
+
+    if (isBaseline()) {
+      // Baseline ignores the timeout callback, so the partial buffer is not
+      // moved into sessionText before the stream closes.
+      assert.equal(ssh.sshObj.sessionText, '');
+      assert.equal(ssh._buffer, 'partial output');
+    } else {
+      assert.equal(ssh.sshObj.sessionText, 'partial output');
+      assert.equal(ssh._buffer, '');
+    }
+  });
+
   it('reports a connection close error but still finishes the session', async () => {
     let callbackValue;
     const { ssh } = await connected({}, (value) => {
