@@ -90,7 +90,7 @@ Every level must satisfy all of these before it is tagged:
 2. Characterization/unit tests pass against the current build.
 3. New tests also run against the frozen baseline artifact, so they describe
    real original behavior rather than the refactored implementation.
-4. `lib/ssh2shell.js` is rebuilt and in sync (until L6 changes the publish flow).
+4. `lib/ssh2shell.js` is rebuilt and in sync (until L7 changes the publish flow).
 5. Public API/event smoke checks pass.
 6. `REFACTORING.md` ledger row is updated.
 7. Commit created and annotated tag `refactor/LN` applied.
@@ -124,7 +124,8 @@ When adding a test:
 | L3 | Split into focused modules behind the existing class facade | None |
 | L4 | Modernize syntax and clean up dead code, typos, duplication | None |
 | L5 | Fix defects and security issues, each covered by a test | Only with sign-off |
-| L6 | Tooling, docs, CI, and publish pipeline | None |
+| L6 | Signed-off post-L5 backlog, per-host prompt/filter, and error-handling fixes | Only with sign-off |
+| L7 | Tooling, docs, CI, and publish pipeline | None |
 
 The ladder can be reordered or split as we learn more; any change to the plan
 must be recorded here.
@@ -139,6 +140,7 @@ must be recorded here.
 | L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
 | L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 62 tests pass; the same 62 pass against the frozen baseline artifact, with only the `_nextPrimaryHost` empty-queue assertion level-aware; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
 | L5 | `refactor/L5` | — | Done | Debug/verbose message gating, per-host listener lifecycle, and the signed-off multi-host/payload fixes | 72 tests pass; the same 72 pass against the frozen baseline artifact with L5 expectations level-aware; `npm run build` leaves `lib/` in sync; backing out of a nested host no longer fires stale handlers or duplicates session text | `git reset --hard refactor/L5` |
+| L6 | `refactor/L6` | — | Done | Signed-off post-L5 fixes: backlog config/flags, per-host prompt/filter compilation, and error-handling termination | 88 tests pass; the same 88 pass against the frozen baseline artifact with L6 expectations level-aware; `npm run build` leaves `lib/` in sync; pre-shell errors no longer throw, host `onError` observes the error before close, and each host recompiles its own prompts/filters | `git reset --hard refactor/L6` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -248,7 +250,13 @@ its own hash. The annotated tags are the stable rollback references; use
   baseline-only behavior.
 - `lib/ssh2shell.js` and `lib/ssh2shell/*` — rebuilt from source.
 
-### Post-L5 error-handling review
+### L6 deliverables (post-L5 signed-off fixes)
+
+L6 collects the fixes signed off after the L5 tag. It changes observable
+behavior only where the user explicitly approved it. The review that drove the
+error-handling work is kept below for context.
+
+#### Error-handling review
 
 - `docs/ERROR-HANDLING.md` — maps every `error` emit site to its payload,
   `close` flag, follow-up flow, and connection/process outcome. It also records
@@ -259,10 +267,10 @@ its own hash. The annotated tags are the stable rollback references; use
   both the current build and the frozen baseline, with level-aware expectations
   where the current behavior intentionally differs (close flags, callbacks,
   listener order and counts, stream reset).
-- The review itself did not change source behavior and is not a new level tag.
-  Its recommended fixes were signed off and implemented separately (below).
+- The review itself did not change source behavior. Its recommended fixes were
+  signed off and are part of L6 (below).
 
-### Post-L5 error-handling fixes
+#### Error-handling fixes
 
 Signed-off-by: user review of `docs/ERROR-HANDLING.md`.
 
@@ -286,7 +294,7 @@ Signed-off-by: user review of `docs/ERROR-HANDLING.md`.
 - `test/unit/error-handling.test.js` — level-aware coverage for all of the above,
   including the new F5/F10/F11 tests.
 
-### Post-L5 backlog fixes
+#### Backlog fixes
 
 Signed-off-by: user review of the backlog, before further error-handling work.
 
@@ -364,16 +372,16 @@ observable behavior or security posture and needs its own level and sign-off.
 
 These are sensible defaults until confirmed:
 
-- **README reconciliation:** deferred to L6. The README is documentation, not a
+- **README reconciliation:** deferred to L7. The README is documentation, not a
   source of truth; it is corrected to match the code as a separate tidy-up, not
   used to drive code changes.
 - **Node target:** `>=18` (applied at L2: `engines.node` is now `>=18.0.0`).
 - **`lib/` artifact:** keep `lib/ssh2shell.js` committed and in sync during the
-  refactor; decide whether it becomes build-only at L6.
+  refactor; decide whether it becomes build-only at L7.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
 - **Live hosts:** not used; verification is offline per the decision above.
-- **Behavior-changing fixes:** require explicit sign-off. L5 changes were
-  approved; the remaining defect fixes above still need their own sign-off.
+- **Behavior-changing fixes:** require explicit sign-off. L5 and L6 changes were
+  approved; any remaining defect fixes still need their own sign-off.
 
 ## Environment snapshot (at baseline)
 
