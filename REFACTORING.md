@@ -420,6 +420,14 @@ observable behavior or security posture and needs its own level and sign-off.
   still leaks the raw values; `test/unit/credentials.test.js` is level-aware.
   A live verbose tunnel run confirmed no plaintext password in the log and
   `[REDACTED]` in its place.
+- **Done post-L6.1 (signed off):** let timer values be set on the instance
+  (`SSH.idleTime` / `SSH.dataIdleTime`) without `_loadDefaults` replacing them
+  with the hard-coded 5000 / 500 defaults. The first load captures the instance
+  base; a host `idleTimeOut` / `dataIdleTimeOut` overrides it, and
+  `_removeListeners` restores the base when leaving the host so a host-specific
+  value does not leak into the next. `idleTime` is accepted as a legacy host
+  alias. Non-positive/non-numeric values are treated as unset. Test:
+  `test/unit/timers.test.js`.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls

@@ -21,6 +21,13 @@ const {
   typeIsArray,
 } = require('./ssh2shell/util');
 
+// Timer config values may arrive as numbers or numeric strings. Anything that
+// is not a finite positive number is treated as "not configured".
+function toPositiveNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
 class SSH2Shell extends Stream {
   constructor(hosts) {
     super(hosts);
@@ -663,6 +670,9 @@ class SSH2Shell extends Stream {
     if (this._connections.length > 0) {
       this.sshObj = this._connections.pop();
       this.host = this.sshObj.server.host;
+      // Reapply the previous host's timer config over the base restored by
+      // _removeListeners.
+      this._applyHostTimerValues();
       this._systemMsg('debug',`previousHost: previous host loaded: ${this.host} `);
       
     }
@@ -803,6 +813,15 @@ class SSH2Shell extends Stream {
     if (this.dataReceivedTimer) {
       clearTimeout(this.dataReceivedTimer);
     }
+
+    // Roll timer values back to the instance base so one host's override does
+    // not leak into the next host.
+    if (this._baseIdleTime !== undefined) {
+      this.idleTime = this._baseIdleTime;
+    }
+    if (this._baseDataIdleTime !== undefined) {
+      this.dataIdleTime = this._baseDataIdleTime;
+    }
     
     return;
   }
@@ -815,6 +834,39 @@ class SSH2Shell extends Stream {
       return action();
     }
     return;
+  }
+
+  // Timer values can be set on the instance (`SSH.idleTime` / `SSH.dataIdleTime`)
+  // before connect() and overridden per host. The first load captures the
+  // instance-level base so leaving a host can restore it.
+  _captureBaseTimerValues() {
+    if (this._baseIdleTime === undefined) {
+      this._baseIdleTime = toPositiveNumber(this.idleTime) || 5000;
+    }
+    if (this._baseDataIdleTime === undefined) {
+      this._baseDataIdleTime = toPositiveNumber(this.dataIdleTime) || 500;
+    }
+  }
+
+  // Applies a host's timer config only when it supplies a valid value, so an
+  // instance value is not overwritten by the defaults.
+  _applyHostTimerValues() {
+    // `idleTimeOut` is the documented key; `idleTime` is a legacy alias.
+    const idleTimeOut =
+      toPositiveNumber(this.sshObj.idleTimeOut) ||
+      toPositiveNumber(this.sshObj.idleTime);
+    if (idleTimeOut > 0) {
+      this.idleTime = idleTimeOut;
+    }
+
+    // Public key is `dataIdleTimeOut` (README). Keep the undocumented
+    // `dataIdleTime` as a fallback for existing callers.
+    const dataIdleTimeOut =
+      toPositiveNumber(this.sshObj.dataIdleTimeOut) ||
+      toPositiveNumber(this.sshObj.dataIdleTime);
+    if (dataIdleTimeOut > 0) {
+      this.dataIdleTime = dataIdleTimeOut;
+    }
   }
 
   _loadDefaults() {
@@ -845,11 +897,17 @@ class SSH2Shell extends Stream {
     
     applyHostDefaults(this.sshObj);
 
-    this.idleTime = this.sshObj.idleTimeOut ?? 5000;
-    // Public key is `dataIdleTimeOut` (README). Keep the undocumented
-    // `dataIdleTime` as a fallback for existing callers.
-    this.dataIdleTime =
-      this.sshObj.dataIdleTimeOut ?? this.sshObj.dataIdleTime ?? 500;
+    this._captureBaseTimerValues();
+    this._applyHostTimerValues();
+
+    // Keep the instance base when no host value was supplied; only repair an
+    // invalid current value.
+    if (!(toPositiveNumber(this.idleTime) > 0)) {
+      this.idleTime = this._baseIdleTime;
+    }
+    if (!(toPositiveNumber(this.dataIdleTime) > 0)) {
+      this.dataIdleTime = this._baseDataIdleTime;
+    }
 
     // Compile ASCII Filter with Safe Fallback. These compiled regexes are
     // internal state, not public config: recompile from the current host on

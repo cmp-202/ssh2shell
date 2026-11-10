@@ -224,6 +224,11 @@ are covered by level-aware tests that also run against the frozen baseline.
   raw credential output for fault-finding. It is applied in `_loadDefaults` and
   read by `_systemMsg`; it does not change the connection itself. Test:
   `test/unit/credentials.test.js`.
+- **Instance timer base values.** `SSH.idleTime` / `SSH.dataIdleTime` set before
+  `connect()` are preserved instead of being replaced by the hard-coded 5000 /
+  500 defaults. A host's `idleTimeOut` / `dataIdleTimeOut` still overrides them,
+  and leaving a host restores the base. `idleTime` is accepted as a legacy host
+  alias for `idleTimeOut`. Test: `test/unit/timers.test.js`.
 
 ## README vs code discrepancies
 
@@ -260,11 +265,15 @@ The intended shape is:
 - public host key: `dataIdleTimeOut` (milliseconds, default 500)
 - internal instance variable: `dataIdleTime` (used by the timer)
 
-**Fixed post-L5:** `_loadDefaults` now uses:
+**Fixed post-L5:** `_loadDefaults` now resolves the public key first:
 
 ```js
-this.dataIdleTime =
-  this.sshObj.dataIdleTimeOut ?? this.sshObj.dataIdleTime ?? 500;
+const dataIdleTimeOut =
+  toPositiveNumber(this.sshObj.dataIdleTimeOut) ||
+  toPositiveNumber(this.sshObj.dataIdleTime);
+if (dataIdleTimeOut > 0) {
+  this.dataIdleTime = dataIdleTimeOut;
+}
 ```
 
 `dataIdleTimeOut` wins; the undocumented `dataIdleTime` remains as a fallback
@@ -273,6 +282,14 @@ variable. The timer's purpose is to stop the script hanging when a command
 response does not satisfy the state-engine tests (for example, a standard prompt
 is never detected). It is separate from `idleTimeOut`, which is the command
 timeout.
+
+**Post-L6.1:** timer values can also be set on the instance before `connect()`
+(for example `SSH.idleTime = 15000`). The first `_loadDefaults` captures that as
+the base; a host `idleTimeOut` / `dataIdleTimeOut` overrides it for that host,
+and `_removeListeners` restores the base when leaving the host so the override
+does not leak into the next one. Non-positive or non-numeric values are treated
+as "not configured". `idleTime` is also accepted as a legacy host alias for
+`idleTimeOut`.
 
 ## Truthiness defaults audit (`_loadDefaults`)
 
