@@ -485,7 +485,7 @@ your host object to override defaults. It is also possible to output the ANSI co
  
 Defaults:
 ```javascript
-host.asciiFilter = "[^\r\n\x20-\x7e]"
+host.asciiFilter = "[^\t\r\n\x20-\x7e]"
 host.disableColorFilter = false //or true
 host.textColorFilter = "(\[{1}[0-9;]+m{1})"
  ```

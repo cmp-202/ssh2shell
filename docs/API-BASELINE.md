@@ -251,7 +251,7 @@ are covered by level-aware tests that also run against the frozen baseline.
 | 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | **Resolved at L7 (README):** now documents `stream.Stream` |
 | 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-1`/`-2`; `true` → `-2` |
 | 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-4`/`-6`; `true` → `-4` |
-| 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | **Resolved at L7 (README):** the config default now includes `\t`; one example later in the README still shows the old value |
+| 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | **Resolved at L7 (README):** both the config default and the later example now include `\t` |
 | 12 | `host.idleTimeout` in a comment | Actual key is `idleTimeOut` | Documentation typo | **Resolved at L1** |
 | 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | **Resolved at L7 (README):** guidance now uses `this.connection.end()` |
 | 14 | `.emit("eventName", function, parms, ...)` | `emit(name, ...args)` | Misleading API description | **Resolved at L7 (README):** signature is now `emit(name, ...args)` |
