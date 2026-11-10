@@ -1,8 +1,7 @@
 var dotenv = require('dotenv').config()
-const fs = require('fs');
-fs.writeFile('output.txt', "", (err) => {
-    if (err) throw err; 
-});
+const { logFile, log } = require('./utils/logging.js');
+logFile('simple.js');
+
 var host = {
   server: {     
     host:         process.env.HOST,
@@ -12,34 +11,17 @@ var host = {
   },
   commands: 	  ["echo basic test success"],
   debug: (process.env.DEBUG === "true"),
-  verbose: (process.env.VERBOSE === "true"),/*
-  msg: function(message) {
-      console.log(message);
-    }
-  msg: function(message){
-    const formattedMessage = typeof message === 'object' && message !== null 
-    ? JSON.stringify(message, (key, value) => {
-        // If the property is a function, turn it into a descriptive string placeholder
-        if (typeof value === 'function') {
-          return `[Function: ${value.name || 'anonymous'}]`;
-        }
-        return value;
-      }, 2) 
-    : message;
-    fs.appendFile('log.txt', `${formattedMessage}\n`, (err) => {
-      if (err) throw err;
-    });    
-    
-  }*/
+  verbose: (process.env.VERBOSE === "true"),
 }
 
-var SSH2Shell = require ('../lib/ssh2shell');
+var SSH2Shell = require ('../src/ssh2shell');
 
-//run the commands in the shell session
+
 var SSH = new SSH2Shell(host),
     callback = function( sessionText ){
-          console.log ( "-----Callback session text:\n" + sessionText);
-          console.log ( "-----Callback end" );
+          log ( "-----Callback session text:\n" + sessionText);
+          log ( "-----Callback end" );
       }
-
+      
+SSH.on('msg', log); 
 SSH.connect(callback)

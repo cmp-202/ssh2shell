@@ -69,15 +69,16 @@ class SSH2Shell extends Stream {
     this.host = "No host";
     this._allSessions = '';
     this._defaultErrorListener = null;
-    this._loadDefaultListeners();   
+    this._loadDefaultListeners();
+    this.msg;   
   }
   
   _loadDefaultListeners() {
     if(!this._boundListeners['msg']){
-      const msg = (message) => {
+      this.msg = (message) => {
           console.log(message);
         };
-      this._boundListener('msg', msg); 
+      this._boundListener('msg', this.msg); 
     }    
     if(!this._boundListeners['data']){
         const data = (data) => {
@@ -801,7 +802,7 @@ class SSH2Shell extends Stream {
       this._detachListener('error', 'onError');
     }
     if (
-      typeof this.sshObj.msg === 'function' ||
+      typeof this.sshObj.msg === 'function' &&
       typeof this._boundListeners['msg'] === 'function'
     ){
       this._detachListener('msg', 'msg');
@@ -891,8 +892,9 @@ class SSH2Shell extends Stream {
     }    
     if (typeof this.sshObj.msg === 'function') {
       this._boundListener('msg', this.sshObj.msg);
-    } 
-    
+    } else {
+      this._boundListener('msg', this.msg);
+    }
     this._systemMsg('debug',`Load Defaults`);
     
     applyHostDefaults(this.sshObj);

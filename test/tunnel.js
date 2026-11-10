@@ -1,4 +1,16 @@
 var dotenv = require('dotenv').config();
+const fs = require('node:fs');
+const path = require('node:path');
+
+const { logFile, log } = require('./utils/logging.js');
+logFile('tunnel.js');
+
+const msg = function (message) {
+    if (typeof message === 'object') {
+        message = JSON.stringify(message, null, '\t');
+    }
+    fs.appendFileSync(logFile, `${message}\n`, 'utf8');
+}
 
 var conParamsHost1 = {
   host:         process.env.HOST,
@@ -22,8 +34,6 @@ var conParamsHost1 = {
  debug = (process.env.DEBUG === "true"),
  verbose = (process.env.VERBOSE === "true")
 
-//Live VMs can be slow to return the nested SSH prompt.
-var tunnelIdleTimeOut = 15000;
 
 //Host objects:
 var host1 = {
@@ -32,7 +42,6 @@ var host1 = {
   connectedMessage: "Connected to host1",
   debug: debug,
   verbose: verbose,
-  idleTimeOut: tunnelIdleTimeOut,
   onCommandComplete: (command, response, sshObj) => {console.log(`${sshObj.server.host}: host1: onCommandComplete:`);}
 },
 
@@ -42,7 +51,6 @@ host2 = {
   connectedMessage: "Connected to host2",
   debug: debug,
   verbose: verbose,
-  idleTimeOut: tunnelIdleTimeOut,
   onCommandComplete: (command, response, sshObj) => {console.log(`${sshObj.server.host}:host2: onCommandComplete:`);}
 },
 
@@ -52,7 +60,6 @@ host3 = {
   connectedMessage: "Connected to host3",
   debug: debug,
   verbose: verbose,
-  idleTimeOut: tunnelIdleTimeOut,
   onCommandComplete: (command, response, sshObj) => {console.log(`${sshObj.server.host}:host3: onCommandComplete:`);}
 }
 
@@ -67,14 +74,15 @@ host1.hosts = [ host2 ];
 
 //Create the new instance
 //or SSH2Shell = require ('ssh2shell')
-var SSH2Shell = require ('../lib/ssh2shell'),
-    SSH = new SSH2Shell(host1),
-    callback = function( sessionText ){
-          console.log ( "-----Callback session text:\n" + sessionText);
-          console.log ( "-----Callback end" );
-    }
+var SSH2Shell = require ('../src/ssh2shell'),
 
-
+SSH = new SSH2Shell(host1),
+callback = function( sessionText ){
+  log ( "-----Callback session text:\n" + sessionText);
+  log ( "-----Callback end" );
+}
+SSH.on('msg', log); 
+SSH.idleTime = 1500;
 //Start the process
 SSH.connect(callback);
 
