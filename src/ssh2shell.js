@@ -808,42 +808,34 @@ class SSH2Shell extends Stream {
     this.dataIdleTime =
       this.sshObj.dataIdleTimeOut ?? this.sshObj.dataIdleTime ?? 500;
 
-    // Compile ASCII Filter with Safe Fallback.
-    if (!this.asciiFilter) {
-      const ascii = compileAsciiFilter(this.sshObj.asciiFilter);
-      this.asciiFilter = ascii.filter;
-      if (ascii.usedFallback && this.debug) {
-        this._systemMsg(
-          'debug',
-          `loadDefaults: AsciiFilter: incorrect regular expression reverting to default: ${this.sshObj.asciiFilter}`
-        );
-      }
+    // Compile ASCII Filter with Safe Fallback. These compiled regexes are
+    // internal state, not public config: recompile from the current host on
+    // every load so a later host with different filters/prompts is honoured.
+    const ascii = compileAsciiFilter(this.sshObj.asciiFilter);
+    this.asciiFilter = ascii.filter;
+    if (ascii.usedFallback && this.debug) {
+      this._systemMsg(
+        'debug',
+        `loadDefaults: AsciiFilter: incorrect regular expression reverting to default: ${this.sshObj.asciiFilter}`
+      );
     }
 
     // Compile Text Color Filter with Safe Fallback.
-    if (!this.textColorFilter) {
-      const color = compileTextColorFilter(this.sshObj.textColorFilter);
-      this.textColorFilter = color.filter;
-      if (color.usedFallback && this.debug) {
-        this._systemMsg(
-          'debug',
-          `loadDefaults: TextColorFilter: incorrect regular expression reverting to default: ${this.sshObj.textColorFilter}`
-        );
-      }
+    const color = compileTextColorFilter(this.sshObj.textColorFilter);
+    this.textColorFilter = color.filter;
+    if (color.usedFallback && this.debug) {
+      this._systemMsg(
+        'debug',
+        `loadDefaults: TextColorFilter: incorrect regular expression reverting to default: ${this.sshObj.textColorFilter}`
+      );
     }
 
     // Prompts: fully sanitized at runtime via escapeRegex (never need
     // fallbacks because they are cast as pure literals).
     const prompts = compilePrompts(this.sshObj);
-    if (!this.passwordPrompt) {
-      this.passwordPrompt = prompts.passwordPrompt;
-    }
-    if (!this.passphrasePrompt) {
-      this.passphrasePrompt = prompts.passphrasePrompt;
-    }
-    if (!this.standardPrompt) {
-      this.standardPrompt = prompts.standardPrompt;
-    }
+    this.passwordPrompt = prompts.passwordPrompt;
+    this.passphrasePrompt = prompts.passphrasePrompt;
+    this.standardPrompt = prompts.standardPrompt;
 
     //listeners defaults for command processing
     this.sshObj.onCommandProcessing =

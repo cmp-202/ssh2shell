@@ -242,13 +242,55 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.textColorFilter.source, '\\x1b\\[[0-9;]*m');
   });
 
-  it('does not recompile filters on a second _loadDefaults call', () => {
+  it('recompiles filters on every _loadDefaults call', () => {
     const { ssh } = makeLoaded({ asciiFilter: '[^\\x00-\\x1f]' });
     const firstFilter = ssh.asciiFilter;
 
     ssh._loadDefaults();
 
-    assert.equal(ssh.asciiFilter, firstFilter);
+    if (isBaseline()) {
+      // Baseline only compiles when the instance property is empty.
+      assert.equal(ssh.asciiFilter, firstFilter);
+    } else {
+      // Current derives compiled state from the current host every time.
+      assert.notEqual(ssh.asciiFilter, firstFilter);
+      assert.equal(ssh.asciiFilter.source, firstFilter.source);
+    }
+  });
+
+  it('recompiles prompts and filters for each host', () => {
+    const { ssh } = makeLoaded({
+      asciiFilter: '[^\\x00-\\x1f]',
+      standardPrompt: '>',
+      passwordPrompt: 'pass:',
+      passphrasePrompt: 'phrase:',
+    });
+
+    assert.equal(ssh.asciiFilter.source, '[^\\x00-\\x1f]');
+    assert.equal(ssh.standardPrompt.test('foo>'), true);
+
+    // Simulate moving to a second host with different prompt/filter config.
+    ssh.sshObj = createHost({
+      asciiFilter: '[^\\x00-\\x7f]',
+      standardPrompt: ']',
+      passwordPrompt: 'secret:',
+      passphrasePrompt: 'key:',
+    });
+    ssh._loadDefaults();
+
+    if (isBaseline()) {
+      // Baseline keeps the first host's compiled patterns.
+      assert.equal(ssh.asciiFilter.source, '[^\\x00-\\x1f]');
+      assert.equal(ssh.standardPrompt.test('foo>'), true);
+      assert.equal(ssh.standardPrompt.test('foo]'), false);
+      assert.equal(ssh.passwordPrompt.test('Password: secret: '), false);
+    } else {
+      assert.equal(ssh.asciiFilter.source, '[^\\x00-\\x7f]');
+      assert.equal(ssh.standardPrompt.test('foo]'), true);
+      assert.equal(ssh.standardPrompt.test('foo>'), false);
+      assert.equal(ssh.passwordPrompt.test('Password: secret: '), true);
+      assert.equal(ssh.passphrasePrompt.test('Password: key: '), true);
+    }
   });
 
   it('normalises enter and preserves CRLF', () => {

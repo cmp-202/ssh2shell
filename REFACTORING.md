@@ -275,14 +275,16 @@ Signed-off-by: user review of the backlog, before further error-handling work.
 - `src/ssh2shell/ssh-command.js` — `forceProtocolVersion` and
   `forceAddressType` map to allow-listed `ssh` flags. `true` selects `-2` / `-4`;
   invalid truthy values return a `Security Alert` error.
+- `src/ssh2shell.js` — `_loadDefaults` recompiles prompt/filter regexes from the
+  current `sshObj` on every call, so multi-host chains honour per-host config.
 - `README.md` — removed `onPipe`/`onUnpipe` host handlers and the `.pipe` /
   `.unpipe` method/event documentation. `pipe` is a stream-level operation on
   the instance, not host config.
 - `test/unit/api-baseline.test.js`, `test/unit/ssh-connect.test.js`,
   `test/unit/prompts.test.js`, and `test/unit/error-handling.test.js` — updated
   with level-aware expectations for the baseline and the fixed behavior.
-- `docs/API-BASELINE.md` — records the fixes and clarifies the still-pending
-  per-host prompt/filter compilation requirement.
+- `docs/API-BASELINE.md` — records the fixes and the resolved per-host
+  prompt/filter compilation requirement.
 
 ## Backlog and future work
 
@@ -317,9 +319,10 @@ observable behavior or security posture and needs its own level and sign-off.
   baseline `close=false` (F2), invoke the optional `error` callback (F4),
   install the default `error` listener exactly once (F6), and reset or validate
   `_stream` per primary host (F10).
-- **Pending sign-off: compile prompts/filters per host, not once per instance.**
-  See [Per-host prompt/filter compilation](docs/API-BASELINE.md#per-host-promptfilter-compilation-clarification)
-  for the requirement, proposed change, and test impact.
+- **Done post-L5 (signed off):** compile prompts/filters per host, not once per
+  instance. `_loadDefaults` rebuilds the compiled regexes from the current
+  `sshObj` on every call. See
+  [Per-host prompt/filter compilation](docs/API-BASELINE.md#per-host-promptfilter-compilation-resolved-post-l5).
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls

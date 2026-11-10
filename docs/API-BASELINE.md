@@ -308,11 +308,11 @@ There is no boolean `-x` variant.
 The flags are appended as separate tokens (`ssh -x -2 ...`), so they no longer
 merge with `-x`.
 
-## Per-host prompt/filter compilation (clarification)
+## Per-host prompt/filter compilation (resolved post-L5)
 
 `_loadDefaults` runs for every primary host (`_initiate`) and every nested host
-(`_nextHost`), so it always has the current `sshObj`. The problem is that it
-only compiles the regexes when the **instance** property is falsy:
+(`_nextHost`), so it always has the current `sshObj`. At baseline it only
+compiled the regexes when the **instance** property was falsy:
 
 - `asciiFilter` when `this.asciiFilter` is falsy
 - `textColorFilter` when `this.textColorFilter` is falsy
@@ -320,19 +320,21 @@ only compiles the regexes when the **instance** property is falsy:
 - `passphrasePrompt` when `this.passphrasePrompt` is falsy
 - `standardPrompt` when `this.standardPrompt` is falsy
 
-After the first host these instance properties are set, so later hosts reuse the
-first host's compiled regexes. `applyHostDefaults` still updates the `sshObj`
-strings, but they are never recompiled.
+After the first host those instance properties were set, so later hosts reused
+the first host's compiled regexes. `applyHostDefaults` still updated the `sshObj`
+strings, but they were never recompiled.
 
 **Consequence:** a second host with a different `standardPrompt`,
-`passwordPrompt`, `passphrasePrompt`, `asciiFilter`, or `textColorFilter` is
-still detected and filtered with the first host's patterns. In a chain this can
+`passwordPrompt`, `passphrasePrompt`, `asciiFilter`, or `textColorFilter` was
+still detected and filtered with the first host's patterns. In a chain this could
 miss a prompt, time out a command, or filter output incorrectly.
 
 **What "per-host" means:** the compiled regexes must be derived from the current
 `sshObj` every time `_loadDefaults` runs. The instance properties
 (`this.asciiFilter`, `this.passwordPrompt`, ...) are internal compiled state, not
-public config; the public config is `sshObj.*`. The fix is to always assign the
+public config; the public config is `sshObj.*`.
+
+**Fixed post-L5 (signed off):** `_loadDefaults` now always assigns the
 compilation result instead of guarding on the instance property:
 
 ```js
@@ -355,15 +357,11 @@ The fallback debug messages stay conditional on `debug`.
 - Single-host behavior is unchanged.
 - Multi-host behavior changes for hosts with different prompt/filter config.
   That is the intended fix.
-- `test/unit/api-baseline.test.js` currently has "does not recompile filters on
-  a second `_loadDefaults` call", which locks the stale behavior. It would
-  become level-aware (baseline: stale; current: recompiled), and a new test
-  should load two hosts with different prompts and assert that the second host's
-  regex matches.
+- `test/unit/api-baseline.test.js` is level-aware: baseline keeps the stale
+  first-host patterns; current recompiles. A two-host test asserts that the
+  second host's regex matches.
 - Directly assigning `ssh.passwordPrompt = /.../` on the instance is not a
   documented config path and would be overwritten; use `host.passwordPrompt`.
-
-**Sign-off:** still pending. This is a behavior change for multi-host chains.
 
 ## Defects and quirks confirmed by the L1 harness
 
@@ -391,8 +389,9 @@ sign-off:
    `finish(prompts)`. A host that enables `tryKeyboard` without its own handler
    can hang. **Fixed at L5:** the default handler calls `finish([''])`.
 8. `_loadDefaults` only compiles filters and prompt regexes when the instance
-   property is empty, so they persist across hosts. **Pending sign-off:** see
-   [Per-host prompt/filter compilation](#per-host-promptfilter-compilation-clarification).
+   property is empty, so they persist across hosts. **Fixed post-L5 (signed
+   off):** compiled state is rebuilt from the current host on every call. See
+   [Per-host prompt/filter compilation](#per-host-promptfilter-compilation-resolved-post-l5).
 9. `_previousHost` does not call `_removeListeners`, unlike `_nextHost` and
    `_nextPrimaryHost`. The previous secondary host's event handlers stay
    attached, so a later `commandComplete` (or similar) can fire a stale handler
