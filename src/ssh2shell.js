@@ -5,7 +5,7 @@
 //
 // The class is the public facade. Pure default application, prompt/filter
 // compilation, and nested-SSH command construction live in ./ssh2shell/*.
-// Behavior is intentionally identical to the baseline (refactor/L1).
+// Behavior matches the baseline except for the signed-off L5/L6/L6.1 fixes.
 
 const Stream = require('node:stream');
 
@@ -128,8 +128,8 @@ class SSH2Shell extends Stream {
               return ''; // Baseline fallback response
             });
             this._systemMsg('verbose',`Prompts object: ${responses}`);
-            // 2. CRITICAL: You must execute finish() and pass the responses as an array of strings.
-            // Skipping this will freeze the SSH connection handshake.
+            // The handshake stalls unless finish() receives the responses as an
+            // array of strings.
             finish(responses);
           };
           this._boundListener ( 'keyboard-interactive', keyboardInteractive);
@@ -180,26 +180,37 @@ class SSH2Shell extends Stream {
     return removed;
   };
   
-  //handles check against debug and verbose flags for proccessing messages
+  // Emits debug/verbose messages only when the matching host flag is enabled.
+  // An optional object payload is emitted as a second message.
   _systemMsg(type, message, object = null){
-    // Check if message is an object (and not null)
-    
-    switch (true) {
-      case type === 'debug' && this.debug:
-        this.emit('msg', `${this.host}: ${message}`);
-        if( typeof object === 'object' && object !== null) {
-          this.emit('msg', object);
-        }
-        return;
-      case type === 'verbose' && this.verbose:
-        this.emit('msg', `${this.host}: ${message}`);
-        if( typeof object === 'object' && object !== null) {
-          this.emit('msg', object);
-        }
-        return;
-      default:
-        return;
+    const enabled =
+      (type === 'debug' && this.debug) ||
+      (type === 'verbose' && this.verbose);
+
+    if (!enabled) {
+      return;
     }
+
+    this.emit('msg', `${this.host}: ${message}`);
+    if (typeof object === 'object' && object !== null) {
+      this.emit('msg', object);
+    }
+  }
+
+  // Arms the command idle timer. The response is passed through unchanged so
+  // callers can keep their existing commandTimeout payloads.
+  _scheduleIdleTimeout(response) {
+    this.idleTimer = setTimeout(() => {
+      this.emit(
+        'commandTimeout',
+        this.command,
+        response,
+        this._stream,
+        this.connection
+      );
+    }, this.idleTime);
+
+    return this.idleTimer;
   }
   
   _onData(data) {
@@ -218,15 +229,7 @@ class SSH2Shell extends Stream {
       if (this.idleTimer) {
         clearTimeout(this.idleTimer);
       }
-      this.idleTimer = setTimeout(() => {
-        this.emit(
-          'commandTimeout',
-          this.command,
-          this._buffer,
-          this._stream,
-          this.connection
-        );
-      }, this.idleTime);
+      this._scheduleIdleTimeout(this._buffer);
     } else if (
       this.command.length < 1 &&
       !this.standardPrompt.test(this._buffer)
@@ -292,15 +295,7 @@ class SSH2Shell extends Stream {
         default:
           this._systemMsg('debug', `onData: Reset timeout`);
           
-          return (this.idleTimer = setTimeout(() => {
-            this.emit(
-              'commandTimeout',
-              this.command,
-              this._buffer,
-              this._stream,
-              this.connection
-            );
-          }, this.idleTime));
+          return this._scheduleIdleTimeout(this._buffer);
       }
     }, this.dataIdleTime));
   }
@@ -364,15 +359,7 @@ class SSH2Shell extends Stream {
       default:
         this._systemMsg('debug', `processSudoPrompt: Reset timeout`);
         
-        return (this.idleTimer = setTimeout(() => {
-          this.emit(
-            'commandTimeout',
-            this.command,
-            response,
-            this._stream,
-            this.connection
-          );
-        }, this.idleTime));
+        return this._scheduleIdleTimeout(response);
     }
   }
 
@@ -531,40 +518,53 @@ class SSH2Shell extends Stream {
 
         return this._runExit();
       }
+
+      // Authenticated, but the response is neither a prompt nor a repeated
+      // credential prompt. Re-arm the idle timer so a silent nested shell
+      // cannot leave the session with no timer at all.
+      this._systemMsg(
+        'debug',
+        `processSSHPrompt: No prompt after authentication, reset timeout`
+      );
+      return this._scheduleIdleTimeout(response);
     }
   }
 
   _processNotifications() {
-    // Check for notifications in commands.
-    if (this.command) {
-      // This is a message for the sessionText like an echo command in bash.
-      const sessionNote = this.command.match(/^`(.*)`$/);
-      if (sessionNote) {
-        this._systemMsg('debug', `processNotifications: sessionText output`);
-        
-        if (this._connections.length > 0) {
-          this.sshObj.sessionText += `${this.host}: Note: ${sessionNote[1]}${this.sshObj.enter}`;
-        } else {
-          this.sshObj.sessionText += `Note: ${sessionNote[1]}${this.sshObj.enter}`;
-        }
-        this._systemMsg('verbose', sessionNote[1]);
-        
-        return this._nextCommand();
-      }
-
-      // This is a message to output in process.
-      const msgNote = this.command.match(/^msg:(.*)$/);
-      if (msgNote) {
-        this._systemMsg('debug', `processNotifications: msg to output`);
-        
-        this.emit('msg', `${this.host}: Note: ${msgNote[1]}`);
-        return this._nextCommand();
-      }
-
-      this._systemMsg('debug', `processNotifications: Normal Command to run`);
-      
-      return this._checkCommand();
+    // An empty command has nothing to run or report, so skip it and continue
+    // with the queue instead of leaving the state machine idle.
+    if (!this.command) {
+      this._systemMsg('debug', `processNotifications: Empty command, skip`);
+      return this._nextCommand();
     }
+
+    // This is a message for the sessionText like an echo command in bash.
+    const sessionNote = this.command.match(/^`(.*)`$/);
+    if (sessionNote) {
+      this._systemMsg('debug', `processNotifications: sessionText output`);
+
+      if (this._connections.length > 0) {
+        this.sshObj.sessionText += `${this.host}: Note: ${sessionNote[1]}${this.sshObj.enter}`;
+      } else {
+        this.sshObj.sessionText += `Note: ${sessionNote[1]}${this.sshObj.enter}`;
+      }
+      this._systemMsg('verbose', sessionNote[1]);
+
+      return this._nextCommand();
+    }
+
+    // This is a message to output in process.
+    const msgNote = this.command.match(/^msg:(.*)$/);
+    if (msgNote) {
+      this._systemMsg('debug', `processNotifications: msg to output`);
+      
+      this.emit('msg', `${this.host}: Note: ${msgNote[1]}`);
+      return this._nextCommand();
+    }
+
+    this._systemMsg('debug', `processNotifications: Normal Command to run`);
+
+    return this._checkCommand();
   }
 
   _commandComplete() {
@@ -742,7 +742,13 @@ class SSH2Shell extends Stream {
 
   close() {
     this._systemMsg('debug',`Stream: close`);
-    
+
+    // Calling close() before the shell opens would otherwise throw on the
+    // prototype `{}` placeholder. There is nothing to close yet.
+    if (!this._hasLiveStream()) {
+      return;
+    }
+
     return this._stream.close();
   }
 
@@ -865,7 +871,7 @@ class SSH2Shell extends Stream {
     this.passphrasePrompt = prompts.passphrasePrompt;
     this.standardPrompt = prompts.standardPrompt;
 
-    //listeners defaults for command processing
+    // Listener defaults for command processing.
     this.sshObj.onCommandProcessing =
       this.sshObj.onCommandProcessing ??
       ((command, response, sshObj, stream) => {});

@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "npm run test:unit && npm run test:baseline",
+    "check:build": "node scripts/check-build.js",
+    "test": "npm run check:build && npm run test:unit && npm run test:baseline",
     "test:unit": "node --test test/unit",
     "test:baseline": "node scripts/run-tests.js"
   },

@@ -8,6 +8,8 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
+  delay,
+  processSudo,
 } = require('./helpers/harness');
 const { FakeStream } = require('./helpers/fake-ssh2');
 
@@ -21,15 +23,6 @@ function make(overrides = {}) {
   ssh._loadDefaults();
   ssh._stream = new FakeStream();
   return { ssh, host };
-}
-
-// The baseline exposes the sudo handler as _processPasswordPrompt; L5 renamed
-// it to _processSudoPrompt to match its actual purpose.
-function processSudo(ssh) {
-  if (typeof ssh._processSudoPrompt === 'function') {
-    return ssh._processSudoPrompt();
-  }
-  return ssh._processPasswordPrompt();
 }
 
 describe('sudo prompt handling', () => {
@@ -187,6 +180,30 @@ describe('nested SSH prompt handling', () => {
 
     assert.equal(previous, true);
   });
+
+  it('re-arms the idle timeout when post-auth output has no prompt', async () => {
+    const { ssh } = make();
+    ssh.command = 'ssh user@host';
+    ssh._buffer = 'banner text';
+    ssh.sshObj.sshAuth = true;
+    ssh.idleTime = 0;
+
+    const timeouts = [];
+    ssh.on('commandTimeout', (...args) => timeouts.push(args));
+    ssh.removeAllListeners('msg');
+
+    ssh._processSSHPrompt();
+
+    if (isBaseline()) {
+      // Baseline returns without scheduling a timer, so a silent nested shell
+      // hangs until more data arrives.
+      assert.equal(ssh.idleTimer, undefined);
+    } else {
+      await delay(10);
+      assert.equal(timeouts.length, 1);
+      assert.equal(timeouts[0][1], 'banner text');
+    }
+  });
 });
 
 describe('notification commands', () => {
@@ -230,5 +247,23 @@ describe('notification commands', () => {
     ssh._processNotifications();
 
     assert.equal(checked, true);
+  });
+
+  it('skips an empty command and continues with the queue', () => {
+    const { ssh } = make();
+    let next = 0;
+    ssh._nextCommand = () => {
+      next += 1;
+    };
+    ssh.command = '';
+
+    ssh._processNotifications();
+
+    if (isBaseline()) {
+      // Baseline does nothing for a falsy command, so the queue stalls.
+      assert.equal(next, 0);
+    } else {
+      assert.equal(next, 1);
+    }
   });
 });

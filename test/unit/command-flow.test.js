@@ -8,6 +8,7 @@ const {
   loadSSH2Shell,
   createHost,
   waitFor,
+  waitForStream,
 } = require('./helpers/harness');
 
 installFakeSsh2();
@@ -26,13 +27,7 @@ async function start(host) {
     callbackText = text;
   });
 
-  await waitFor(
-    () =>
-      ssh._stream &&
-      typeof ssh._stream.receive === 'function' &&
-      ssh.connection,
-    { label: 'stream' }
-  );
+  await waitForStream(ssh);
   return {
     ssh,
     get callbackText() {
@@ -130,13 +125,7 @@ describe('single-host command flow', () => {
     const ssh = new SSH2Shell(host);
     ssh.connect();
 
-    await waitFor(
-      () =>
-        ssh._stream &&
-        typeof ssh._stream.receive === 'function' &&
-        ssh.connection,
-      { label: 'stream' }
-    );
+    await waitForStream(ssh);
 
     ssh._stream.onWrite = (data, stream) => {
       if (data === 'sleep 1\n') {

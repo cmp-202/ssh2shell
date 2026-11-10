@@ -140,6 +140,9 @@ describe('primary and secondary host chains', () => {
 
   function chainSetup(primary) {
     const ssh = new SSH2Shell(primary);
+    // The default `msg` listener prints to the console. These tests only assert
+    // on the collected events, so drop it to keep the test output readable.
+    ssh.removeAllListeners('msg');
     ssh.sshObj = primary;
     ssh._hosts = [];
     ssh._connections = [];

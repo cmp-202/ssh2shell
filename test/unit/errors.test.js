@@ -5,9 +5,11 @@ const assert = require('node:assert/strict');
 
 const {
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   createHost,
   waitFor,
+  waitForStream,
   delay,
 } = require('./helpers/harness');
 
@@ -18,13 +20,7 @@ async function connected(overrides = {}) {
   const host = createHost(overrides);
   const ssh = new SSH2Shell(host);
   ssh.connect();
-  await waitFor(
-    () =>
-      ssh._stream &&
-      typeof ssh._stream.receive === 'function' &&
-      ssh.connection,
-    { label: 'stream' }
-  );
+  await waitForStream(ssh);
   return { ssh, host };
 }
 
@@ -91,13 +87,7 @@ describe('error and stream lifecycle', () => {
       text = value;
     });
 
-    await waitFor(
-      () =>
-        ssh._stream &&
-        typeof ssh._stream.receive === 'function' &&
-        ssh.connection,
-      { label: 'stream' }
-    );
+    await waitForStream(ssh);
     ssh.connection.emit('close', false);
 
     await waitFor(() => text !== undefined, { label: 'callback' });
@@ -110,6 +100,18 @@ describe('error and stream lifecycle', () => {
     ssh.close();
 
     assert.equal(ssh._stream.closed, true);
+  });
+
+  it('close() is safe before the shell opens', () => {
+    const ssh = new SSH2Shell(createHost());
+
+    if (isBaseline()) {
+      // Baseline calls close() on the prototype `{}` placeholder.
+      assert.throws(() => ssh.close(), /close is not a function/);
+    } else {
+      // L6.1 treats it as a no-op because there is no live stream yet.
+      assert.doesNotThrow(() => ssh.close());
+    }
   });
 
   it('_removeListeners removes host listeners and clears timers', async () => {

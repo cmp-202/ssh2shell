@@ -79,6 +79,23 @@ describe('_sshConnect command construction', () => {
     assert.ok(writes[0].includes("-o StrictHostKeyChecking='yes'"));
   });
 
+  it('ignores inherited properties in custom ssh options', () => {
+    const options = Object.create({ inherited: 'leak' });
+    options.StrictHostKeyChecking = 'yes';
+    const { ssh, writes } = build({ options });
+
+    ssh._sshConnect();
+
+    assert.ok(writes[0].includes("-o StrictHostKeyChecking='yes'"));
+
+    if (isBaseline()) {
+      // for...in also walks inherited enumerable properties.
+      assert.ok(writes[0].includes("-o inherited='leak'"));
+    } else {
+      assert.ok(!writes[0].includes('inherited'));
+    }
+  });
+
   it('escapes single quotes in paths', () => {
     const { ssh, writes } = build({ identityFile: "/tmp/it's" });
 

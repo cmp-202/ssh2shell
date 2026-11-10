@@ -90,7 +90,8 @@ Every level must satisfy all of these before it is tagged:
 2. Characterization/unit tests pass against the current build.
 3. New tests also run against the frozen baseline artifact, so they describe
    real original behavior rather than the refactored implementation.
-4. `lib/ssh2shell.js` is rebuilt and in sync (until L7 changes the publish flow).
+4. `lib/ssh2shell.js` is rebuilt and `npm run check:build` passes (until L7
+   changes the publish flow).
 5. Public API/event smoke checks pass.
 6. `REFACTORING.md` ledger row is updated.
 7. Commit created and annotated tag `refactor/LN` applied.
@@ -125,6 +126,7 @@ When adding a test:
 | L4 | Modernize syntax and clean up dead code, typos, duplication | None |
 | L5 | Fix defects and security issues, each covered by a test | Only with sign-off |
 | L6 | Signed-off post-L5 backlog, per-host prompt/filter, and error-handling fixes | Only with sign-off |
+| L6.1 | Approved optimisation and robustness follow-ups (readability, timer/option de-duplication, SSH prompt timeout, guarded close, empty command, own-property options, build-sync guard) | Only with sign-off |
 | L7 | Tooling, docs, CI, and publish pipeline | None |
 
 The ladder can be reordered or split as we learn more; any change to the plan
@@ -141,6 +143,7 @@ must be recorded here.
 | L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 62 tests pass; the same 62 pass against the frozen baseline artifact, with only the `_nextPrimaryHost` empty-queue assertion level-aware; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
 | L5 | `refactor/L5` | — | Done | Debug/verbose message gating, per-host listener lifecycle, and the signed-off multi-host/payload fixes | 72 tests pass; the same 72 pass against the frozen baseline artifact with L5 expectations level-aware; `npm run build` leaves `lib/` in sync; backing out of a nested host no longer fires stale handlers or duplicates session text | `git reset --hard refactor/L5` |
 | L6 | `refactor/L6` | — | Done | Signed-off post-L5 fixes: backlog config/flags, per-host prompt/filter compilation, and error-handling termination | 88 tests pass; the same 88 pass against the frozen baseline artifact with L6 expectations level-aware; `npm run build` leaves `lib/` in sync; pre-shell errors no longer throw, host `onError` observes the error before close, and each host recompiles its own prompts/filters | `git reset --hard refactor/L6` |
+| L6.1 | `refactor/L6.1` | — | Done | Approved optimisation and robustness follow-ups: comment accuracy, `_systemMsg` and timer de-duplication, `buildSshCommand` option table, test helpers, build-sync guard, and four signed-off fixes (post-auth SSH timeout, guarded `close()`, empty-command skip, own-property SSH options) | 92 tests pass; the same 92 pass against the frozen baseline artifact with L6.1 expectations level-aware; `npm run check:build` and `npm run build` leave `lib/` in sync | `git reset --hard refactor/L6.1` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -317,6 +320,52 @@ Signed-off-by: user review of the backlog, before further error-handling work.
   with level-aware expectations for the baseline and the fixed behavior.
 - `docs/API-BASELINE.md` — records the fixes and the resolved per-host
   prompt/filter compilation requirement.
+
+### L6.1 deliverables (approved optimisation and robustness follow-ups)
+
+Signed-off-by: user selection of the optimisation review's "safe set + approved
+behaviour fixes" option.
+
+#### Behaviour-neutral cleanups
+
+- `src/ssh2shell.js` — top-of-file and `_systemMsg` comments now describe the
+  current build instead of the L1 baseline; removed the orphaned numbered
+  "CRITICAL" comment and the stale "listeners defaults" comment.
+- `src/ssh2shell.js` — `_systemMsg` merges its identical `debug` and `verbose`
+  branches into one guarded block. Emitted messages are unchanged.
+- `src/ssh2shell.js` — `_scheduleIdleTimeout(response)` replaces the three
+  duplicated `commandTimeout` timer blocks in `_onData` and
+  `_processSudoPrompt`.
+- `src/ssh2shell/ssh-command.js` — `appendSshOption` plus an option-spec table
+  replaces the seven repeated control-character guards. Error strings, order,
+  and command output are unchanged.
+- `test/unit/helpers/harness.js` — shared `processSudo` shim and
+  `waitForStream` helper; the duplicated copies in the test files are removed.
+- `test/unit/hosts.test.js` — the chain tests drop the default `msg` listener so
+  expected host output no longer floods the test log.
+- `scripts/check-build.js` and `package.json` — `check:build` verifies that
+  `lib/` matches `src/`; `npm test` runs it before the suites, so a stale build
+  cannot silently pass.
+
+#### Behaviour fixes (signed off)
+
+- `src/ssh2shell.js` — post-auth `_processSSHPrompt` output that matches no
+  prompt now re-arms the idle timer instead of returning with no timer. A silent
+  nested shell therefore times out rather than hanging.
+- `src/ssh2shell.js` — `close()` is a no-op before a live shell stream exists,
+  so calling it early no longer throws on the prototype `{}` placeholder.
+- `src/ssh2shell.js` — `_processNotifications` skips an empty command and
+  advances the queue instead of leaving the state machine idle.
+- `src/ssh2shell/ssh-command.js` — custom `server.ssh.options` use own
+  enumerable properties only, so inherited values cannot reach the command line.
+- `test/unit/prompts.test.js`, `test/unit/errors.test.js`, and
+  `test/unit/ssh-connect.test.js` — level-aware coverage for the four fixes.
+
+#### Verification
+
+- `npm test` — 92 tests pass on the current build and 92 on the frozen baseline
+  artifact, with `check:build` confirming `lib/` is in sync first.
+- `npm run build` — rebuilds `lib/` from `src/`.
 
 ## Backlog and future work
 

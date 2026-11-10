@@ -6,8 +6,8 @@
 - **Method:** read the implementation, exercise it with the offline harness in
   `test/unit/`, and compare every documented claim in `README.md` against the
   actual code.
-- **Status:** L1 baseline characterization, preserved through L4; L5 records the
-  signed-off behavior changes separately.
+- **Status:** L1 baseline characterization, preserved through L4; L5, L6, and
+  L6.1 record the signed-off behavior changes separately.
 
 The README is treated as *documented intent*. Where it disagrees with the code,
 the code is recorded as the current behavior and the mismatch is listed below.
@@ -70,7 +70,7 @@ until `_connections` is empty and `close()` runs.
 | Member | Status | Notes |
 | --- | --- | --- |
 | `connect(callback)` | Implemented | Starts the first primary host. Callback receives full session text. |
-| `close()` | Implemented | Calls `_stream.close()`. |
+| `close()` | Implemented | Closes the live shell stream. Before the shell opens it is a no-op (L6.1); baseline threw on the prototype `{}` placeholder. |
 | `on`, `emit`, `once`, `removeListener` | Inherited | Normal `EventEmitter` API. |
 | `pipe(destination)` | Inherited | Legacy `Stream.prototype.pipe`; works by listening to `data`/`end`. |
 | `unpipe(destination)` | **Missing** | `Stream.prototype.unpipe` is undefined. The README no longer documents it; `pipe`/`unpipe` are stream-level operations on the instance, not host config. |
@@ -191,6 +191,26 @@ test that runs against both the current build and the frozen baseline artifact.
   `hostHash` is written to `sshObj.server.hostHash`; the legacy
   `msg: { send }` shape is mapped to `msg`; the default keyboard response is
   `''`.
+
+## L6.1 behavior changes (signed off)
+
+These are the approved robustness follow-ups from the optimisation review. They
+are covered by level-aware tests that also run against the frozen baseline.
+
+- **Post-auth nested-SSH timeout.** After the nested `ssh` password/passphrase is
+  accepted, output that matches neither a standard prompt nor a repeated
+  credential prompt now re-arms the idle timer. Baseline returned without a
+  timer, so a silent nested shell could hang indefinitely.
+- **Guarded `close()`.** Calling the public `close()` before the shell opens is
+  a no-op. Baseline called `close()` on the prototype `{}` placeholder and
+  threw `TypeError`.
+- **Empty commands.** `_processNotifications` treats an empty command as
+  nothing to run and advances to the next queued command. Baseline left the
+  state machine idle.
+- **Own SSH option properties.** `buildSshCommand` iterates
+  `server.ssh.options` with `Object.entries`, so inherited enumerable
+  properties cannot leak into the generated `ssh` command. Baseline used
+  `for...in`.
 
 ## README vs code discrepancies
 
@@ -417,7 +437,8 @@ sign-off:
 ```bash
 npm run test:unit       # offline, mocked ssh2, current lib/
 npm run test:baseline   # same suite against the frozen L0 artifact
-npm test                # both of the above
+npm test                # check:build, then both of the above
+npm run check:build     # fails if lib/ differs from src/
 npm run build           # copies src/ssh2shell.js to lib/ssh2shell.js
 ```
 

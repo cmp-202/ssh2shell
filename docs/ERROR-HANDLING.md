@@ -2,8 +2,8 @@
 
 - **Scope:** every `error` event the code emits, what payload it carries, whether
   it closes the shell stream, and how the session ends or continues afterwards.
-- **Source of truth:** `src/ssh2shell.js` (current L5). `lib/ssh2shell.js` is its
-  published copy.
+- **Source of truth:** `src/ssh2shell.js` (current L6.1). `lib/ssh2shell.js` is
+  its published copy.
 - **Comparison target:** `test/fixtures/baseline-ssh2shell.js`, the frozen L0
   artifact, run with `SSH2SHELL_TEST_MODULE`.
 - **Method:** code reading plus offline probes against the mocked `ssh2` in
@@ -25,25 +25,25 @@ this.emit('error', err, type, close = false, callback);
 | --- | --- |
 | `err` | An `Error` for transport failures, otherwise a message string (or, for `Connection close`, a boolean). |
 | `type` | Short label for the failure source, such as `Connection` or `Command Timeout`. |
-| `close` | When truthy, the default listener calls `this._stream.close()`. |
-| `callback` | Optional follow-up. **The default listener never calls it.** |
+| `close` | When truthy and a live shell stream exists, the default listener calls `this._stream.close()`. |
+| `callback` | Optional follow-up. The default listener calls it before closing (L6). |
 
-The constructor installs a default `error` listener before any host
-`onError` listener. Node calls listeners in registration order, so the default
-listener always runs first, even when the host supplies `onError`.
+The constructor installs a default `error` listener. From L6 the host `onError`
+handler is prepended, so the host handler observes the error before the default
+listener closes the stream.
 
 Default listener behavior:
 
 1. Emit a debug `msg` (only when `debug` is on).
 2. Emit an unconditional `msg`: `Error: <message>, Level: <level>` for `Error`
    instances, otherwise `<type> error: <err>`.
-3. If `close` is truthy, call `this._stream.close()` **without checking that
-   `_stream` exists or has a `close` method**.
-4. Ignore `callback`.
+3. If `callback` is a function, call `callback.call(this, err, type, close)`.
+4. If `close` is truthy and `_hasLiveStream()` is true, call
+   `this._stream.close()`.
 
 `_stream` is the prototype placeholder `{}` until the shell callback assigns a
-real stream. It is also not reset between primary hosts, so an early error on a
-later host can still point at the previous host's stream.
+real stream. From L6 it is reset before each new primary host, so an early error
+cannot close the previous host's stream.
 
 ## Emit sites
 
@@ -130,6 +130,7 @@ Consequences:
 | F9 | No `process.exit`; a path that never closes can hang the process. | Same. | Same. | Informational | Design decision. |
 | F10 | `_stream` is not reset between primary hosts. | Same. | Same. | Medium: an early error on a later host can close the previous host's stream. | **Resolved:** `_nextPrimaryHost` resets `_stream` before the new host. |
 | F11 | The sudo timeout path passes `this._connection`, which is never assigned, as the `commandTimeout` connection argument. | Same. | Same. | Low | **Resolved:** passes `this.connection`. |
+| F12 | Post-auth `_processSSHPrompt` output that matches no prompt returns without arming the idle timer. | Same. | Same. | Medium: a silent nested shell can hang. | **Resolved (L6.1):** re-arm the idle timer. |
 
 ### F1 reproduction
 
@@ -181,6 +182,18 @@ ssh._loadDefaults();       // baseline: 1; fixed current: 1 (no duplicate)
 8. **Prepended the host `onError` handler** so it observes the error before the
    default listener closes the stream.
 
+### L6.1 follow-ups (signed off)
+
+- **Post-auth nested-SSH timeout.** `_processSSHPrompt` re-arms the idle timer
+  when authenticated output matches no prompt, instead of returning with no
+  timer. A silent nested shell now times out rather than hanging.
+- **Guarded `close()`.** The public `close()` is a no-op before a live stream
+  exists, extending the F1/F3 guard to the public method.
+- **Empty commands.** `_processNotifications` advances the queue instead of
+  leaving the state machine idle.
+- **Own SSH option properties.** `buildSshCommand` uses `Object.entries`, so
+  inherited properties cannot reach the generated command line.
+
 ## Verification
 
 The characterization tests for this review live in
@@ -192,6 +205,6 @@ npm run test:unit
 npm run test:baseline
 ```
 
-Where current L5 intentionally differs from the baseline, the test branches on
+Where current L6.1 intentionally differs from the baseline, the test branches on
 `isBaseline()` and records the difference. Where a defect exists in both, the
 test locks in the current behavior and points at the finding above.

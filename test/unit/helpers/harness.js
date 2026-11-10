@@ -120,6 +120,27 @@ function waitFor(predicate, options = {}) {
   });
 }
 
+function waitForStream(ssh, options = {}) {
+  return waitFor(
+    () =>
+      ssh._stream &&
+      typeof ssh._stream.receive === 'function' &&
+      ssh.connection,
+    Object.assign({ label: 'stream' }, options)
+  );
+}
+
+/**
+ * The baseline exposes the sudo handler as _processPasswordPrompt; L5 renamed
+ * it to _processSudoPrompt to match its actual purpose.
+ */
+function processSudo(ssh) {
+  if (typeof ssh._processSudoPrompt === 'function') {
+    return ssh._processSudoPrompt();
+  }
+  return ssh._processPasswordPrompt();
+}
+
 function once(emitter, event, timeout = 2000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -146,5 +167,7 @@ module.exports = {
   isBaseline,
   loadSSH2Shell,
   once,
+  processSudo,
   waitFor,
+  waitForStream,
 };

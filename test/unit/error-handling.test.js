@@ -8,7 +8,9 @@ const {
   loadSSH2Shell,
   createHost,
   isBaseline,
+  processSudo,
   waitFor,
+  waitForStream,
   delay,
 } = require('./helpers/harness');
 const { FakeClient, FakeStream } = require('./helpers/fake-ssh2');
@@ -20,21 +22,8 @@ async function connected(overrides = {}, callback) {
   const host = createHost(overrides);
   const ssh = new SSH2Shell(host);
   ssh.connect(callback);
-  await waitFor(
-    () =>
-      ssh._stream &&
-      typeof ssh._stream.receive === 'function' &&
-      ssh.connection,
-    { label: 'stream' }
-  );
+  await waitForStream(ssh);
   return { ssh, host };
-}
-
-function processSudo(ssh) {
-  if (typeof ssh._processSudoPrompt === 'function') {
-    return ssh._processSudoPrompt();
-  }
-  return ssh._processPasswordPrompt();
 }
 
 function sudoFailure(debug) {
@@ -349,13 +338,7 @@ describe('error handling and connection termination', () => {
     });
     ssh = new SSH2Shell(host);
     ssh.connect();
-    await waitFor(
-      () =>
-        ssh._stream &&
-        typeof ssh._stream.receive === 'function' &&
-        ssh.connection,
-      { label: 'stream' }
-    );
+    await waitForStream(ssh);
 
     // Emit a terminator directly so the test isolates listener order rather
     // than the close flag of a particular source.
