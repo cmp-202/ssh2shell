@@ -491,5 +491,6 @@ and `test:baseline` all use `scripts/run-tests.js` to set
 
 `scripts/run-tests.js` passes the test files explicitly rather than a directory,
 so the suite also runs on Node 18. CI runs `npm test` and `npm pack --dry-run` on
-Node 18, 20, 22, and 24; the package publishes only `lib/` plus the README and
-`package.json`, and `prepublishOnly` runs the full suite before a publish.
+Node 18, 20, 22, and 24; the package publishes only `lib/` plus the README,
+`LICENSE`, and `package.json`, and `prepublishOnly` runs the full suite before a
+publish.

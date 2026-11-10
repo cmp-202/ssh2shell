@@ -25,11 +25,11 @@ var host = {
   },
   onCommandTimeout: function (command) {
     console.log('there was an timeout')
-    reject('Timed Out!')
+    throw new Error('Timed Out!')
   }
 };
 //until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
+var SSH2Shell = require ('../src/ssh2shell');
 
 //run the commands in the shell session
 var SSH = new SSH2Shell(host);

@@ -35,6 +35,8 @@ Index:
 npm install ssh2shell
 ```
 
+Requires Node.js 18 or newer.
+
 
 [Minimal Example: ^](#)
 ------------
@@ -547,7 +549,7 @@ the session text would clarify what command and output triggered the timeout eve
 
 ```javascript
 host.onCommandTimeout = function( command, response, stream, connection ) {
-   if (command === "atp-get install node" 
+   if (command === "apt-get install node" 
        && response.indexOf("[Y/n]?") != -1 
        && this.sshObj.nodePrompt != true) {
      //Setting this.sshObj.nodePrompt stops a response loop
@@ -557,7 +559,7 @@ host.onCommandTimeout = function( command, response, stream, connection ) {
      //emit an error that passes true for the close parameter and callback that loads the last response
      //into sessionText
      this.emit ("error", this.sshObj.server.host 
-       + ": Command timed out after #{this._idleTime/1000} seconds. command: " 
+       + ": Command timed out after " + (this.idleTime / 1000) + " seconds. command: " 
        + command, "Timeout", true, function(err, type){
          this.sshObj.sessionText += response
        })
@@ -578,7 +580,7 @@ var SSH2Shell = require ('ssh2shell'),
 //And do it all in the instance event handler
 SSH.on ('commandTimeout',function( command, response, stream, connection ){
   //first test should only pass once to stop a response loop
-  if (command === "atp-get install node" 
+  if (command === "apt-get install node" 
      && response.indexOf("[Y/n]?") != -1 
      && this.sshObj.nodePrompt != true) {
     this.sshObj.nodePrompt = true;
@@ -589,7 +591,7 @@ SSH.on ('commandTimeout',function( command, response, stream, connection ){
   this.sshObj.sessionText += response;
   //emit an error that closes the connection
   this.emit("error", this.sshObj.server.host + ": Command \`" + command + "\` timed out after " 
-    + (this._idleTime / 1000) + " seconds. command: " + command, "Command Timeout", true);
+    + (this.idleTime / 1000) + " seconds. command: " + command, "Command Timeout", true);
 });
 
 SSH.on ('end', function( sessionText, sshObj ) {
@@ -603,7 +605,7 @@ SSH.connect();
 [Multiple Primary Hosts: ^](#)
 -----------------------
 Multiple hosts can be connected to one after the other as you would connecting to a single host.
-Each host config is independant of each other but can share thingsa like commands and handlers.
+Each host config is independent of the others but can share things like commands and handlers.
 Each host config is added to an array of hosts that is passed to the constructor.
 The final `sessionText` contains the output from all the hosts. 
 

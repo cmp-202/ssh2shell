@@ -146,6 +146,7 @@ must be recorded here.
 | L6.1 | `refactor/L6.1` | — | Done | Approved optimisation and robustness follow-ups: comment accuracy, `_systemMsg` and timer de-duplication, `buildSshCommand` option table, test helpers, build-sync guard, and four signed-off fixes (post-auth SSH timeout, guarded `close()`, empty-command skip, own-property SSH options) | 92 tests pass; the same 92 pass against the frozen baseline artifact with L6.1 expectations level-aware; `npm run check:build` and `npm run build` leave `lib/` in sync | `git reset --hard refactor/L6.1` |
 | L7 | `refactor/L7` | — | Done | Tooling, docs, CI, and publish pipeline | 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes; `npm pack --dry-run` contains only `lib/`, the README, and `package.json`; CI runs the suite on Node 18, 20, 22, and 24 | `git reset --hard refactor/L7` |
 | L7.1 | `refactor/L7.1` | — | Done | Post-L7 fixes: drop the misspelled prompt aliases, document the `stream.Stream` base, and finish README reconciliation | 112 tests pass on the current build and the frozen baseline; the README discrepancy table is fully resolved; `npm pack --dry-run` still contains only `lib/`, the README, and `package.json` | `git reset --hard refactor/L7.1` |
+| L7.2 | `refactor/L7.2` | — | Done | Pre-publish hardening: ISC `LICENSE`, Node requirement, complete `.env-example`, README example fixes, and the current `ssh2` lockfile | 112 tests pass on the current build and the frozen baseline; `npm pack --dry-run` contains `README.md`, `LICENSE`, `lib/`, and `package.json`; `npm audit` reports no vulnerabilities | `git reset --hard refactor/L7.2` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -418,6 +419,27 @@ were after L6.1.
   baseline artifact, with `check:build` confirming `lib/` is in sync first.
 - `npm pack --dry-run` — still only `README.md`, `lib/`, and `package.json`.
 
+### L7.2 deliverables (pre-publish hardening)
+
+- `LICENSE` — added the ISC license text declared by `package.json`; npm includes
+  it automatically in the published tarball.
+- `README.md` — states the Node.js 18 requirement, uses the current `idleTime`
+  property in the timeout examples, and fixes the `apt-get` and prose typos.
+- `.env-example` — lists every variable used by the live tests and the README
+  examples, including the secondary user and nested hosts.
+- `package-lock.json` — updated `ssh2` to `1.17.0` (still within the declared
+  `^1.4.0` range) so CI exercises the same version users receive.
+- `test/devtest.js` — targets `src/` like the other live scripts and throws a
+  real error on timeout instead of calling an undefined `reject`.
+
+#### Verification
+
+- `npm test` — 112 tests pass on the current build and 112 on the frozen
+  baseline artifact, with `check:build` confirming `lib/` is in sync first.
+- `npm pack --dry-run` — `README.md`, `LICENSE`, `lib/ssh2shell.js`, the three
+  `lib/ssh2shell/*` helpers, and `package.json`.
+- `npm audit` — no vulnerabilities.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -506,17 +528,17 @@ observable behavior or security posture and needs its own level and sign-off.
 
 These are sensible defaults until confirmed:
 
-- **README reconciliation:** deferred to L7. The README is documentation, not a
-  source of truth; it is corrected to match the code as a separate tidy-up, not
-  used to drive code changes. The project owner is updating the README; the
-  remaining claims are tracked in
-  [docs/API-BASELINE.md](docs/API-BASELINE.md#readme-vs-code-discrepancies).
+- **README reconciliation:** completed at L7.1/L7.2. The README is
+  documentation, not a source of truth; it is corrected to match the code. The
+  discrepancy table in
+  [docs/API-BASELINE.md](docs/API-BASELINE.md#readme-vs-code-discrepancies) is
+  fully resolved.
 - **Node target:** `>=18` (applied at L2: `engines.node` is now `>=18.0.0`). CI
   exercises Node 18, 20, 22, and 24.
 - **`lib/` artifact:** `lib/ssh2shell.js` stays committed and in sync; the
-  published package contains only `lib/` (plus the README and `package.json`),
-  and `prepublishOnly` runs the full suite. There is no separate build-only
-  publish flow.
+  published package contains only `lib/` (plus the README, `LICENSE`, and
+  `package.json`), and `prepublishOnly` runs the full suite. There is no
+  separate build-only publish flow.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
 - **Live hosts:** not used; verification is offline per the decision above.
 - **Behavior-changing fixes:** require explicit sign-off. L5 and L6 changes were
