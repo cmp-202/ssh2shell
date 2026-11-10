@@ -400,13 +400,17 @@ sign-off:
    text each time the chain changes. **Fixed at L5 (signed off):** `_previousHost`
    calls `_removeListeners`, and `test/unit/hosts.test.js` asserts the baseline
    leak and the current clean result in the same test.
-10. Error handling has several latent defects and one L5 behavior change:
-    `_stream.close()` is unguarded, connection/stream errors gained `close=true`
-    at L5 (baseline only reported them), the default listener ignores its
-    callback, and default `error` listeners can accumulate after a host with
-    `onError` is followed by one without. See `docs/ERROR-HANDLING.md` for the
-    full emit-site map, findings F1-F11, and the sign-off list. Sudo rejection
-    was converted from a conditional `error` to a debug notification.
+10. Error handling had several latent defects and one L5 behavior change:
+    `_stream.close()` was unguarded, connection/stream errors gained `close=true`
+    at L5 (baseline only reported them), the default listener ignored its
+    callback, and default `error` listeners could accumulate after a host with
+    `onError` was followed by one without. **Fixed post-L5 (signed off):** the
+    close is guarded, Shell/Connection/Connection.connect classify by live
+    stream state, the callback runs before the close, the host `onError` runs
+    before the default close, the default listener is installed once, `_stream`
+    is reset per primary host, and the sudo timeout uses `this.connection`. Sudo
+    rejection was converted from a conditional `error` to a debug notification.
+    See `docs/ERROR-HANDLING.md` for the emit-site map and F1-F11.
 
 ## Verification
 

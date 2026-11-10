@@ -110,7 +110,7 @@ describe('error handling and connection termination', () => {
     }
   });
 
-  it('pre-shell connection errors throw on current L5 but not on baseline', () => {
+  it('reports pre-shell connection errors without throwing or closing', () => {
     class NoReady extends FakeClient {
       constructor() {
         super();
@@ -124,24 +124,23 @@ describe('error handling and connection termination', () => {
     ssh.on('error', (...args) => errors.push(args));
     ssh.connect();
 
+    assert.doesNotThrow(() => ssh.connection.emit('error', new Error('boom')));
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0][1], 'Connection');
+
     if (isBaseline()) {
-      assert.doesNotThrow(() => ssh.connection.emit('error', new Error('boom')));
-      assert.equal(errors.length, 1);
-      assert.equal(errors[0][1], 'Connection');
+      assert.equal(errors[0][2], undefined);
     } else {
-      // F1: close=true reaches the prototype `{}` placeholder, which has no
-      // close method. The default listener throws before the user listener runs.
-      assert.throws(
-        () => ssh.connection.emit('error', new Error('boom')),
-        /this\._stream\.close is not a function/
-      );
-      assert.equal(errors.length, 0);
+      // F1/F2: no live shell stream exists yet, so this is a notification and
+      // the guarded default listener must not throw.
+      assert.equal(errors[0][2], false);
     }
+    assert.equal(ssh._stream.closed, undefined);
 
     ssh.connection.removeAllListeners();
   });
 
-  it('cannot report a synchronous connect throw before the shell opens', () => {
+  it('reports a synchronous connect throw before the shell opens', () => {
     class ThrowConnect extends FakeClient {
       connect() {
         throw new Error('connect boom');
@@ -153,18 +152,23 @@ describe('error handling and connection termination', () => {
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
 
-    // F3: shared by baseline and current. The default listener throws on the
-    // prototype placeholder before the user listener runs.
-    assert.throws(
-      () => ssh.connect(),
-      /_stream\.close is not a function/
-    );
-    assert.equal(errors.length, 0);
+    if (isBaseline()) {
+      // F3 baseline: the default listener throws on the prototype placeholder
+      // before the user listener runs.
+      assert.throws(() => ssh.connect(), /_stream\.close is not a function/);
+      assert.equal(errors.length, 0);
+    } else {
+      // F3 current: guarded close, so the error is reported as a notification.
+      assert.doesNotThrow(() => ssh.connect());
+      assert.equal(errors.length, 1);
+      assert.equal(errors[0][1], 'Connection.connect');
+      assert.equal(errors[0][2], false);
+    }
 
     ssh.connection.removeAllListeners();
   });
 
-  it('reports missing parameters without closing or running the callback', async () => {
+  it('reports missing parameters without closing and runs the callback', async () => {
     const ssh = new SSH2Shell(createHost());
     // `_loadDefaults` supplies defaults, so exercise `_connect` directly with
     // no server object to reach the missing-parameters branch.
@@ -187,14 +191,26 @@ describe('error handling and connection termination', () => {
     assert.equal(args[2], false);
     assert.equal(typeof args[3], 'function');
     assert.ok(messages.includes('Parameters error: Missing connection parameters'));
-    // F4: the callback that would print server/commands is never called.
-    assert.equal(messages.some((message) => message && typeof message === 'object'), false);
+    if (isBaseline()) {
+      // F4 baseline: the callback that prints server/commands is never called.
+      assert.equal(
+        messages.some((message) => message && typeof message === 'object'),
+        false
+      );
+    } else {
+      // F4 current: the callback runs with the shell as `this`.
+      assert.ok(
+        messages.some(
+          (message) => Array.isArray(message) && message[0] === 'echo one'
+        )
+      );
+    }
     assert.equal(ssh._stream.closed, undefined);
 
     ssh.connection.removeAllListeners();
   });
 
-  it('command timeout closes the stream but drops its callback', async () => {
+  it('command timeout runs its callback before closing the stream', async () => {
     const { ssh } = await connected();
     ssh._buffer = 'partial output';
     ssh.sshObj.sessionText = 'base';
@@ -216,10 +232,17 @@ describe('error handling and connection termination', () => {
     assert.ok(args);
     assert.equal(args[2], true);
     assert.equal(typeof args[3], 'function');
-    // F4: the default listener ignores the callback, so the timeout text is
-    // not appended to sessionText and the buffer is not cleared.
-    assert.equal(ssh._buffer, 'partial output');
-    assert.equal(ssh.sshObj.sessionText, 'base');
+
+    if (isBaseline()) {
+      // F4 baseline: the default listener ignores the callback, so the timeout
+      // text is not appended to sessionText and the buffer is not cleared.
+      assert.equal(ssh._buffer, 'partial output');
+      assert.equal(ssh.sshObj.sessionText, 'base');
+    } else {
+      // F4 current: the callback saves the partial buffer before the close.
+      assert.equal(ssh._buffer, '');
+      assert.equal(ssh.sshObj.sessionText, 'basepartial output');
+    }
     assert.equal(ssh._stream.closed, true);
   });
 
@@ -280,13 +303,9 @@ describe('error handling and connection termination', () => {
     ssh.sshObj = createHost();
     ssh._loadDefaults();
 
-    if (isBaseline()) {
-      assert.equal(ssh.listenerCount('error'), 1);
-    } else {
-      // F6: the cache entry was cleared when the host handler was removed, so
-      // the next host without onError installs another default listener.
-      assert.equal(ssh.listenerCount('error'), 2);
-    }
+    // F6: the default listener is tracked separately, so a later host without
+    // onError never installs a duplicate.
+    assert.equal(ssh.listenerCount('error'), 1);
   });
 
   it('shell errors close the stream when ssh2 supplies one', async () => {
@@ -318,5 +337,88 @@ describe('error handling and connection termination', () => {
     });
 
     assert.equal(ssh._stream.closed, true);
+  });
+
+  it('runs the host onError before the default listener closes (F5)', async () => {
+    const observed = [];
+    let ssh;
+    const host = createHost({
+      onError: (err, type) => {
+        observed.push({ type, closed: ssh._stream.closed });
+      },
+    });
+    ssh = new SSH2Shell(host);
+    ssh.connect();
+    await waitFor(
+      () =>
+        ssh._stream &&
+        typeof ssh._stream.receive === 'function' &&
+        ssh.connection,
+      { label: 'stream' }
+    );
+
+    // Emit a terminator directly so the test isolates listener order rather
+    // than the close flag of a particular source.
+    ssh.emit('error', new Error('order boom'), 'Test', true);
+
+    assert.equal(observed.length, 1);
+    assert.equal(observed[0].type, 'Test');
+
+    if (isBaseline()) {
+      // Baseline: the default listener closes before the host handler runs.
+      assert.equal(observed[0].closed, true);
+    } else {
+      // Current: the host handler observes the live stream before the close.
+      assert.equal(observed[0].closed, false);
+      assert.equal(ssh._stream.closed, true);
+    }
+  });
+
+  it('resets the stream reference for each primary host (F10)', () => {
+    const first = createHost({ server: { host: 'first.test' } });
+    const second = createHost({ server: { host: 'second.test' } });
+    const ssh = new SSH2Shell([first, second]);
+    const stale = new FakeStream();
+    ssh._stream = stale;
+    ssh._initiate = () => ssh._stream;
+
+    const result = ssh._nextPrimaryHost(() => {});
+
+    if (isBaseline()) {
+      // Baseline keeps the previous host's stream reference.
+      assert.equal(result, stale);
+    } else {
+      assert.notEqual(result, stale);
+      assert.equal(typeof result.close, 'undefined');
+    }
+  });
+
+  it('passes the live connection to the sudo timeout handler (F11)', async () => {
+    const host = createHost({
+      server: { password: 'secret' },
+      onCommandTimeout: () => {},
+    });
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+    ssh._loadDefaults();
+    ssh._stream = new FakeStream();
+    ssh.connection = { marker: 'live' };
+    ssh.idleTime = 0;
+    ssh.command = 'sudo ls';
+    ssh._buffer = 'random output';
+
+    const timeouts = [];
+    ssh.on('commandTimeout', (...args) => timeouts.push(args));
+    processSudo(ssh);
+    await delay(10);
+
+    assert.equal(timeouts.length, 1);
+    if (isBaseline()) {
+      // Baseline passes the never-assigned `this._connection`.
+      assert.equal(timeouts[0][3], undefined);
+    } else {
+      assert.equal(timeouts[0][3], ssh.connection);
+    }
+    clearTimeout(ssh.idleTimer);
   });
 });

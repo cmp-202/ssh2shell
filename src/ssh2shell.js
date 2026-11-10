@@ -58,6 +58,7 @@ class SSH2Shell extends Stream {
     this._connections = [];
     this.host = "No host";
     this._allSessions = '';
+    this._defaultErrorListener = null;
     this._loadDefaultListeners();   
   }
   
@@ -80,21 +81,35 @@ class SSH2Shell extends Stream {
         };
         this._boundListener ( 'stderrData', stderrData);
     }
-    if(!this._boundListeners['error']){
-        const error = (err, type, close = false, callback) => {
-          this._systemMsg('debug',`Class.error: ${err}, ${type}`);
-          
-          if (err instanceof Error) {
-            this.emit('msg', `Error: ${err.message}, Level: ${err.level}`);
-          } else {
-            this.emit('msg', `${type} error: ${err}`);
-          }
+    // Track the default error listener separately from host `onError` handlers.
+    // The host cache entry is cleared when a host handler is detached, which
+    // used to make the next host install a second default listener.
+    if (!this._defaultErrorListener) {
+      this._defaultErrorListener = (err, type, close = false, callback) => {
+        this._systemMsg('debug', `Class.error: ${err}, ${type}`);
 
-          if (close) {
-            this._stream.close();
-          }
-        };
-        this._boundListener ( 'error', error);
+        if (err instanceof Error) {
+          this.emit('msg', `Error: ${err.message}, Level: ${err.level}`);
+        } else {
+          this.emit('msg', `${type} error: ${err}`);
+        }
+
+        // Run the optional callback before closing so timeout bookkeeping (for
+        // example appending the partial buffer to sessionText) happens while
+        // the stream can still finish normally.
+        if (typeof callback === 'function') {
+          callback.call(this, err, type, close);
+        }
+
+        // Only close a real shell stream. Before the shell opens, `_stream` is
+        // the prototype `{}` placeholder, which has no close method.
+        if (close && this._hasLiveStream()) {
+          this._stream.close();
+        }
+      };
+    }
+    if (!this.listeners('error').includes(this._defaultErrorListener)) {
+      this.on('error', this._defaultErrorListener);
     }
     if(!this._boundListeners['keyboard-interactive']){
         if (
@@ -123,17 +138,27 @@ class SSH2Shell extends Stream {
     return;
   }
   
-  _boundListener ( eventName, listener ) {
+  _boundListener ( eventName, listener, prepend = false ) {
     if ( typeof listener === `function` ){
       // Avoid attaching the same handler twice when _loadDefaults runs again.
       if (this._boundListeners[eventName] === listener) {
         return;
       }
       this._boundListeners[eventName] = listener;
-      this.on(eventName, listener);
+      if (prepend) {
+        this.prependListener(eventName, listener);
+      } else {
+        this.on(eventName, listener);
+      }
     }
     
     return;
+  }
+
+  // A real shell stream exists only after `connection.shell` succeeds. Before
+  // that, `_stream` is the prototype `{}` placeholder.
+  _hasLiveStream() {
+    return Boolean(this._stream && typeof this._stream.close === 'function');
   }
   
   // Helper to safely detach listeners using cached references
@@ -345,7 +370,7 @@ class SSH2Shell extends Stream {
             this.command,
             response,
             this._stream,
-            this._connection
+            this.connection
           );
         }, this.idleTime));
     }
@@ -667,6 +692,9 @@ class SSH2Shell extends Stream {
       this._systemMsg('debug',`nextPrimaryHost: Load next primary host: ${this.host}`);
       
       this._removeListeners();
+      // A new primary host gets a new connection, so drop the previous host's
+      // stream reference. Otherwise an early error could close the old stream.
+      this._stream = {};
       this.sshObj = this._hosts.shift();
       this.host = this.sshObj.server.host;
       this._primaryhostSessionText = `${this.host}: `;
@@ -873,7 +901,9 @@ class SSH2Shell extends Stream {
       this._boundListener('keyboard-interactive', this.sshObj.onKeyboardInteractive);
     }
     if (typeof this.sshObj.onError === 'function') {
-      this._boundListener('error', this.sshObj.onError);
+      // Host handlers run before the default listener so they can observe the
+      // error before the default listener closes the stream.
+      this._boundListener('error', this.sshObj.onError, true);
     }
     if (typeof this.sshObj.onData === 'function') {
       this._boundListener('data', this.sshObj.onData);
@@ -943,7 +973,7 @@ class SSH2Shell extends Stream {
         (err, stream) => {
           this._stream = stream;
           if (err instanceof Error) {
-            this.emit('error', err, 'Shell', true);
+            this.emit('error', err, 'Shell', this._hasLiveStream());
             return;
           }
           this._systemMsg('debug', `connect: Connection.shell`);
@@ -994,7 +1024,10 @@ class SSH2Shell extends Stream {
     this.connection.on('error', (err) => {
       this._systemMsg('debug',`connect: Connection.error`);
       
-      this.emit('error', err, 'Connection', true);
+      // Before the shell opens there is no live stream to close, so report the
+      // error without terminating. Once a shell exists, the connection error
+      // is a terminator.
+      this.emit('error', err, 'Connection', this._hasLiveStream());
     });
 
     this.connection.on('close', (had_error) => {
@@ -1039,7 +1072,12 @@ class SSH2Shell extends Stream {
         
         this.connection.connect(this.sshObj.server);
       } catch (e) {
-        this.emit('error', `${e} ${e.stack}`, 'Connection.connect', true);
+        this.emit(
+          'error',
+          `${e} ${e.stack}`,
+          'Connection.connect',
+          this._hasLiveStream()
+        );
       }
     } else {
       this.emit(

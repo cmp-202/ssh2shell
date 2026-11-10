@@ -255,12 +255,36 @@ its own hash. The annotated tags are the stable rollback references; use
   the default listener contract and findings F1-F11 (pre-shell close crash,
   L5 close-flag changes, ignored callbacks, listener accumulation, stale
   `_stream`, and related quirks).
-- `test/unit/error-handling.test.js` — 10 characterization tests. They pass
-  against both the current build and the frozen baseline, with level-aware
-  expectations where L5 intentionally differs (connection/stream close flags,
-  pre-shell connection errors, default listener counts).
-- This review did not change source behavior and is not a new level tag. The
-  recommended fixes in the review still need sign-off.
+- `test/unit/error-handling.test.js` — characterization tests that pass against
+  both the current build and the frozen baseline, with level-aware expectations
+  where the current behavior intentionally differs (close flags, callbacks,
+  listener order and counts, stream reset).
+- The review itself did not change source behavior and is not a new level tag.
+  Its recommended fixes were signed off and implemented separately (below).
+
+### Post-L5 error-handling fixes
+
+Signed-off-by: user review of `docs/ERROR-HANDLING.md`.
+
+- `src/ssh2shell.js` — the default `error` listener only closes a live shell
+  stream (`_hasLiveStream()`), so pre-shell errors cannot throw on the prototype
+  `{}` placeholder (F1/F3).
+- `src/ssh2shell.js` — Shell/Connection/Connection.connect errors classify by
+  stream state: pre-shell they report with `close=false`; once a shell exists
+  they terminate (F2).
+- `src/ssh2shell.js` — the default listener invokes the optional callback before
+  closing, with the shell as `this`, restoring timeout bookkeeping and
+  missing-parameter diagnostics (F4).
+- `src/ssh2shell.js` — the host `onError` is prepended so it runs before the
+  default close (F5).
+- `src/ssh2shell.js` — the default `error` listener is tracked separately and
+  installed exactly once (F6).
+- `src/ssh2shell.js` — `_nextPrimaryHost` resets `_stream` before each new
+  primary host (F10).
+- `src/ssh2shell.js` — the sudo timeout passes `this.connection`, not the
+  never-assigned `this._connection` (F11).
+- `test/unit/error-handling.test.js` — level-aware coverage for all of the above,
+  including the new F5/F10/F11 tests.
 
 ### Post-L5 backlog fixes
 
@@ -313,12 +337,13 @@ observable behavior or security posture and needs its own level and sign-off.
   dead code; the normal back-out path is `_runExit` via `_previousHost`.
 - **Done post-L5 (signed off):** sudo password rejection is a debug notification,
   not an `error` event. The command is cancelled and the session continues.
-- **Resolve the error-handling findings in `docs/ERROR-HANDLING.md`.** In
-  particular: guard `_stream.close()` before the shell opens (F1/F3), decide
-  whether `Connection`/`Stream` errors keep L5's `close=true` or return to the
-  baseline `close=false` (F2), invoke the optional `error` callback (F4),
-  install the default `error` listener exactly once (F6), and reset or validate
-  `_stream` per primary host (F10).
+- **Done post-L5 (signed off):** resolve the error-handling findings in
+  `docs/ERROR-HANDLING.md`. The default listener guards `_stream.close()`
+  (F1/F3), Connection/Shell/Connection.connect errors classify by live stream
+  state (F2), the optional callback runs before the close (F4), the host
+  `onError` is prepended (F5), the default `error` listener is installed once
+  (F6), `_stream` is reset per primary host (F10), and the sudo timeout passes
+  `this.connection` (F11). F8 and F9 remain informational by design.
 - **Done post-L5 (signed off):** compile prompts/filters per host, not once per
   instance. `_loadDefaults` rebuilds the compiled regexes from the current
   `sshObj` on every call. See
