@@ -147,6 +147,7 @@ must be recorded here.
 | L7 | `refactor/L7` | — | Done | Tooling, docs, CI, and publish pipeline | 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes; `npm pack --dry-run` contains only `lib/`, the README, and `package.json`; CI runs the suite on Node 18, 20, 22, and 24 | `git reset --hard refactor/L7` |
 | L7.1 | `refactor/L7.1` | — | Done | Post-L7 fixes: drop the misspelled prompt aliases, document the `stream.Stream` base, and finish README reconciliation | 112 tests pass on the current build and the frozen baseline; the README discrepancy table is fully resolved; `npm pack --dry-run` still contains only `lib/`, the README, and `package.json` | `git reset --hard refactor/L7.1` |
 | L7.2 | `refactor/L7.2` | — | Done | Pre-publish hardening: ISC `LICENSE`, Node requirement, complete `.env-example`, README example fixes, and the current `ssh2` lockfile | 112 tests pass on the current build and the frozen baseline; `npm pack --dry-run` contains `README.md`, `LICENSE`, `lib/`, and `package.json`; `npm audit` reports no vulnerabilities | `git reset --hard refactor/L7.2` |
+| L7.3 | `refactor/L7.3` | — | Done | Trusted publishing workflow and maintainer guide | `publish.yml` uses GitHub OIDC (`id-token: write`) with no long-lived token; `docs/PUBLISHING.md` covers the npm trusted-publisher setup and the OTP fallback | `git reset --hard refactor/L7.3` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -439,6 +440,14 @@ were after L6.1.
 - `npm pack --dry-run` — `README.md`, `LICENSE`, `lib/ssh2shell.js`, the three
   `lib/ssh2shell/*` helpers, and `package.json`.
 - `npm audit` — no vulnerabilities.
+
+### L7.3 deliverables (trusted publishing)
+
+- `.github/workflows/publish.yml` — publishes on `v*` tags, or manually for a
+  specified tag, using GitHub OIDC (`id-token: write`) and no long-lived npm
+  token. It runs `npm test` and `npm pack --dry-run` before `npm publish`.
+- `docs/PUBLISHING.md` — npm trusted-publisher setup, the one-off `--otp`
+  fallback, and the bypass-2FA stopgap.
 
 ## Backlog and future work
 

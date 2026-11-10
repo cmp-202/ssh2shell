@@ -1,0 +1,57 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Tag to publish, for example v3.0.0'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.ref || github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify version matches the ref
+        shell: bash
+        run: |
+          expected="${{ inputs.ref || github.ref_name }}"
+          actual="v$(node -p "require('./package.json').version")"
+          if [ "$expected" != "$actual" ]; then
+            echo "Ref $expected does not match package version $actual" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Verify publish contents
+        run: npm pack --dry-run
+
+      - name: Publish
+        run: npm publish
