@@ -130,8 +130,9 @@ undocumented `dataIdleTime`), `sessionText`, `exitCommands`.
 `cipherSpec`, `escape`, `logFile`, `configFile`, `identityFile`, `loginName`,
 `macSpec`, `options`.
 
-**Legacy aliases:** `passwordPromt` and `passphrasePromt` are read as fallbacks
-for `passwordPrompt` and `passphrasePrompt`.
+**Removed legacy aliases:** the misspelled `passwordPromt` and
+`passphrasePromt` fallbacks were removed post-L7. Only `passwordPrompt` and
+`passphrasePrompt` are read. The frozen baseline still honours the aliases.
 
 ## README claims that are confirmed by the code
 
@@ -254,7 +255,7 @@ are covered by level-aware tests that also run against the frozen baseline.
 | 12 | `host.idleTimeout` in a comment | Actual key is `idleTimeOut` | Documentation typo | **Resolved at L1** |
 | 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | **Resolved at L7 (README):** guidance now uses `this.connection.end()` |
 | 14 | `.emit("eventName", function, parms, ...)` | `emit(name, ...args)` | Misleading API description | **Resolved at L7 (README):** signature is now `emit(name, ...args)` |
-| 15 | `passwordPromt` / `passphrasePromt` | Supported aliases, undocumented | Works, but undocumented | L7 docs (README owner): document the aliases |
+| 15 | `passwordPromt` / `passphrasePromt` | Supported aliases, undocumented | Works, but undocumented | **Resolved post-L7:** the misspelled fallbacks were removed; only `passwordPrompt` / `passphrasePrompt` are read |
 | 16 | `window` passed to `ssh2` | Code passes the value as the `window` argument to `connection.shell` | A forced `true` may not match the intended pty settings | **Resolved post-L5:** the nullish check preserves `false` and still passes the value to `connection.shell` |
 | 17 | Prompts/filters are per host | Compiled once per instance and reused across hosts | Nested/primary hosts can inherit the first host's filters | **Resolved post-L5:** `_loadDefaults` recompiles prompts and filters from the current host |
 | 18 | Sudo errors are reported | Error is only emitted when `debug` is true | Incorrect sudo passwords can fail silently | **Resolved post-L5:** sudo rejection is a debug notification; the command is cancelled and the session continues |

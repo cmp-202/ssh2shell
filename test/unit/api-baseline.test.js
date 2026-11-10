@@ -170,14 +170,22 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
   });
 
-  it('honours the legacy passwordPromt/passphrasePromt aliases', () => {
+  it('ignores the legacy passwordPromt/passphrasePromt aliases', () => {
     const { ssh } = makeLoaded({
       passwordPromt: 'legacy:',
       passphrasePromt: 'legacyphrase:',
     });
 
-    assert.equal(ssh.sshObj.passwordPrompt, 'legacy:');
-    assert.equal(ssh.sshObj.passphrasePrompt, 'legacyphrase:');
+    // The baseline reads the misspelled aliases as fallbacks. The current
+    // implementation only accepts the correctly spelled keys.
+    assert.equal(
+      ssh.sshObj.passwordPrompt,
+      isBaseline() ? 'legacy:' : ':'
+    );
+    assert.equal(
+      ssh.sshObj.passphrasePrompt,
+      isBaseline() ? 'legacyphrase:' : ':'
+    );
   });
 
   it('maps dataIdleTimeOut to the internal dataIdleTime timer', () => {

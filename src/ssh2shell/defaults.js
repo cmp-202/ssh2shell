@@ -35,12 +35,6 @@ function applyHostDefaults(sshObj) {
     sshObj.standardPrompt = '>$%#';
   }
   if (!sshObj.passwordPrompt) {
-    sshObj.passwordPrompt = sshObj.passwordPromt;
-  }
-  if (!sshObj.passphrasePrompt) {
-    sshObj.passphrasePrompt = sshObj.passphrasePromt;
-  }
-  if (!sshObj.passwordPrompt) {
     sshObj.passwordPrompt = ':';
   }
   if (!sshObj.passphrasePrompt) {

@@ -390,9 +390,10 @@ were after L6.1.
 - `REFACTORING.md` — this L7 section and ledger row.
 - The README itself is corrected by the project owner. The L7 README pass
   aligned the `asciiFilter` default, the `onError` close guidance, and the
-  `emit` signature; two claims remain (`stream.Stream` base and the
-  `passwordPromt` / `passphrasePromt` aliases), and one later `asciiFilter`
-  example still uses the old value.
+  `emit` signature; the `stream.Stream` base remains to be documented, and one
+  later `asciiFilter` example still uses the old value. The misspelled
+  `passwordPromt` / `passphrasePromt` aliases were removed rather than
+  documented (see the post-L7 entry in the backlog).
 
 #### Verification
 
@@ -470,6 +471,10 @@ observable behavior or security posture and needs its own level and sign-off.
   scripts share `test/utils/logging.js` and run against `src/` so they can be
   used before a build. Tests: `test/unit/l5-behavior.test.js` — message-sink,
   duplicate-listener, and default-handler restoration cases.
+- **Done post-L7 (signed off):** remove the misspelled `passwordPromt` and
+  `passphrasePromt` fallbacks. Only `passwordPrompt` and `passphrasePrompt` are
+  read now; the frozen baseline still honours the aliases.
+  `test/unit/api-baseline.test.js` is level-aware for the difference.
 - **Done at L5:** `_connections` and `sshObj` are assigned per instance in the
   constructor, so instances no longer share prototype state before `connect()`.
 - **Done at L5:** the default `keyboard-interactive` handler now calls
