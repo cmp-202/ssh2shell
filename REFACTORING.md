@@ -144,6 +144,7 @@ must be recorded here.
 | L5 | `refactor/L5` | — | Done | Debug/verbose message gating, per-host listener lifecycle, and the signed-off multi-host/payload fixes | 72 tests pass; the same 72 pass against the frozen baseline artifact with L5 expectations level-aware; `npm run build` leaves `lib/` in sync; backing out of a nested host no longer fires stale handlers or duplicates session text | `git reset --hard refactor/L5` |
 | L6 | `refactor/L6` | — | Done | Signed-off post-L5 fixes: backlog config/flags, per-host prompt/filter compilation, and error-handling termination | 88 tests pass; the same 88 pass against the frozen baseline artifact with L6 expectations level-aware; `npm run build` leaves `lib/` in sync; pre-shell errors no longer throw, host `onError` observes the error before close, and each host recompiles its own prompts/filters | `git reset --hard refactor/L6` |
 | L6.1 | `refactor/L6.1` | — | Done | Approved optimisation and robustness follow-ups: comment accuracy, `_systemMsg` and timer de-duplication, `buildSshCommand` option table, test helpers, build-sync guard, and four signed-off fixes (post-auth SSH timeout, guarded `close()`, empty-command skip, own-property SSH options) | 92 tests pass; the same 92 pass against the frozen baseline artifact with L6.1 expectations level-aware; `npm run check:build` and `npm run build` leave `lib/` in sync | `git reset --hard refactor/L6.1` |
+| L7 | `refactor/L7` | — | Done | Tooling, docs, CI, and publish pipeline | 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes; `npm pack --dry-run` contains only `lib/`, the README, and `package.json`; CI runs the suite on Node 18, 20, 22, and 24 | `git reset --hard refactor/L7` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -368,6 +369,39 @@ behaviour fixes" option.
   artifact, with `check:build` confirming `lib/` is in sync first.
 - `npm run build` — rebuilds `lib/` from `src/`.
 
+### L7 deliverables (tooling, docs, CI, and publish)
+
+No runtime behavior changes. The public API, events, and config remain as they
+were after L6.1.
+
+- `.github/workflows/ci.yml` — runs `npm ci`, `npm test`, and
+  `npm pack --dry-run` on Node 18, 20, 22, and 24 for pushes to `master` /
+  `Refactoring` and for pull requests.
+- `scripts/run-tests.js` — discovers `*.test.js` files under `test/unit` and
+  passes them explicitly to `node --test`, so the same runner works on Node 18
+  as well as newer releases. `test:unit` now delegates to it as well.
+- `package.json` — `files: ["lib"]` limits the published tarball to the runtime
+  artifact (the README and `package.json` are always included), and
+  `prepublishOnly` runs `npm test` so a stale build or failing baseline cannot
+  be published.
+- `docs/API-BASELINE.md` — verification commands include `npm pack --dry-run`;
+  the README discrepancy table records the remaining README-only items under
+  L7 docs ownership and marks items 16-18 resolved.
+- `REFACTORING.md` — this L7 section and ledger row.
+- The README itself is corrected by the project owner. The L7 README pass
+  aligned the `asciiFilter` default, the `onError` close guidance, and the
+  `emit` signature; two claims remain (`stream.Stream` base and the
+  `passwordPromt` / `passphrasePromt` aliases), and one later `asciiFilter`
+  example still uses the old value.
+
+#### Verification
+
+- `npm test` — 112 tests pass on the current build and 112 on the frozen
+  baseline artifact, with `check:build` confirming `lib/` is in sync first.
+- `npm pack --dry-run` — the tarball contains `README.md`, `lib/ssh2shell.js`,
+  the three `lib/ssh2shell/*` helpers, and `package.json`.
+- CI runs the same commands on Node 18, 20, 22, and 24.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -454,10 +488,15 @@ These are sensible defaults until confirmed:
 
 - **README reconciliation:** deferred to L7. The README is documentation, not a
   source of truth; it is corrected to match the code as a separate tidy-up, not
-  used to drive code changes.
-- **Node target:** `>=18` (applied at L2: `engines.node` is now `>=18.0.0`).
-- **`lib/` artifact:** keep `lib/ssh2shell.js` committed and in sync during the
-  refactor; decide whether it becomes build-only at L7.
+  used to drive code changes. The project owner is updating the README; the
+  remaining claims are tracked in
+  [docs/API-BASELINE.md](docs/API-BASELINE.md#readme-vs-code-discrepancies).
+- **Node target:** `>=18` (applied at L2: `engines.node` is now `>=18.0.0`). CI
+  exercises Node 18, 20, 22, and 24.
+- **`lib/` artifact:** `lib/ssh2shell.js` stays committed and in sync; the
+  published package contains only `lib/` (plus the README and `package.json`),
+  and `prepublishOnly` runs the full suite. There is no separate build-only
+  publish flow.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
 - **Live hosts:** not used; verification is offline per the decision above.
 - **Behavior-changing fixes:** require explicit sign-off. L5 and L6 changes were

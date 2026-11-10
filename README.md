@@ -115,7 +115,7 @@ host = {
   
   //Optional: Regular expressions to simplify response
   //defaults:
-  asciiFilter:        "[^\r\n\x20-\x7e]", //removes non-standard ASCII
+  asciiFilter:        "[^\t\r\n\x20-\x7e]", //removes non-standard ASCII
   disableColorFilter:  false, //turns colour filtering on and off
   textColorFilter:    "(\[{1}[0-9;]+m{1})", //removes colour formatting codes
   
@@ -200,7 +200,7 @@ host = {
    //close: is a Boolean value indicating if the connection should be closed or not
    //callback: is the function to run when handling the error defined as function(err,type){}
    //if using this remember to handle closing the connection based on the close parameter.
-   //To close the connection us this.connection.close()
+   //To close the connection us this.connection.end();
   },
   
   //Optional:
@@ -226,7 +226,7 @@ SSH2Shell extends events.EventEmitter
 * .connect(callback(sessionText)) Is the main function to establish the connection and handle data events from the server. 
   It takes in an optional callback function for processing the full session text.
 
-* .emit("eventName", function, parms,... ). Raises the event based on the name in the first string and takes input
+* .emit(name,  ...args). Raises the event based on the name in the first string and takes input
   parameters based on the handler function definition.
   
 *Variables*

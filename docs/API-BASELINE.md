@@ -247,17 +247,17 @@ are covered by level-aware tests that also run against the frozen baseline.
 | 5 | `onPipe` / `onUnpipe` host handlers | Never read | Redundant | **Resolved post-L5:** removed from the README |
 | 6 | `pipe` / `Unpipe` events on the instance | Not emitted by the class; stream-level only | Listeners never fire | **Resolved post-L5:** removed from the README |
 | 7 | `host.callback` | Only `connect(callback)` is read | Ignored | **Resolved at L1** (removed from README) |
-| 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | L6: document accurately |
+| 8 | `SSH2Shell extends events.EventEmitter` | Extends legacy `stream.Stream` | Mostly compatible, but not the documented base | L7 docs (README owner): document the actual base |
 | 9 | `forceProtocolVersion: true/false` | Appends the value literally (`-xtrue`) | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-1`/`-2`; `true` → `-2` |
 | 10 | `forceAddressType: true/false` | Appends the value literally | Produces an invalid ssh flag | **Resolved post-L5:** maps to `-4`/`-6`; `true` → `-4` |
-| 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | L6: align docs and code |
+| 11 | `asciiFilter` default `[^\r\n\x20-\x7e]` | Default regex is `[^\t\r\n\x20-\x7e]` | Tab is preserved in code but stripped by the documented filter | **Resolved at L7 (README):** the config default now includes `\t`; one example later in the README still shows the old value |
 | 12 | `host.idleTimeout` in a comment | Actual key is `idleTimeOut` | Documentation typo | **Resolved at L1** |
-| 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | L6: correct docs |
-| 14 | `.emit("eventName", function, parms, ...)` | `emit(name, ...args)` | Misleading API description | L6: correct docs |
-| 15 | `passwordPromt` / `passphrasePromt` | Supported aliases, undocumented | Works, but undocumented | L6: document aliases |
-| 16 | `window` passed to `ssh2` | Code passes the value as the `window` argument to `connection.shell` | A forced `true` may not match the intended pty settings | Open (future L5+): see truthiness audit |
-| 17 | Prompts/filters are per host | Compiled once per instance and reused across hosts | Nested/primary hosts can inherit the first host's filters | Open (future L5+): compile per host |
-| 18 | Sudo errors are reported | Error is only emitted when `debug` is true | Incorrect sudo passwords can fail silently | Open (future L5+): emit regardless of `debug` |
+| 13 | `onError` says `this.connection.close()` | Code uses `_stream.close()` / `connection.end()` | Misleading guidance | **Resolved at L7 (README):** guidance now uses `this.connection.end()` |
+| 14 | `.emit("eventName", function, parms, ...)` | `emit(name, ...args)` | Misleading API description | **Resolved at L7 (README):** signature is now `emit(name, ...args)` |
+| 15 | `passwordPromt` / `passphrasePromt` | Supported aliases, undocumented | Works, but undocumented | L7 docs (README owner): document the aliases |
+| 16 | `window` passed to `ssh2` | Code passes the value as the `window` argument to `connection.shell` | A forced `true` may not match the intended pty settings | **Resolved post-L5:** the nullish check preserves `false` and still passes the value to `connection.shell` |
+| 17 | Prompts/filters are per host | Compiled once per instance and reused across hosts | Nested/primary hosts can inherit the first host's filters | **Resolved post-L5:** `_loadDefaults` recompiles prompts and filters from the current host |
+| 18 | Sudo errors are reported | Error is only emitted when `debug` is true | Incorrect sudo passwords can fail silently | **Resolved post-L5:** sudo rejection is a debug notification; the command is cancelled and the session continues |
 
 ## `dataIdleTimeOut` and the internal timer
 
@@ -478,6 +478,7 @@ npm run test:baseline   # same suite against the frozen L0 artifact
 npm test                # check:build, then lib and baseline
 npm run check:build     # fails if lib/ differs from src/
 npm run build           # copies src/ssh2shell.js to lib/ssh2shell.js
+npm pack --dry-run      # show the published tarball contents
 ```
 
 The harness lives in `test/unit/` and injects a fake `ssh2` module through the
@@ -486,3 +487,8 @@ and `test:baseline` all use `scripts/run-tests.js` to set
 `SSH2SHELL_TEST_MODULE` to `src/ssh2shell.js`, `lib/ssh2shell.js`, or
 `test/fixtures/baseline-ssh2shell.js`. You can also pass a module path directly:
 `node scripts/run-tests.js src/ssh2shell.js`.
+
+`scripts/run-tests.js` passes the test files explicitly rather than a directory,
+so the suite also runs on Node 18. CI runs `npm test` and `npm pack --dry-run` on
+Node 18, 20, 22, and 24; the package publishes only `lib/` plus the README and
+`package.json`, and `prepublishOnly` runs the full suite before a publish.

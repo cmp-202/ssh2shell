@@ -4,6 +4,9 @@
   "author": "cmp-202",
   "description": "A wrapper class for ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
+  "files": [
+    "lib"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -17,10 +20,11 @@
     "build": "node scripts/build.js",
     "check:build": "node scripts/check-build.js",
     "test": "npm run check:build && npm run test:unit && npm run test:baseline",
-    "test:unit": "node --test test/unit",
+    "test:unit": "node scripts/run-tests.js lib",
     "test:src": "node scripts/run-tests.js src",
     "test:lib": "node scripts/run-tests.js lib",
-    "test:baseline": "node scripts/run-tests.js baseline"
+    "test:baseline": "node scripts/run-tests.js baseline",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "SSH",

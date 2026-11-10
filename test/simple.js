@@ -9,19 +9,24 @@ var host = {
     userName:     process.env.USER_NAME,
     password:     process.env.PASSWORD
   },
-  commands: 	  ["echo basic test success"],
-  debug: (process.env.DEBUG === "true"),
-  verbose: (process.env.VERBOSE === "true"),
+  commands: 	  ["echo \$(pwd)",
+    "ls -al",
+    "sudo -i",
+    "msg:Showing root home directory",
+    "cd \~",
+    "echo \$(pwd)",
+    "ls -al"],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
 }
 
 var SSH2Shell = require ('../src/ssh2shell');
 
-
 var SSH = new SSH2Shell(host),
     callback = function( sessionText ){
-          log ( "-----Callback session text:\n" + sessionText);
-          log ( "-----Callback end" );
-      }
-      
+        const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+        log ( text );
+        console.log(text);
+    }      
 SSH.on('msg', log); 
 SSH.connect(callback);

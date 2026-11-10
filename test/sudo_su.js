@@ -1,11 +1,8 @@
 var dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('sudo_su.js');
 
-/*
-* Used `sudo visudo` to add `[username] ALL=(ALL) NOPASSWD: ALL` on the first test
-* server to test no password required detecting normal prompt correctly to run the 
-* next command
-*/
-var sshObj = {
+var host = {
   server:             {     
     host:         process.env.HOST,
     port:         process.env.PORT,
@@ -37,41 +34,27 @@ var sshObj = {
     "cd \~",
     "echo \$(pwd)",
     "ls -la"
-  ],
-  msg: {
-    send: function( message ) {
-      console.log(message);
-    }
-  },
-  debug:              false,
-  verbose:            false,
+  ],  
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
   suPassSent:         false, //used by commandProcessing to only send password once
   rootPassSent:       false,
   onCommandProcessing: function( command, response, sshObj, stream ) {
-    //console.log("command processing:\ncommand: " + command + ", response: " + response + ", password sent: " + sshObj.rootPassSent + ", password: " + process.env.rootPassword);
-
     if (command === "su " + process.env.secondaryUser && response.indexOf("Password: ") != -1 && sshObj.suPassSent != true) {
       sshObj.commands.unshift("msg:Using secondary user password");
       //this is required to stop "bounce" without this the password would be sent multiple times
       sshObj.suPassSent = true;
       stream.write(process.env.secondUserPassword + "\n");
-    }/* else if (command == "sudo -i" && response.match(/:\s$/i) && sshObj.rootPassSent != true) {
-      sshObj.commands.unshift("msg:Using root user password");
-      //this is required to stop "bounce" without this the password would be sent multiple times
-      sshObj.rootPassSent = true;
-      stream.write(process.env.PASSWORD + "\n");
-    }*/
-  },
-  onEnd: function ( sessionText, sshObj ) {
-    if(this.sshObj.debug){this.emit("msg", sshObj.server.host + ": host.onEnd")};
-    //show the full session output. This could be emailed or saved to a log file.
-    this.emit("msg", "\nThis is the full session responses:\n" + sessionText);
+    }
   }
 };
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
+var SSH2Shell = require ('../src/ssh2shell');
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(sshObj);
-  
-SSH.connect();
+var SSH = new SSH2Shell(host),
+    callback = function( session ){
+        const sessionText = (`-----Callback session text:\n${session}\n-----Callback end`);
+        log ( sessionText );
+        console.log(sessionText);
+    }      
+    SSH.on('msg', log); 
+    SSH.connect(callback);
