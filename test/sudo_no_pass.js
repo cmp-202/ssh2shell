@@ -3,39 +3,29 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('sudo_no_pass.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 /*
- * Add `[username] ALL=(ALL) NOPASSWD: ALL` with `sudo visudo` on the second
- * test server. This checks that sudo commands run without a password prompt and
- * that the normal prompt is still detected so the next command runs.
+ * The NOPASSWD user is configured with `ALL=(ALL) NOPASSWD: ALL` on the second
+ * test server. `sudo -n` fails immediately if a password would be required, so
+ * these commands prove that sudo runs without a prompt and that the normal
+ * prompt is still detected so the next command runs.
  */
 const host = {
   server: {
     host: process.env.SERVER2_HOST,
     port: process.env.SERVER2_PORT || process.env.PORT,
-    userName: process.env.SERVER2_USER_NAME,
-    password: process.env.SERVER2_PASSWORD,
+    userName: process.env.NOPASSWD_USER || 'nopasswd',
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: [
-    'sudo apt-get update',
-    'sudo apt-get upgrade',
-    'sudo apt autoremove',
+    'sudo -n id -u',
+    'sudo -n hostname',
+    'sudo -n ls /root',
   ],
-  userPromptSent: false,
   debug: (process.env.DEBUG === 'true'),
   verbose: (process.env.VERBOSE === 'true'),
-  onCommandProcessing: function (command, response, sshObj, stream) {
-    // Answer the `[Y/n]` prompt once, then let the command finish.
-    if (response.indexOf('[Y/n]') !== -1 && !sshObj.userPromptSent) {
-      sshObj.userPromptSent = true;
-      stream.write('n\n');
-    }
-  },
-  onCommandComplete: function (command, response, sshObj) {
-    if (response.indexOf('[Y/n]') !== -1 && sshObj.userPromptSent) {
-      sshObj.userPromptSent = false;
-    }
-  },
 };
 
 const SSH = new SSH2Shell(host);

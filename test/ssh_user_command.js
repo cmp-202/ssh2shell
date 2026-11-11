@@ -3,6 +3,7 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('ssh_user_command.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 // A user command that starts with `ssh` must run normally and must not be
 // mistaken for the library's own nested-host connection command.
@@ -11,7 +12,8 @@ const host = {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['echo ssh', 'ssh -V', 'echo ssh middle'],
   debug: (process.env.DEBUG === 'true'),

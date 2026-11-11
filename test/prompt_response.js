@@ -3,18 +3,23 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('prompt_response.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
-// This example assumes the login user can run apt-get (root or sudo).
+// A local command that prompts, so the test does not need network access.
+const promptCommand =
+  'printf "Install nano [Y/n]? "; read answer; echo "answer=$answer"';
+
 const host = {
   server: {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['apt-get install nano'],
+  commands: [promptCommand],
   onCommandProcessing: function (command, response, sshObj, stream) {
-    if (command === 'apt-get install nano'
+    if (command === promptCommand
         && response.includes('[Y/n]?')
         && sshObj.answeredNano !== true) {
       sshObj.answeredNano = true;

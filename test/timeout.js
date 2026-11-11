@@ -3,6 +3,7 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('timeout.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 // Every data response from the server resets the command timeout timer. If
 // onCommandTimeout writes to the stream and the server responds, the timer is
@@ -21,7 +22,8 @@ const host = {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: [
     'msg:Testing idle time out',

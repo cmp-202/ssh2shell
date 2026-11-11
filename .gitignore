@@ -2,3 +2,10 @@ pm-debug.log
 node_modules
 .env
 *.log
+
+# Live-test private keys. Only the matching .pub files are committed.
+test/certs/*_ed25519
+test/certs/*.pem
+
+# Local VM images, snapshots, and exports.
+VMs/

@@ -3,6 +3,7 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('lots_of_commands.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 // Queue a long run of sequential commands to exercise the command queue and
 // prompt detection. The commands are harmless and do not require sudo.
@@ -19,7 +20,8 @@ const host = {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands,
   debug: (process.env.DEBUG === 'true'),

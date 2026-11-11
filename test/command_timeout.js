@@ -3,19 +3,25 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('command_timeout.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 // idleTimeOut defaults to 5000 ms. This example answers one prompt and then
-// falls back to the default timeout behaviour.
+// falls back to the default timeout behaviour. The command is local so the
+// test does not need network access.
+const promptCommand =
+  'printf "Install nodejs [Y/n]? "; read answer; echo "answer=$answer"';
+
 const host = {
   server: {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['apt-get install nodejs'],
+  commands: [promptCommand],
   onCommandTimeout: function (command, response, stream, connection) {
-    if (command === 'apt-get install nodejs'
+    if (command === promptCommand
         && response.includes('[Y/n]?')
         && this.sshObj.answeredNode !== true) {
       this.sshObj.answeredNode = true;

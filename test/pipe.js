@@ -5,13 +5,15 @@ const { logFile, log } = require('./utils/logging.js');
 logFile('pipe.js');
 
 const SSH2Shell = require('../src/ssh2shell');
+const { readPrivateKey } = require('./utils/private_key.js');
 
 const host = {
   server: {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    password: process.env.PASSWORD,
+    privateKey: readPrivateKey(),
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['echo host pipe'],
   debug: (process.env.DEBUG === 'true'),
