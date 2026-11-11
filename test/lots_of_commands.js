@@ -1,88 +1,41 @@
-var dotenv = require('dotenv').config(),
-    fs = require('fs')
+const dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('lots_of_commands.js');
 
-var host = {
-  server:             {     
-    host:         process.env.HOST,
-    port:         process.env.PORT,
-    userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD
+const SSH2Shell = require('../src/ssh2shell');
+
+// Queue a long run of sequential commands to exercise the command queue and
+// prompt detection. The commands are harmless and do not require sudo.
+const commands = ['msg:Starting 60 commands'];
+for (let i = 1; i <= 60; i += 1) {
+  commands.push(`echo "command ${i}"`);
+  if (i % 10 === 0) {
+    commands.push(`msg:Completed ${i} commands`);
+  }
+}
+
+const host = {
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT,
+    userName: process.env.USER_NAME,
+    password: process.env.PASSWORD,
   },
-  debug: false,
-  commands:           [
-    "msg: first",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "msg: 11",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "msg: 21",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update",
-    "sudo apt-get -y update"
-  ]
+  commands,
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
 };
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(host),
-locLog = fs.createWriteStream('Lots of commands.log')
+const SSH = new SSH2Shell(host);
 
-SSH.pipe( locLog );
-SSH.connect();
+SSH.on('msg', log);
+SSH.on('commandComplete', (command, response, sshObj) => {
+  log(`${sshObj.server.host} $ ${command}`);
+  log(response.trim());
+});
+
+SSH.connect((sessionText) => {
+  const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+  log(text);
+  console.log(text);
+});

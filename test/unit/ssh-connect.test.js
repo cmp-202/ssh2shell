@@ -113,6 +113,43 @@ describe('_sshConnect command construction', () => {
     assert.ok(!writes[0].includes('rm -rf'));
   });
 
+  it('shell-quotes a host containing shell metacharacters', () => {
+    const payload = 'target.test; touch /tmp/pwn';
+    const { ssh, writes } = build(undefined, { host: payload });
+
+    ssh._sshConnect();
+
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0].endsWith(`'user'@'${payload}'`));
+  });
+
+  it('shell-quotes a userName containing single quotes and commands', () => {
+    const payload = "user'; touch /tmp/pwn; #";
+    const { ssh, writes } = build(undefined, { userName: payload });
+
+    ssh._sshConnect();
+
+    assert.equal(writes.length, 1);
+    assert.ok(
+      writes[0].endsWith("'user'\\''; touch /tmp/pwn; #'@'target.test'")
+    );
+  });
+
+  it('rejects control characters in custom ssh option names', () => {
+    const { ssh, writes, errors } = build({
+      options: { 'StrictHostKeyChecking;touch /tmp/pwn': 'yes' },
+    });
+
+    ssh._sshConnect();
+
+    assert.equal(writes.length, 0);
+    assert.ok(
+      errors.some((args) =>
+        String(args[0]).includes('Malicious characters detected in SSH options')
+      )
+    );
+  });
+
   it('rejects control characters in ssh options', () => {
     const { ssh, writes, errors } = build({ cipherSpec: 'aes;rm -rf /' });
 

@@ -2,4 +2,3 @@ pm-debug.log
 node_modules
 .env
 *.log
-/test/devtest.js

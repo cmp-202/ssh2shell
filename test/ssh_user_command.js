@@ -1,26 +1,33 @@
-var dotenv = require('dotenv').config()
+const dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('ssh_user_command.js');
 
-var sshObj = {
-  server:             {     
-    host:         process.env.HOST,
-    port:         process.env.PORT,
-    userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
+const SSH2Shell = require('../src/ssh2shell');
+
+// A user command that starts with `ssh` must run normally and must not be
+// mistaken for the library's own nested-host connection command.
+const host = {
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT,
+    userName: process.env.USER_NAME,
+    password: process.env.PASSWORD,
   },
-  commands:           [
-    "echo ssh",
-    "ssh -V",
-    "echo ssh middle"
-  ],  
-  verbose: false,
-  debug: false
+  commands: ['echo ssh', 'ssh -V', 'echo ssh middle'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
 };
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(sshObj);
-SSH.on('end', function( sessionText, sshObj ){
-      this.emit('msg', sessionText);
-  })
-SSH.connect();
+const SSH = new SSH2Shell(host);
+
+SSH.on('msg', log);
+SSH.on('commandComplete', (command, response, sshObj) => {
+  log(`${sshObj.server.host} $ ${command}`);
+  log(response.trim());
+});
+
+SSH.connect((sessionText) => {
+  const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+  log(text);
+  console.log(text);
+});

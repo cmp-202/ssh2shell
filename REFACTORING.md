@@ -150,6 +150,7 @@ must be recorded here.
 | L7.3 | `refactor/L7.3` | — | Done | Trusted publishing workflow and maintainer guide | `publish.yml` uses GitHub OIDC (`id-token: write`) with no long-lived token; `docs/PUBLISHING.md` covers the npm trusted-publisher setup and the OTP fallback | `git reset --hard refactor/L7.3` |
 | L7.4 | `refactor/L7.4` | — | Done | README refactor for accuracy, use-case ordering, examples, and security guidance | Every JavaScript block passes `node --check`; all internal anchors and local links resolve; 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes | `git reset --hard refactor/L7.4` |
 | L7.5 | `refactor/L7.5` | — | Done | Mirror the README's full examples as live tests with `dotenv` and logging | Every new or reworked live test passes `node --check`; `npm test` passes; every local README link resolves; `.env-example` documents the variables the tests read | `git reset --hard refactor/L7.5` |
+| L7.6 | `refactor/L7.6` | — | Done | Audit and clean up the remaining legacy live tests | `npm test` passes on the current build and the frozen baseline; the deleted scripts' scenarios are covered by unit tests; every kept live test passes `node --check` and uses `dotenv`, `logFile()`/`log()`, and `../src` | `git reset --hard refactor/L7.6` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -433,7 +434,8 @@ were after L6.1.
 - `package-lock.json` — updated `ssh2` to `1.17.0` (still within the declared
   `^1.4.0` range) so CI exercises the same version users receive.
 - `test/devtest.js` — targets `src/` like the other live scripts and throws a
-  real error on timeout instead of calling an undefined `reject`.
+  real error on timeout instead of calling an undefined `reject`. (Removed at
+  L7.6 after its scenario moved to the offline suite.)
 
 #### Verification
 
@@ -502,22 +504,47 @@ were after L6.1.
   `SERVER1_PRIV_KEY_PATH` entries from `.env-example`; `sudo` uses
   `server.password` and the multi-host example uses password authentication.
 
+### L7.6 deliverables (legacy live-test cleanup)
+
+- `test/unit/ssh-connect.test.js` — offline coverage for shell-quoting a
+  malicious `host`/`userName` and rejecting control characters in
+  `server.ssh.options` keys, so the live injection script could be retired.
+- Deleted `test/ssh-options-regression.js`, `test/Config-poperties-test.js`,
+  `test/devtest.js`, `test/issue_69.js`, `test/tunnel_ssh_user_commands.js`, and
+  `test/ssh tunneling argument injection.js`; their scenarios are covered by
+  the offline unit suite or the README-mirrored live tests.
+- Reworked `test/lots_of_commands.js` to queue 60 harmless `echo` commands
+  instead of repeated `sudo apt-get update` calls.
+- Modernized `test/pipe.js`, `test/ssh_user_command.js`, `test/sudo_no_pass.js`,
+  and `test/timeout.js` with `dotenv`, `logFile()`/`log()`, current environment
+  variable names, and `require('../src/ssh2shell')`.
+- `.gitignore` — removed the obsolete `test/devtest.js` entry.
+
+#### Verification
+
+- `npm test` — 115 tests pass on the current build and 115 on the frozen
+  baseline artifact, with `check:build` confirming `lib/` is in sync first.
+- `node --check` passes for every kept live test.
+- `npm pack --dry-run` still contains only `README.md`, `LICENSE`, `lib/`, and
+  `package.json`.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
 observable behavior or security posture and needs its own level and sign-off.
 
-- **Audit each remaining legacy live test script.** The README-mirrored tests
-  are `simple.js`, `private_key.js`, `keyboard-interactive.js`,
-  `fingerprint.js`, `sudo_su.js`, `prompt_response.js`, `command_timeout.js`,
-  `multiple_primary_hosts.js`, `tunnel.js`, `chaining.js`, `notifications.js`,
-  and `bash_script.js`. Review the rest individually: `devtest.js`,
-  `Config-poperties-test.js`, `issue_69.js`, `lots_of_commands.js`, `pipe.js`,
-  `ssh tunneling argument injection.js`, `ssh-options-regression.js`,
-  `ssh_user_command.js`, `sudo_no_pass.js`, `timeout.js`, and
-  `tunnel_ssh_user_commands.js`. Keep and modernize the scenarios that still
-  matter, delete the rest, and decide which should become automated offline
-  tests instead of manual live-host scripts.
+- **Done at L7.6 (signed off): audit each remaining legacy live test script.**
+  The README-mirrored tests are `simple.js`, `private_key.js`,
+  `keyboard-interactive.js`, `fingerprint.js`, `sudo_su.js`,
+  `prompt_response.js`, `command_timeout.js`, `multiple_primary_hosts.js`,
+  `tunnel.js`, `chaining.js`, `notifications.js`, and `bash_script.js`. The
+  audit deleted `devtest.js`, `Config-poperties-test.js`, `issue_69.js`,
+  `ssh-options-regression.js`, `tunnel_ssh_user_commands.js`, and
+  `ssh tunneling argument injection.js`; their scenarios are covered by
+  `test/unit/ssh-connect.test.js`, `test/unit/hosts.test.js`, and
+  `test/unit/api-baseline.test.js`. It kept and modernized
+  `lots_of_commands.js`, `pipe.js`, `ssh_user_command.js`, `sudo_no_pass.js`,
+  and `timeout.js` as manual live-host checks.
 - **Replace the nested-host `ssh ...` command string with chained `ssh2`
   connections.** Today `_sshConnect` builds a shell command (`ssh -x ...`) and
   types it into the current shell. Chaining `ssh2.Client` objects would avoid

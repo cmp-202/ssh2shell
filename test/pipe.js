@@ -1,30 +1,37 @@
-var dotenv = require('dotenv').config(),
-    fs = require('fs')
+const path = require('node:path');
+const fs = require('node:fs');
+const dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('pipe.js');
 
-var host = {
-  server:             {     
-    host:         process.env.HOST,
-    port:         process.env.PORT,
-    userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD,
+const SSH2Shell = require('../src/ssh2shell');
+
+const host = {
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT,
+    userName: process.env.USER_NAME,
+    password: process.env.PASSWORD,
   },
-  commands:           [
-    "echo host pipe"
-  ],
-   debug: false
-}
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell')
+  commands: ['echo host pipe'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
+};
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(host),
-    callback = function( sessionText ){
-          console.log ( "-----Callback session text:\n" + sessionText);
-          console.log ( "-----Callback end" );
-      },
-    firstLog = fs.createWriteStream('first.log'),
-    secondLog = fs.createWriteStream('second.log')
+const SSH = new SSH2Shell(host);
 
-SSH.pipe(firstLog)  
-SSH.pipe(secondLog)
-SSH.connect(callback)
+// `pipe` is the inherited stream method. Each chunk of session output is copied
+// to every attached writable stream, so this writes the same run twice.
+const logDir = path.join(__dirname, 'logs');
+const firstLog = fs.createWriteStream(path.join(logDir, 'pipe-first.log'));
+const secondLog = fs.createWriteStream(path.join(logDir, 'pipe-second.log'));
+
+SSH.on('msg', log);
+SSH.pipe(firstLog);
+SSH.pipe(secondLog);
+
+SSH.connect((sessionText) => {
+  const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+  log(text);
+  console.log(text);
+});
