@@ -528,6 +528,139 @@ were after L6.1.
 - `npm pack --dry-run` still contains only `README.md`, `LICENSE`, `lib/`, and
   `package.json`.
 
+### L7.7 deliverables (live VM host and user structure)
+
+- Static host-only networking (no gateway):
+  - server1 `192.168.44.10` / hostname `server1`
+  - server2 `192.168.44.11` / hostname `server2`
+  - server3 `192.168.44.12` / hostname `server3`
+  - `/etc/network/interfaces` uses `ifupdown` with `enp0s3 inet static`; the
+    previous DHCP file is kept as `/etc/network/interfaces.dhcp-backup`.
+  - Each clone has a unique `/etc/machine-id` and hostname.
+- Test user structure:
+  - `andrew` — manual administration only, admin key.
+  - `tester` — primary automated login, sudo with password, test key.
+  - `nopasswd` — sudo with `NOPASSWD` on server2, test key.
+  - `suuser` — no sudo, `su` target, test key.
+  - `kbduser` — server1 only, keyboard-interactive only
+    (`PasswordAuthentication no` under `Match User kbduser`).
+  - Legacy `user` removed from `sudo`; the legacy
+    `user ALL=(ALL) NOPASSWD:ALL` line removed from `/etc/sudoers`.
+- Keys:
+  - `test/certs/test_ed25519(.pub)` for test logins and nested hops.
+  - `test/certs/admin_ed25519(.pub)` for `andrew`.
+  - Private keys are gitignored; the `.pub` files and
+    `test/certs/README.md` are tracked.
+  - The test private key is installed as `~/.ssh/id_ed25519` for hop users on
+    each host. `HOP_KEY_PATH` / `HOP2_KEY_PATH` override the remote path when a
+    key is installed elsewhere or under another name.
+- Live tests:
+  - General tests authenticate with `PRIVATE_KEY_PATH` through
+    `test/utils/private_key.js`. Passwords remain only where the protocol needs
+    them: `sudo_su.js` (sudo/su) and `keyboard-interactive.js`.
+  - `tunnel.js` and `chaining.js` use `ssh.identityFile` for nested hops, so the
+    hops use the key instead of a nested password.
+  - `prompt_response.js` and `command_timeout.js` use local `read` prompts
+    instead of `apt-get`, so they run without internet access.
+  - `sudo_no_pass.js` uses `sudo -n` against server2 and the `nopasswd` user, so
+    a missing `NOPASSWD` rule fails instead of falling back to a password.
+  - `keyboard-interactive.js` uses `KBD_USER` / `KBD_PASSWORD`.
+- `.env-example` documents `PRIVATE_KEY_PATH`, `KEY_PASSPHRASE`,
+  `HOP_KEY_PATH`, `HOP2_KEY_PATH`, `KBD_USER`, `KBD_PASSWORD`,
+  `NOPASSWD_USER`, `NOPASSWD_PASSWORD`, and the per-host static addresses.
+- Library fix: `_loadDefaults` no longer installs the fallback
+  keyboard-interactive handler when the caller already supplied an instance or
+  host handler. Two handlers both called `finish()`, resetting the handshake
+  (`ECONNRESET`).
+
+#### Verification
+
+- `sshd -t` passes on server1; `kbduser` password auth is refused and
+  keyboard-interactive succeeds.
+- Key and password logins verified for `tester`, `nopasswd`, and `suuser` on all
+  three hosts; `andrew` verified with the admin key.
+- Static addresses and hostnames verified; all three machine-ids are unique.
+- `npm test` — 116/116 pass after rebuilding `lib/`.
+- Live suite — 17/17 pass with key-based logins and no errors (including the
+  nested `tunnel.js` / `chaining.js` hops and the keyboard-interactive test).
+
+### L7.8 deliverables (live-test VM provisioning)
+
+- `test/provision/provision.js` rebuilds a live-test VM from a fresh Ubuntu
+  install through `ssh2shell`, using the same hostname, static address, users,
+  sudo rules, keys, and `sshd` settings as L7.7.
+  - Per-server config lives in `test/provision/.env` (gitignored), with
+    `test/provision/.env.example` committed. Values resolve from
+    `PROVISION_<ROLE>_*` first, then generic `PROVISION_*`, then the built-in
+    defaults; the repository `.env` supplies the live-test passwords and key
+    paths.
+  - Roles `server1`, `server2`, and `server3` are selected by the first CLI
+    argument or `PROVISION_ROLE`.
+  - Bootstrap login uses `PROVISION_<ROLE>_USER` / `..._PASSWORD` /
+    `..._KEY_PATH`, falling back to `USER_NAME` / `PASSWORD` and the test key.
+    `..._KEY_PATH=none` forces password auth.
+  - `PROVISION_<ROLE>_HOST` defaults to the role's static IP, so a DHCP install
+    can be provisioned before the address changes.
+  - Passwords and key material are sent as base64; they are not written as bare
+    text to the session log.
+  - `sudoers`, `sshd`, and network changes are validated. A failed `sudoers` or
+    `sshd` check restores the backup; a failed static-network bring-up restores
+    the previous netplan directory or `/etc/network/interfaces.dhcp-backup`.
+  - Network is applied last because changing it can drop the session.
+  - The network stack is detected at runtime: netplan on Ubuntu 26.04,
+    `ifupdown` on Ubuntu 18.04. The netplan path writes
+    `/etc/netplan/99-ssh2shell.yaml`, disables cloud-init network regeneration,
+    and validates with `netplan generate`.
+  - The `sshd` path selects `KbdInteractiveAuthentication` on OpenSSH 8.7+ and
+    `ChallengeResponseAuthentication` on older releases, and updates
+    `/etc/ssh/sshd_config.d/*.conf` so a cloud-image
+    `PasswordAuthentication no` cannot override the main file.
+  - `PROVISION_<ROLE>_REGENERATE_MACHINE_ID=true` regenerates the id for a
+    cloned VM; the default leaves a fresh install's id alone.
+- `test/provision/README.md` documents the role matrix, environment variables,
+  usage, output markers, and caveats.
+- `.env-example` points to `test/provision/.env.example` and keeps the shared
+  key overrides and `ANDREW_PASSWORD`.
+- `npm run provision -- <role>` runs the script.
+
+#### Verification
+
+- `node --check test/provision/provision.js` passes.
+- The generated network command passes both `bash -n` and `sh -n`.
+- Ran the script against all three roles on the existing Ubuntu 18.04 VMs, with
+  `test/provision/.env` supplying the per-server config. Every run reported
+  `sudoers: OK`, `sshd: OK`, and `network: OK`; the repeated server3 run was
+  idempotent.
+- The OpenSSH version check selected `ChallengeResponseAuthentication` on the
+  18.04 VMs and `sshd -T` reported the expected effective value on each role.
+  The 26.04 path selects `KbdInteractiveAuthentication`.
+- After provisioning, the full live suite passes: 17/17 (`simple`,
+  `private_key`, `keyboard-interactive`, `fingerprint`, `sudo_su`,
+  `prompt_response`, `command_timeout`, `multiple_primary_hosts`, `tunnel`,
+  `chaining`, `notifications`, `bash_script`, `lots_of_commands`, `pipe`,
+  `ssh_user_command`, `sudo_no_pass`, `timeout`).
+- `npm test` — 116/116 pass.
+- The netplan path was exercised on three fresh Ubuntu 26.04.1 VMs
+  (OpenSSH 10.2p1, netplan, interface `enp0s3`). Each role ran once with
+  `APPLY_NETWORK=false` to validate the generated config, then with the default
+  to apply it. All three runs reported `sudoers: OK`, `sshd: OK`,
+  `network: OK` and exited 0.
+- After the static apply, `server1`, `server2`, and `server3` answered on
+  `192.168.44.10`, `.11`, and `.12` respectively. On each host `sshd -T`
+  reported the expected effective auth settings, `/etc/netplan/99-ssh2shell.yaml`
+  was the only netplan file, the original config was preserved in
+  `/etc/netplan.ssh2shell-bak`, and cloud-init network config was disabled.
+  `kbdinteractiveauthentication` was `yes` on server1 and `no` on server2 and
+  server3. Key login as `tester` worked on all three.
+- The full live suite passes against the rebuilt 26.04 VMs: 17/17 (`simple`,
+  `private_key`, `keyboard-interactive`, `fingerprint`, `sudo_su`,
+  `prompt_response`, `command_timeout`, `multiple_primary_hosts`, `tunnel`,
+  `chaining`, `notifications`, `bash_script`, `lots_of_commands`, `pipe`,
+  `ssh_user_command`, `sudo_no_pass`, `timeout`).
+- The rollback path (restore the previous netplan directory or
+  `/etc/network/interfaces.dhcp-backup` when the static address does not come
+  up) is still unexercised. Only the successful apply path has run on 26.04.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -624,6 +757,97 @@ observable behavior or security posture and needs its own level and sign-off.
     characterizes the old leak; the current branch asserts no stale handler.
   - Sign-off: remove stale handlers; each host's text appears once.
 
+### Command-response handling (findings from L7.8 provisioning)
+
+The provisioning script exercises the state machine harder than the unit tests:
+one very long `;`-joined command per step, automatic `sudo`, large echoed input,
+a command that changes the network, and a session that can drop. The live suite
+still passes, but the run exposed edges worth their own level before changing
+behavior.
+
+**What the run confirmed**
+
+- `commandComplete` fires after the standard prompt is detected and before
+  `_nextCommand()` shifts `sshObj.commands`. That ordering is what makes
+  output-driven queue changes work; it is currently an implementation detail,
+  not a documented contract.
+- The `sudo` password prompt is handled automatically for any command whose
+  text contains `sudo `, including the long provisioning commands.
+- Markers such as `SSH2SHELL_SUDOERS_OK` are safe to match with `includes()`.
+- `commandTimeout` doubles as a retry point. A timeout handler can answer the
+  prompt and write to the stream; the next `onData` either reaches
+  `commandComplete` if the prompt is detected or times out again.
+  `test/timeout.js` uses a host `FirstPass` flag to stop that loop. The flag is
+  caller-owned, not library state.
+- Backgrounding `netplan apply` / `ifup` and polling for the address avoids the
+  connection drop that a foreground network change causes.
+
+**Edges observed**
+
+- Prompt detection is a trailing character class:
+  `standardPrompt` compiles to `[>$%#]\s?$`. Output ending in `%`, `$`, `>`, or
+  `#` can complete the command early, so the next command is sent while the
+  previous one is still running. Provisioning avoids this because its last line
+  is a marker ending in `K`. This is deliberate: the default set targets the
+  most-used shell prompts, not every interactive prompt.
+- The PTY echoes long commands with hard wraps. `_sanitizeResponse()` strips the
+  echo by exact string match, so a wrapped echo is not removed. The prompt check
+  is end-anchored and still works, but password-prompt matching sees the echo,
+  and `commandComplete` responses contain it.
+- `commandComplete` receives the `_buffer` after the color/ASCII filters:
+  echoed command, wrapping, and the trailing prompt. It is not normalized
+  output. Raw content was a deliberate choice so a caller can do its own
+  processing, but the handler already receives `command`, so repeating the
+  echoed command in `response` is redundant. The preferred direction is to pass
+  the handled response and keep the raw buffer only as an optional extra.
+  `commandProcessing` receives chunks before filtering, so handlers can see
+  ANSI, partial prompts, and the same prompt more than once.
+- `commandComplete` does not fire for `exit`, empty commands, or the nested
+  `ssh` command, and the timeout itself does not emit `commandComplete` (a
+  subsequent answered `onData` can). The nested-`ssh` gap is a stage-engine
+  difference, not a missing event. Replacing the nested
+  `ssh ...` command string with chained `ssh2` connections removes that stage
+  and puts nested hosts back on the normal `onData` / `commandComplete` path.
+- A command that restarts networking or `sshd` in the foreground can drop the
+  session or exceed `idleTimeOut`; the current workaround is `nohup ... &` plus
+  polling.
+- stderr is emitted through `stderrData`, not appended to `_buffer`. stderr is
+  only really handled at the `ssh2` connection layer; the command layer does not
+  merge it. With a PTY OpenSSH usually merges it, but the response/session text
+  should not rely on that.
+- Prompts that are not the standard prompt (`su`, `ssh` host-key confirmation,
+  pagers, installers, `read`, custom/localized `sudo -p`) are caller-handled in
+  `commandProcessing` or `commandTimeout`, not by the library. Prompt answering
+  cannot move to `commandComplete`, which runs only after the prompt returns.
+
+**Candidate improvements (behavior changes, need sign-off)**
+
+- Pass the handled response to `commandComplete`: remove the echoed command,
+  trailing prompt, ANSI, and wrap artifacts. The handler already receives
+  `command`, so this avoids redundant parsing. Keep the raw buffer as an
+  optional extra for callers that need it.
+- Keep the default standard-prompt set small (the most-used prompts) and add an
+  opt-in full regular expression (or `standardPromptRegex`) for callers that
+  need to anchor to `user@host:~$ `.
+- Treat `commandTimeout` as a first-class retry path: document that answering a
+  prompt from the timeout handler can resume normal completion, and consider a
+  built-in attempt counter instead of per-host `FirstPass` flags.
+- Define and test the queue-mutation contract: `sshObj.commands`
+  push/unshift/splice from `commandComplete`, plus an explicit skip/stop flag
+  checked by `_nextCommand`. Document that the running command is not in the
+  queue and that `exitCommands` must be drained when stopping inside a nested
+  `ssh` session.
+- Make termination explicit and race-free. Today draining the queues and
+  letting `_runExit()` close works, but calling `this.close()` inside
+  `commandComplete` still lets `_nextCommand()` run against a closing stream.
+- Decide how to handle silent long-running commands: a heartbeat/expect option,
+  or a documented distinction between "no output yet" and "prompt missed".
+- Opt-in stderr capture in the command response, or document `onStderrData` as
+  required when diagnostics matter.
+
+These are library changes, not provisioning scope. The netplan run should be
+completed first so the findings are not mixed with an untested network path.
+
 ## Open items
 
 These are sensible defaults until confirmed:
@@ -640,7 +864,8 @@ These are sensible defaults until confirmed:
   `package.json`), and `prepublishOnly` runs the full suite. There is no
   separate build-only publish flow.
 - **Push policy:** keep levels local until you approve pushing to `origin`.
-- **Live hosts:** not used; verification is offline per the decision above.
+- **Live hosts:** the local `192.168.44.0/24` VMs are used for the manual live
+  suite (see L7.7); `npm test` stays offline.
 - **Behavior-changing fixes:** require explicit sign-off. L5 and L6 changes were
   approved; any remaining defect fixes still need their own sign-off.
 

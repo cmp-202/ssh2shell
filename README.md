@@ -80,13 +80,14 @@ Requires Node.js 18 or newer.
 ## Quick start
 
 ```javascript
+const fs = require('fs');
 const SSH2Shell = require('ssh2shell');
 
 const host = {
   server: {
     host: '192.168.0.10',
     userName: 'deploy',
-    password: 'secret',
+    privateKey: fs.readFileSync(process.env.PRIVATE_KEY_PATH),
   },
   commands: ['echo $(pwd)', 'ls -l'],
 };
@@ -305,6 +306,7 @@ stream. The default error handler closes the shell when its `close` argument is
 ### Run commands on a host
 
 ```javascript
+const fs = require('fs');
 const SSH2Shell = require('ssh2shell');
 
 const host = {
@@ -312,7 +314,7 @@ const host = {
     host: '192.168.0.10',
     port: 22,
     userName: 'deploy',
-    password: 'secret',
+    privateKey: fs.readFileSync(process.env.PRIVATE_KEY_PATH),
   },
   commands: [
     'msg:Checking disk usage',
@@ -354,11 +356,17 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Resolve PRIVATE_KEY_PATH (or ~/.ssh/id_rsa) against the home directory.
+const keyPath = path.resolve(
+  (process.env.PRIVATE_KEY_PATH || '~/.ssh/id_rsa')
+    .replace(/^~(?=$|[\\/])/, os.homedir())
+);
+
 const host = {
   server: {
     host: '192.168.0.10',
     userName: 'deploy',
-    privateKey: fs.readFileSync(path.join(os.homedir(), '.ssh', 'id_ed25519')),
+    privateKey: fs.readFileSync(keyPath),
     passPhrase: process.env.KEY_PASSPHRASE, // omit if the key has no passphrase
   },
   commands: ['whoami'],
@@ -381,11 +389,15 @@ Set `tryKeyboard` and provide a handler. The handler must call `finish()` with
 answers in the same order as `prompts`.
 
 ```javascript
+const kbdUser = process.env.KBD_USER || 'kbduser';
+const kbdPassword = process.env.KBD_PASSWORD || process.env.PASSWORD;
+
 const host = {
   server: {
-    host: '192.168.0.10',
-    userName: 'deploy',
-    password: 'secret',
+    host: process.env.KBD_HOST || process.env.HOST,
+    port: process.env.KBD_PORT || process.env.PORT,
+    userName: kbdUser,
+    password: kbdPassword,
     tryKeyboard: true,
   },
   commands: ['whoami'],
@@ -400,6 +412,10 @@ SSH.on('keyboard-interactive', function (name, instructions, instructionsLang, p
 
 SSH.connect();
 ```
+
+The live test uses `KBD_USER` / `KBD_PASSWORD` because the `kbduser`
+account has password authentication disabled and accepts only the
+keyboard-interactive challenge.
 
 Or define `onKeyboardInteractive` on the host object:
 
@@ -430,15 +446,23 @@ The verifier receives a **hex digest without colons** when `hostHash` is set.
 Record the value on the first connection, then pin it:
 
 ```javascript
+const fs = require('fs');
+
 const host = {
   server: {
     host: '192.168.0.10',
     userName: 'deploy',
-    password: 'secret',
+    privateKey: fs.readFileSync(process.env.PRIVATE_KEY_PATH),
     hostHash: 'sha256', // any crypto.getHashes() algorithm
     hostVerifier: function (hashedKey) {
-      // Replace with the value recorded from the first connection.
-      const expectedHash = '3f7a...';
+      const expectedHash = process.env.EXPECTED_HOST_HASH;
+
+      // With no pin recorded, print the hash and accept the first connection.
+      if (!expectedHash) {
+        console.log('Server hash:', hashedKey);
+        return true;
+      }
+
       return hashedKey.toLowerCase() === expectedHash.toLowerCase();
     },
   },
@@ -476,6 +500,10 @@ See [`test/fingerprint.js`](./test/fingerprint.js) for a runnable example.
 password is reported as debug output, the command is cancelled, and the session
 continues.
 
+If the account has a `NOPASSWD` sudoers rule, no password is sent. Use `sudo -n`
+to prove that: it fails instead of prompting when a password would be required.
+See [`test/sudo_no_pass.js`](./test/sudo_no_pass.js).
+
 ```javascript
 const host = {
   server: { /* ... */ },
@@ -493,14 +521,24 @@ automatic. Detect the prompt in `onCommandProcessing` and answer it with the
 stream:
 
 ```javascript
+const secondUser = process.env.SECOND_USER || 'seconduser';
+
 const host = {
   server: {
     // ...connection settings
     secondUserPassword: process.env.SECOND_USER_PASSWORD, // your own field
   },
-  commands: ['su seconduser', 'whoami', 'exit'],
+  commands: [
+    'sudo -i',
+    'cd /root',
+    'ls -la',
+    'exit',
+    `su ${secondUser}`,
+    'whoami',
+    'exit',
+  ],
   onCommandProcessing: function (command, response, sshObj, stream) {
-    if (command === 'su seconduser'
+    if (command === `su ${secondUser}`
         && response.includes('Password:')
         && sshObj.suPasswordSent !== true) {
       sshObj.suPasswordSent = true;
@@ -517,15 +555,19 @@ See [`test/sudo_su.js`](./test/sudo_su.js) for a working example.
 ### Respond to a prompt mid-command
 
 Some commands ask a question that is neither a login prompt nor a standard
-prompt, such as `apt-get` asking `[Y/n]?`. Use `onCommandProcessing` and write
-the answer to the stream. Guard it with a flag so it only answers once.
+prompt, such as an installer asking `[Y/n]?`. Use `onCommandProcessing` and
+write the answer to the stream. Guard it with a flag so it only answers once.
 
 ```javascript
+// A local command that prompts, so the example does not need network access.
+const promptCommand =
+  'printf "Install nano [Y/n]? "; read answer; echo "answer=$answer"';
+
 const host = {
   server: { /* ... */ },
-  commands: ['apt-get install nano'],
+  commands: [promptCommand],
   onCommandProcessing: function (command, response, sshObj, stream) {
-    if (command === 'apt-get install nano'
+    if (command === promptCommand
         && response.includes('[Y/n]?')
         && sshObj.answeredNano !== true) {
       sshObj.answeredNano = true;
@@ -540,7 +582,7 @@ logic to every host, attach it to the instance instead:
 
 ```javascript
 SSH.on('commandProcessing', function (command, response, sshObj, stream) {
-  if (command === 'apt-get install nano'
+  if (command === promptCommand
       && response.includes('[Y/n]?')
       && sshObj.answeredNano !== true) {
     sshObj.answeredNano = true;
@@ -564,11 +606,16 @@ the connection. Override `onCommandTimeout` if you want to answer the prompt or
 keep the session open.
 
 ```javascript
+// idleTimeOut defaults to 5000 ms. This command is local so the example does
+// not need network access.
+const promptCommand =
+  'printf "Install nodejs [Y/n]? "; read answer; echo "answer=$answer"';
+
 const host = {
   server: { /* ... */ },
-  commands: ['apt-get install nodejs'],
+  commands: [promptCommand],
   onCommandTimeout: function (command, response, stream, connection) {
-    if (command === 'apt-get install nodejs'
+    if (command === promptCommand
         && response.includes('[Y/n]?')
         && this.sshObj.answeredNode !== true) {
       this.sshObj.answeredNode = true;
@@ -619,13 +666,18 @@ connection, runs its own commands, and is closed before the next host starts.
 The final callback receives the combined session text.
 
 ```javascript
+const fs = require('fs');
+
+// See "Authenticate with a private key" for resolving a ~ path.
+const privateKey = fs.readFileSync(process.env.PRIVATE_KEY_PATH);
+
 const host1 = {
-  server: { host: '10.0.0.11', userName: 'deploy', password: 'secret' },
+  server: { host: '10.0.0.11', userName: 'deploy', privateKey },
   commands: ['hostname', 'uptime'],
 };
 
 const host2 = {
-  server: { host: '10.0.0.12', userName: 'deploy', password: 'secret' },
+  server: { host: '10.0.0.12', userName: 'deploy', privateKey },
   commands: ['hostname', 'uptime'],
 };
 
@@ -648,11 +700,13 @@ nested connection is an `ssh` command run inside the current session, so it uses
 the shell of the host you are already on.
 
 ```javascript
+const fs = require('fs');
+
 const jump = {
   server: {
     host: '10.0.0.10',
     userName: 'deploy',
-    password: 'secret',
+    privateKey: fs.readFileSync(process.env.PRIVATE_KEY_PATH),
   },
   commands: ['hostname'],
 };
@@ -661,7 +715,10 @@ const target = {
   server: {
     host: '192.168.1.20',
     userName: 'deploy',
-    password: 'secret',
+    ssh: {
+      // Key as it exists on the jump host, used by the nested `ssh -i`.
+      identityFile: process.env.HOP_KEY_PATH || '/home/deploy/.ssh/id_ed25519',
+    },
   },
   commands: ['hostname', 'uptime'],
 };
@@ -671,6 +728,11 @@ jump.hosts = [target];
 const SSH = new SSH2Shell(jump);
 SSH.connect((sessionText) => console.log(sessionText));
 ```
+
+`identityFile` must be an absolute path on the jump host; the value is
+single-quoted, so `~` is not expanded. For multi-hop chains, use
+`HOP_KEY_PATH` for the first hop and `HOP2_KEY_PATH` for the second (see
+[`test/chaining.js`](./test/chaining.js)).
 
 Nested hosts can be chained to any depth:
 
@@ -955,9 +1017,27 @@ npm test
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
 runs the level-aware baseline tests. The other files in `test/` are live tests
 that need real hosts. Copy `.env-example` to `.env`, fill in the connection
-details, and run a file directly, for example `node test/simple.js`. The README
-recipes link to their runnable tests; see `REFACTORING.md` for the status of the
-remaining legacy scripts.
+details, and run a file directly, for example `node test/simple.js`.
+
+Most live tests log in with the key at `PRIVATE_KEY_PATH`; the sudo/su and
+keyboard-interactive tests use the matching passwords because those protocols
+need them. Nested-hop tests use `HOP_KEY_PATH` / `HOP2_KEY_PATH` for the key's
+path on each jump host. See [`test/certs/README.md`](./test/certs/README.md) for
+the key and user layout, and `REFACTORING.md` for the status of the remaining
+legacy scripts. The README recipes link to their runnable tests.
+
+To rebuild a live-test VM from a fresh Ubuntu install, use
+[`test/provision/provision.js`](./test/provision/provision.js) with the
+`server1`, `server2`, or `server3` role:
+
+```bash
+npm run provision -- server3
+```
+
+Per-server addresses and bootstrap credentials live in
+`test/provision/.env` (copy `test/provision/.env.example`). See
+[`test/provision/README.md`](./test/provision/README.md) for the role matrix,
+environment variables, and recovery behavior.
 
 ## License
 
