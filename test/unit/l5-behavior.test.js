@@ -164,6 +164,39 @@ describe('L5 keyboard-interactive handling', () => {
     }
   });
 
+  it('does not add the fallback handler when the caller supplies one', () => {
+    const host = createHost({ server: { tryKeyboard: true } });
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+
+    const responses = [];
+    ssh.on(
+      'keyboard-interactive',
+      (name, instructions, instructionsLang, prompts, finish) => {
+        finish(['secret']);
+      }
+    );
+    ssh._loadDefaults();
+
+    if (isBaseline()) {
+      // The baseline installs its own non-finishing handler at construction.
+      assert.ok(ssh.listenerCount('keyboard-interactive') >= 1);
+    } else {
+      assert.equal(ssh.listenerCount('keyboard-interactive'), 1);
+    }
+
+    ssh.emit(
+      'keyboard-interactive',
+      'auth',
+      'instructions',
+      'en',
+      [{ prompt: 'Password: ' }],
+      (values) => responses.push(values)
+    );
+
+    assert.deepEqual(responses, [['secret']]);
+  });
+
   it('removes the default keyboard-interactive handler with the host', () => {
     const { ssh } = make({ server: { tryKeyboard: true } });
     assert.equal(ssh.listenerCount('keyboard-interactive'), 1);
