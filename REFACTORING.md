@@ -148,6 +148,7 @@ must be recorded here.
 | L7.1 | `refactor/L7.1` | — | Done | Post-L7 fixes: drop the misspelled prompt aliases, document the `stream.Stream` base, and finish README reconciliation | 112 tests pass on the current build and the frozen baseline; the README discrepancy table is fully resolved; `npm pack --dry-run` still contains only `lib/`, the README, and `package.json` | `git reset --hard refactor/L7.1` |
 | L7.2 | `refactor/L7.2` | — | Done | Pre-publish hardening: ISC `LICENSE`, Node requirement, complete `.env-example`, README example fixes, and the current `ssh2` lockfile | 112 tests pass on the current build and the frozen baseline; `npm pack --dry-run` contains `README.md`, `LICENSE`, `lib/`, and `package.json`; `npm audit` reports no vulnerabilities | `git reset --hard refactor/L7.2` |
 | L7.3 | `refactor/L7.3` | — | Done | Trusted publishing workflow and maintainer guide | `publish.yml` uses GitHub OIDC (`id-token: write`) with no long-lived token; `docs/PUBLISHING.md` covers the npm trusted-publisher setup and the OTP fallback | `git reset --hard refactor/L7.3` |
+| L7.4 | `refactor/L7.4` | — | Done | README refactor for accuracy, use-case ordering, examples, and security guidance | Every JavaScript block passes `node --check`; all internal anchors and local links resolve; 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes | `git reset --hard refactor/L7.4` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -448,6 +449,37 @@ were after L6.1.
   token. It runs `npm test` and `npm pack --dry-run` before `npm publish`.
 - `docs/PUBLISHING.md` — npm trusted-publisher setup, the one-off `--otp`
   fallback, and the bypass-2FA stopgap.
+
+### L7.4 deliverables (README refactor)
+
+- Reordered the README by reader use case: quick start, core concepts,
+  configuration reference, common recipes, multiple/tunnelled hosts, events and
+  API, advanced usage, troubleshooting, security, and development.
+- Replaced the inline configuration block with per-section tables for `server`,
+  commands, prompts/filters, timeouts, messages, and host handlers.
+- Corrected defaults and behaviour: `textColorFilter` is
+  `\\x1b\\[[0-9;]*m`; `asciiFilter` is `[^\r\n\x20-\x7e]` and the compiled
+  default preserves tabs; `window`/`pty` are `true` and explicit `false`
+  survives; `idleTimeOut`/`dataIdleTimeOut` are distinguished.
+- Removed the false `connect`/`ready`/`close` instance events. The README now
+  documents `connectedMessage`, `readyMessage`, and `closedMessage` as `msg`
+  events.
+- Added the missing `exposeCredentials`, `disableASCIIFilter`, `onStderrData`,
+  `stderrData`, `close()`, `username`/`passphrase` aliases, and the
+  `idleTime` alias.
+- Documented `server.ssh` options and the nested-command safeguards: quoting,
+  control-character rejection, `options` key sanitisation, and the always-added
+  `StrictHostKeyChecking=no`.
+- Corrected fingerprint validation: `hashMethod` is a legacy alias for
+  `hostHash`; `hashKey` is unused; the verifier receives a hex digest without
+  colons; any `crypto.getHashes()` algorithm is accepted.
+- Corrected `su` guidance to answer the prompt with `stream.write()`, not the
+  removed `this.runCommand()`.
+- Fixed broken example links (`test/keyboard-interactive.js`,
+  `test/sudo_su.js`), the tunnelling example syntax, the `host3` command check,
+  and the typos carried over from earlier revisions.
+- Added a Security section linking `GHSA-4j47-m47f-3jp8` and a Development
+  section describing `npm test` and the legacy live tests.
 
 ## Backlog and future work
 
