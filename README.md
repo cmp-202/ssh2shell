@@ -109,6 +109,9 @@ SSH.on('end', (sessionText, sshObj) => {
 SSH.connect();
 ```
 
+See [`test/simple.js`](./test/simple.js) for a runnable version that writes the
+session to a log file.
+
 ## Core concepts
 
 **The host object.** A host object has two required parts: `server` (how to
@@ -197,6 +200,8 @@ const host = {
   handler writes it to the console.
 - A backtick-wrapped entry is appended to `sessionText` without being run. This
   avoids the command echo you would get from `echo`.
+
+See [`test/notifications.js`](./test/notifications.js) for a runnable example.
 
 ### Prompts and response filters
 
@@ -368,6 +373,8 @@ If the key has a passphrase and it is wrong, ssh2 reports
 Check for typos and for a trailing newline if the value came from a file. Call
 `.trim()` on values read from disk.
 
+See [`test/private_key.js`](./test/private_key.js) for a runnable example.
+
 ### Keyboard-interactive authentication
 
 Set `tryKeyboard` and provide a handler. The handler must call `finish()` with
@@ -460,6 +467,8 @@ connections are made by running `ssh` on the primary host, so their host-key
 handling belongs to that host's `known_hosts` configuration and to the
 `server.ssh` options. See [Security](#security).
 
+See [`test/fingerprint.js`](./test/fingerprint.js) for a runnable example.
+
 ### Run sudo and su commands
 
 `sudo` is handled automatically. When output matches `passwordPrompt`,
@@ -545,6 +554,9 @@ Do not define the same handler in both places. It will run twice.
 If no prompt is detected and no answer is sent, `commandTimeout` fires after
 `idleTimeOut`.
 
+See [`test/prompt_response.js`](./test/prompt_response.js) for a runnable
+example.
+
 ### Handle a command timeout
 
 The default timeout handler adds the last response to `sessionText` and closes
@@ -594,6 +606,9 @@ SSH.on('commandTimeout', function (command, response, stream, connection) {
   // ...
 });
 ```
+
+See [`test/command_timeout.js`](./test/command_timeout.js) for a runnable
+example.
 
 ## Multiple hosts
 
@@ -840,6 +855,8 @@ echo "<base64>" | base64 -d | bash
 echo "<base64>" | base64 -d | bash -s
 ```
 
+See [`test/bash_script.js`](./test/bash_script.js) for a runnable example.
+
 From [issue #103](https://github.com/cmp-202/ssh2shell/issues/103) and
 [issue #104](https://github.com/cmp-202/ssh2shell/issues/104).
 
@@ -936,9 +953,11 @@ npm test
 ```
 
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
-runs the level-aware baseline tests. The other files in `test/` are legacy live
-tests that need real hosts and environment variables; see `REFACTORING.md` for
-their status.
+runs the level-aware baseline tests. The other files in `test/` are live tests
+that need real hosts. Copy `.env-example` to `.env`, fill in the connection
+details, and run a file directly, for example `node test/simple.js`. The README
+recipes link to their runnable tests; see `REFACTORING.md` for the status of the
+remaining legacy scripts.
 
 ## License
 

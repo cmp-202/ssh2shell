@@ -1,36 +1,34 @@
-var dotenv = require('dotenv').config()
+const dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('notifications.js');
 
-var host = {
-  server:             {     
-    host:         process.env.HOST,
-    port:         process.env.PORT,
-    userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD
+const SSH2Shell = require('../src/ssh2shell');
+
+const host = {
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT,
+    userName: process.env.USER_NAME,
+    password: process.env.PASSWORD,
   },
   commands: [
-    //hubot throwback
-    "msg: using msg.send",
-    "`All done!`",
+    'msg:Starting deployment',
+    '`This line is added to sessionText only`',
+    // The README uses `cd /srv/app` and `./deploy.sh`; these commands are
+    // safe stand-ins for a live host.
+    'cd /tmp',
+    'pwd',
   ],
-  msg: {
-    send: function( message ) {
-      console.log(message);
-    }
-  },
-  verbose: false,
-  debug: false
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
 };
-  
-//until npm published use the cloned dir path.
-var SSH2Shell = require ('../lib/ssh2shell');
 
-//run the commands in the shell session
-var SSH = new SSH2Shell(host);
+const SSH = new SSH2Shell(host);
 
-var callback = function( sessionText ){
-  //show the full session output. This could be emailed or saved to a log file.
-  console.log("\nThis is the full session response: \n\n" + sessionText);
-}
+SSH.on('msg', log);
 
-SSH.connect(callback);
-
+SSH.connect((sessionText) => {
+  const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+  log(text);
+  console.log(text);
+});

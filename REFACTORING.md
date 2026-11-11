@@ -149,6 +149,7 @@ must be recorded here.
 | L7.2 | `refactor/L7.2` | — | Done | Pre-publish hardening: ISC `LICENSE`, Node requirement, complete `.env-example`, README example fixes, and the current `ssh2` lockfile | 112 tests pass on the current build and the frozen baseline; `npm pack --dry-run` contains `README.md`, `LICENSE`, `lib/`, and `package.json`; `npm audit` reports no vulnerabilities | `git reset --hard refactor/L7.2` |
 | L7.3 | `refactor/L7.3` | — | Done | Trusted publishing workflow and maintainer guide | `publish.yml` uses GitHub OIDC (`id-token: write`) with no long-lived token; `docs/PUBLISHING.md` covers the npm trusted-publisher setup and the OTP fallback | `git reset --hard refactor/L7.3` |
 | L7.4 | `refactor/L7.4` | — | Done | README refactor for accuracy, use-case ordering, examples, and security guidance | Every JavaScript block passes `node --check`; all internal anchors and local links resolve; 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes | `git reset --hard refactor/L7.4` |
+| L7.5 | `refactor/L7.5` | — | Done | Mirror the README's full examples as live tests with `dotenv` and logging | Every new or reworked live test passes `node --check`; `npm test` passes; every local README link resolves; `.env-example` documents the variables the tests read | `git reset --hard refactor/L7.5` |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. The annotated tags are the stable rollback references; use
@@ -481,17 +482,42 @@ were after L6.1.
 - Added a Security section linking `GHSA-4j47-m47f-3jp8` and a Development
   section describing `npm test` and the legacy live tests.
 
+### L7.5 deliverables (README examples as live tests)
+
+- Reworked `test/simple.js`, `test/keyboard-interactive.js`,
+  `test/sudo_su.js`, `test/multiple_primary_hosts.js`, `test/tunnel.js`,
+  `test/chaining.js`, and `test/notifications.js` to mirror the README's full
+  examples with `dotenv`, `logFile()`/`log()`, and `require('../src/ssh2shell')`.
+- Added `test/private_key.js`, `test/fingerprint.js`,
+  `test/prompt_response.js`, `test/command_timeout.js`, and
+  `test/bash_script.js` for the remaining runnable README examples.
+- Replaced the broken `util.promisify(SSH.connect)` call in
+  `test/chaining.js` with a real nested-host chain, and made
+  `test/notifications.js` use safe stand-in commands.
+- Extended `.env-example` with `PRIVATE_KEY_PATH`, `KEY_PASSPHRASE`,
+  `EXPECTED_HOST_HASH`, `SECOND_USER`, `SECOND_USER_PASSWORD`, and the
+  `SERVER1_*`/`SERVER2_*`/`SERVER3_*` port fields.
+- Added README links from each recipe to its runnable live test.
+- Removed the unused `SUDO_PASSWORD` and `SERVER1_PASS_PHRASE`/
+  `SERVER1_PRIV_KEY_PATH` entries from `.env-example`; `sudo` uses
+  `server.password` and the multi-host example uses password authentication.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
 observable behavior or security posture and needs its own level and sign-off.
 
-- **Audit the legacy live test scripts.** `test/*.js` still includes older
-  example and development scripts such as `devtest.js`,
-  `Config-poperties-test.js`, and `issue_69.js`. Review each one, keep and
-  modernize the scenarios that still matter, and delete the rest. Decide which
-  scenarios should become automated offline tests instead of manual live-host
-  scripts.
+- **Audit each remaining legacy live test script.** The README-mirrored tests
+  are `simple.js`, `private_key.js`, `keyboard-interactive.js`,
+  `fingerprint.js`, `sudo_su.js`, `prompt_response.js`, `command_timeout.js`,
+  `multiple_primary_hosts.js`, `tunnel.js`, `chaining.js`, `notifications.js`,
+  and `bash_script.js`. Review the rest individually: `devtest.js`,
+  `Config-poperties-test.js`, `issue_69.js`, `lots_of_commands.js`, `pipe.js`,
+  `ssh tunneling argument injection.js`, `ssh-options-regression.js`,
+  `ssh_user_command.js`, `sudo_no_pass.js`, `timeout.js`, and
+  `tunnel_ssh_user_commands.js`. Keep and modernize the scenarios that still
+  matter, delete the rest, and decide which should become automated offline
+  tests instead of manual live-host scripts.
 - **Replace the nested-host `ssh ...` command string with chained `ssh2`
   connections.** Today `_sshConnect` builds a shell command (`ssh -x ...`) and
   types it into the current shell. Chaining `ssh2.Client` objects would avoid

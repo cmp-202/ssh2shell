@@ -1,30 +1,55 @@
-var dotenv = require('dotenv').config(),
-	debug = false,
-    verbose = false,
-    util = require('util');
+const dotenv = require('dotenv').config();
+const { logFile, log } = require('./utils/logging.js');
+logFile('chaining.js');
 
-var host = {
-  server: {     
-    host:         process.env.HOST,
-    port:         process.env.PORT,
-    userName:     process.env.USER_NAME,
-    password:     process.env.PASSWORD
+const SSH2Shell = require('../src/ssh2shell');
+
+const jump = {
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT,
+    userName: process.env.USER_NAME,
+    password: process.env.PASSWORD,
   },
-  commands: 	  ["echo chaining test success"],
-  debug: debug,
-  verbose: verbose
+  commands: ['hostname'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
 };
 
-var SSH2Shell = require ('../lib/ssh2shell');
+const bastion = {
+  server: {
+    host: process.env.SERVER2_HOST,
+    port: process.env.SERVER2_PORT || process.env.PORT,
+    userName: process.env.SERVER2_USER_NAME,
+    password: process.env.SERVER2_PASSWORD,
+  },
+  commands: ['hostname'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
+};
 
-//run the commands in the shell session
+const target = {
+  server: {
+    host: process.env.SERVER3_HOST,
+    port: process.env.SERVER3_PORT || process.env.PORT,
+    userName: process.env.SERVER3_USER_NAME,
+    password: process.env.SERVER3_PASSWORD,
+  },
+  commands: ['hostname', 'uptime'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
+};
 
-var SSH = new SSH2Shell(host)
+jump.hosts = [bastion];
+bastion.hosts = [target];
+target.hosts = [];
 
-var SSHconnect = util.promisify(SSH.connect)
-SSHconnect()
-  .then(( sessionText ) => {
-     console.log ( sessionText);})
-  .catch((error) => {
-     console.log (error);
-  });
+const SSH = new SSH2Shell(jump);
+
+SSH.on('msg', log);
+
+SSH.connect((sessionText) => {
+  const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
+  log(text);
+  console.log(text);
+});
