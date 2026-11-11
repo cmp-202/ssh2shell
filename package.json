@@ -24,6 +24,7 @@
     "test:src": "node scripts/run-tests.js src",
     "test:lib": "node scripts/run-tests.js lib",
     "test:baseline": "node scripts/run-tests.js baseline",
+    "provision": "node test/provision/provision.js",
     "prepublishOnly": "npm test"
   },
   "keywords": [
