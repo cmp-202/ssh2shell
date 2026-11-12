@@ -23,6 +23,14 @@ function make(overrides = {}) {
   return { ssh, host };
 }
 
+// The class installs one internal msg listener to break a progress line.
+// Count only the host/default message sinks that these tests are about.
+function msgListenerCount(ssh) {
+  return ssh
+    .listeners('msg')
+    .filter((listener) => listener !== ssh._progressMsgListener).length;
+}
+
 describe('L5 listener lifecycle', () => {
   it('detaches the host onError handler with the other host listeners', () => {
     let errors = 0;
@@ -88,7 +96,7 @@ describe('L5 listener lifecycle', () => {
     ssh.debug = true;
 
     ssh._removeListeners();
-    assert.equal(ssh.listenerCount('msg'), 1);
+    assert.equal(msgListenerCount(ssh), 1);
 
     ssh._systemMsg('debug', 'after remove');
     assert.ok(
@@ -105,14 +113,14 @@ describe('L5 listener lifecycle', () => {
     }
 
     const { ssh } = make({ msg: () => {} });
-    assert.equal(ssh.listenerCount('msg'), 1);
+    assert.equal(msgListenerCount(ssh), 1);
 
     ssh._removeListeners();
-    assert.equal(ssh.listenerCount('msg'), 1);
+    assert.equal(msgListenerCount(ssh), 1);
 
     ssh.sshObj = createHost();
     ssh._loadDefaults();
-    assert.equal(ssh.listenerCount('msg'), 1);
+    assert.equal(msgListenerCount(ssh), 1);
   });
 
   it('restores the default msg handler for a host without msg', () => {

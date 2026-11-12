@@ -980,9 +980,10 @@ const host = {
 };
 ```
 
-Progress output is separate from `verbose` and `debug`. Enable it only when you
-want a terminal heartbeat for long or silent commands; it produces nothing when
-stderr is redirected to a file.
+Progress output is separate from `verbose` and `debug`. When either is enabled,
+the heartbeat is suppressed because those modes already report each internal
+step. Enable `progress` only when you want a terminal heartbeat for long or
+silent commands; it produces nothing when stderr is redirected to a file.
 
 ### Credential handling
 

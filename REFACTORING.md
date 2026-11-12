@@ -780,15 +780,16 @@ were after L6.1.
   for password/passphrase writes or internal `exit` commands. It stops on
   command completion, timeout, error, close, and host change.
 - A host label (`[host]`) is written only when the session spans multiple
-  primary or nested hosts. Normal debug/verbose messages break the progress
-  line first so output stays readable.
+  primary or nested hosts. A caller-supplied `msg` breaks the progress line
+  first so output stays readable. The heartbeat is suppressed while `debug` or
+  `verbose` is enabled, because those modes already report internal steps.
 - The stream and interval are injectable instance state (`_progressStream`,
   `_progressInterval`) so the unit tests can simulate a TTY without touching
   the real terminal.
 
 #### Verification
 
-- `npm test` — 136/136 unit and 136/136 baseline pass. The new
+- `npm test` — 138/138 unit and 138/138 baseline pass. The new
   `test/unit/progress.test.js` skips its assertions against the frozen
   baseline, which has no `progress` option.
 - `npm run test:live` and `node scripts/run-live.js --all` — unchanged; progress

@@ -143,13 +143,38 @@ describe('progress indicator', () => {
     );
   });
 
-  it('breaks the line before debug output and resumes the heartbeat', () => {
+  it('stays silent when debug is enabled', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = make({ progress: true, debug: true });
+
+    ssh.command = 'echo one';
+    ssh._checkCommand();
+    ssh._progressTick();
+    ssh._progressEnd();
+
+    assert.equal(ssh._progressStream.output, '');
+  });
+
+  it('stays silent when verbose is enabled', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = make({ progress: true, verbose: true });
+
+    ssh.command = 'echo one';
+    ssh._checkCommand();
+    ssh._progressTick();
+    ssh._progressEnd();
+
+    assert.equal(ssh._progressStream.output, '');
+  });
+
+  it('breaks the line before a user msg and resumes the heartbeat', () => {
     if (isBaseline()) return;
 
     const messages = [];
     const { ssh } = make({
       progress: true,
-      debug: true,
       msg: (message) => messages.push(String(message)),
     });
 
@@ -158,12 +183,12 @@ describe('progress indicator', () => {
     messages.length = 0;
 
     ssh._progressTick();
-    ssh._systemMsg('debug', 'mid-command');
+    ssh.emit('msg', 'user message');
     ssh._progressTick();
     ssh._progressEnd();
 
     assert.equal(ssh._progressStream.output, '.\n.\n');
-    assert.deepEqual(messages, ['mid-command']);
+    assert.deepEqual(messages, ['user message']);
   });
 
   it('stops the heartbeat when the default error handler runs', () => {

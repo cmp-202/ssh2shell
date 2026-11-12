@@ -253,7 +253,9 @@ are covered by level-aware tests that also run against the frozen baseline.
   flight, and only when stderr is a TTY. It ends the line on command completion,
   timeout, error, close, or host change, and labels host changes with `[host]`
   when the session spans more than one host. It never modifies `sessionText` or
-  the `msg` stream. Test: `test/unit/progress.test.js`.
+  the `msg` stream, and it is suppressed when `debug` or `verbose` is enabled
+  because those already report internal steps. Test:
+  `test/unit/progress.test.js`.
 
 ## README vs code discrepancies
 
