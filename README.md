@@ -182,7 +182,6 @@ directly.
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
 | `commands` | string[] | `[]` | **Required.** Commands to run, in order. |
-| `hosts` | host[] | `[]` | Nested hosts to tunnel to. See [Tunnelling](#tunnelling-through-a-jump-host). |
 
 Command entries can be regular shell commands or notifications:
 
@@ -242,12 +241,14 @@ payload would remain in the response. Set `disableASCIIFilter` to keep them.
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| `idleTimeOut` | number | `5000` | Milliseconds to wait for a command to return to a prompt. |
+| `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. Every `onData` event resets the timer. |
 | `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. |
 
-`idleTimeOut` is the command timeout. When it expires, the `commandTimeout`
-event fires. The default handler emits an `error` of type `Command Timeout` and
-closes the connection.
+`idleTimeOut` is an inactivity timeout, not a limit on how long a command may
+run. Every `onData` event resets the timer, so a command that keeps producing
+output stays alive. When no data has arrived for `idleTimeOut` milliseconds, the
+`commandTimeout` event fires. The default handler emits an `error` of type
+`Command Timeout` and closes the connection.
 
 `dataIdleTimeOut` is the response-settling delay. It groups stream chunks into
 one response before prompt matching. It is not the command timeout.
@@ -292,7 +293,7 @@ with `SSH.on(...)` run for every host, in parallel with any host handler.
 | `onStderrData` | `data` | Data arrives on stderr. |
 | `onCommandProcessing` | `command, response, sshObj, stream` | Output arrives before the prompt is detected. |
 | `onCommandComplete` | `command, response, sshObj` | A command returns to the prompt. |
-| `onCommandTimeout` | `command, response, stream, connection` | No prompt is detected within `idleTimeOut`. |
+| `onCommandTimeout` | `command, response, stream, connection` | No data arrives for `idleTimeOut` milliseconds. |
 | `onEnd` | `sessionText, sshObj` | The host session finishes. |
 | `onError` | `err, type, close, callback` | An error is raised. |
 | `onKeyboardInteractive` | `name, instructions, instructionsLang, prompts, finish` | Keyboard-interactive authentication is requested. |
@@ -605,7 +606,7 @@ SSH.on('commandProcessing', function (command, response, sshObj, stream) {
 Do not define the same handler in both places. It will run twice.
 
 If no prompt is detected and no answer is sent, `commandTimeout` fires after
-`idleTimeOut`.
+`idleTimeOut` milliseconds with no data.
 
 See [`test/live/prompt_response.js`](./test/live/prompt_response.js) for a
 runnable example.
@@ -858,7 +859,7 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
 | `commandComplete` | `command, response, sshObj` | A command returned to the prompt. |
-| `commandTimeout` | `command, response, stream, connection` | No prompt was detected within `idleTimeOut`. |
+| `commandTimeout` | `command, response, stream, connection` | No data arrived for `idleTimeOut` milliseconds. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
 | `error` | `err, type, close, callback` | An error occurred. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
