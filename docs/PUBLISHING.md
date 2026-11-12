@@ -68,6 +68,34 @@ npm view ssh2shell version
 npm view ssh2shell@X.Y.Z dist.tarball
 ```
 
+The registry can take a minute or two to show the new `latest` after the
+workflow succeeds. Confirm the published `gitHead` matches the release commit:
+
+```bash
+npm view ssh2shell@X.Y.Z gitHead
+git rev-parse HEAD
+```
+
+### 4. Release checklist
+
+Run this list for every release so the steps that are easy to forget are not
+left to memory.
+
+- [ ] Decide the semver level from the commits since the last tag.
+- [ ] `npm version <major|minor|patch> --no-git-tag-version`.
+- [ ] Update `REFACTORING.md` and any docs affected by the release.
+- [ ] `npm test` passes (`check:build`, unit, baseline).
+- [ ] Commit `chore: release X.Y.Z`, tag `vX.Y.Z`, push `master` and the tag.
+- [ ] The **Publish to npm** workflow succeeds.
+- [ ] `npm view ssh2shell version` and the `gitHead` check above pass.
+- [ ] Create a GitHub Release for `vX.Y.Z` with notes for the new features and
+      fixes.
+- [ ] Add or update `CHANGELOG.md` for the version.
+- [ ] Check the workflow actions for deprecated runtimes (for example
+      `actions/checkout` and `actions/setup-node` on Node 20) and bump them.
+- [ ] Run the live suite when the change touches connection or command flow:
+      `npm run test:live:all`.
+
 ## Stopgap: granular access token with bypass 2FA
 
 If trusted publishing is not available, create a granular access token with:
