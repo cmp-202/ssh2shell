@@ -49,6 +49,7 @@ one command to decide what to do next.
 - [Advanced usage](#advanced-usage)
   - [Run a generated bash script](#run-a-generated-bash-script)
   - [Verbose and debug output](#verbose-and-debug-output)
+  - [Progress indicator](#progress-indicator)
   - [Credential handling](#credential-handling)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
@@ -265,6 +266,7 @@ value overrides the instance value for that host.
 | `msg` | function \| `{ send }` | `console.log` | Receives every `msg` event. The legacy `{ send: fn }` shape is accepted. |
 | `verbose` | boolean | `false` | Emit the response text after each command. |
 | `debug` | boolean | `false` | Emit internal process steps. |
+| `progress` | boolean | `false` | Write a stderr liveness indicator while a command is in flight. TTY-only; never affects `sessionText`. |
 | `exposeCredentials` | boolean | `false` | Do **not** redact passwords/passphrases in debug and verbose output. |
 | `showBanner` | boolean | `false` | Include the host banner in `sessionText`. |
 | `enter` | string | `"\n"` | End-of-line sequence written after each command. |
@@ -957,6 +959,30 @@ onCommandProcessing: function (command, response, sshObj, stream) {
 Debug and verbose output redacts the configured password and passphrase by
 default. Set `exposeCredentials: true` only while diagnosing an authentication
 problem, and never leave it enabled in production or in logs.
+
+### Progress indicator
+
+Set `progress: true` on the host to print a liveness indicator while a command
+is in flight. It writes to `process.stderr` and only when stderr is a TTY, so
+redirected output, CI logs, and the live-test runner stay clean. It never
+changes `sessionText` or the `msg` stream.
+
+A dot is written once per second while the command is outstanding. The line is
+finished with a newline when the command completes, times out, errors, or the
+host or session closes. When the session spans multiple primary or nested
+hosts, the first line for each host starts with `[host]`.
+
+```javascript
+const host = {
+  // ...
+  progress: true,
+  commands: ['apt-get update', 'sleep 30'],
+};
+```
+
+Progress output is separate from `verbose` and `debug`. Enable it only when you
+want a terminal heartbeat for long or silent commands; it produces nothing when
+stderr is redirected to a file.
 
 ### Credential handling
 

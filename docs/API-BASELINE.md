@@ -111,8 +111,8 @@ until `_connections` is empty and `close()` runs.
 
 **Connection and session:** `server`, `hosts`, `commands`, `msg`,
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
-`debug`, `exposeCredentials`, `enter`, `streamEncoding`, `window`, `pty`,
-`idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
+`debug`, `progress`, `exposeCredentials`, `enter`, `streamEncoding`, `window`,
+`pty`, `idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
 undocumented `dataIdleTime`), `sessionText`, `exitCommands`.
 
 **Prompts and filters:** `standardPrompt`, `passwordPrompt`, `passphrasePrompt`,
@@ -248,6 +248,12 @@ are covered by level-aware tests that also run against the frozen baseline.
   hosts never run their commands. Password and passphrase nested hosts still
   start unauthenticated. Test: `test/unit/ssh-connect.test.js` — nested
   authentication state.
+- **Progress indicator.** The opt-in `progress` host flag (default `false`)
+  writes a one-second heartbeat to `process.stderr` while a command is in
+  flight, and only when stderr is a TTY. It ends the line on command completion,
+  timeout, error, close, or host change, and labels host changes with `[host]`
+  when the session spans more than one host. It never modifies `sessionText` or
+  the `msg` stream. Test: `test/unit/progress.test.js`.
 
 ## README vs code discrepancies
 

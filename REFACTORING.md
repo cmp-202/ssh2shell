@@ -770,6 +770,30 @@ were after L6.1.
 - Relative links in `test/README.md` resolve to existing files.
 - No code changes; `npm test` and the live runner are unaffected.
 
+### L7.15 deliverables (opt-in progress indicator)
+
+- Added the `progress` host option (default `false`). When enabled and stderr
+  is a TTY, the class writes a one-second heartbeat to `process.stderr` while a
+  command is in flight. The indicator never modifies `sessionText` or the `msg`
+  stream.
+- Progress starts for real queued commands and nested `ssh` connections, not
+  for password/passphrase writes or internal `exit` commands. It stops on
+  command completion, timeout, error, close, and host change.
+- A host label (`[host]`) is written only when the session spans multiple
+  primary or nested hosts. Normal debug/verbose messages break the progress
+  line first so output stays readable.
+- The stream and interval are injectable instance state (`_progressStream`,
+  `_progressInterval`) so the unit tests can simulate a TTY without touching
+  the real terminal.
+
+#### Verification
+
+- `npm test` — 136/136 unit and 136/136 baseline pass. The new
+  `test/unit/progress.test.js` skips its assertions against the frozen
+  baseline, which has no `progress` option.
+- `npm run test:live` and `node scripts/run-live.js --all` — unchanged; progress
+  is off by default and TTY-gated.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
