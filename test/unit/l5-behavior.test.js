@@ -305,3 +305,73 @@ describe('L5 debug and verbose gating', () => {
     assert.ok(messages.some((message) => message.includes('shown verbose')));
   });
 });
+
+describe('host prefix in messages', () => {
+  it('omits the host prefix for a single host', () => {
+    if (isBaseline()) {
+      // The baseline always prefixes messages with the host.
+      return;
+    }
+
+    const messages = [];
+    const { ssh } = make({
+      debug: true,
+      msg: (message) => messages.push(String(message)),
+    });
+
+    messages.length = 0;
+    ssh._systemMsg('debug', 'single host');
+    assert.deepEqual(messages, ['single host']);
+  });
+
+  it('keeps the host prefix for multiple primary hosts', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const first = createHost({
+      server: { host: 'first.test' },
+      debug: true,
+      msg: (message) => messages.push(String(message)),
+    });
+    const second = createHost({ server: { host: 'second.test' } });
+    const ssh = new SSH2Shell([first, second]);
+    ssh.sshObj = first;
+    ssh._loadDefaults();
+
+    messages.length = 0;
+    ssh._systemMsg('debug', 'multiple hosts');
+    assert.deepEqual(messages, ['first.test: multiple hosts']);
+  });
+
+  it('keeps the host prefix for a single host with nested hosts', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const nested = createHost({ server: { host: 'nested.test' } });
+    const { ssh } = make({
+      server: { host: 'primary.test' },
+      hosts: [nested],
+      debug: true,
+      msg: (message) => messages.push(String(message)),
+    });
+
+    messages.length = 0;
+    ssh._systemMsg('debug', 'nested hosts');
+    assert.deepEqual(messages, ['primary.test: nested hosts']);
+  });
+
+  it('applies the same rule to msg: notes', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const { ssh } = make({
+      msg: (message) => messages.push(String(message)),
+    });
+    ssh._nextCommand = () => {};
+    ssh.command = 'msg:hello';
+
+    messages.length = 0;
+    ssh._processNotifications();
+    assert.deepEqual(messages, ['Note: hello']);
+  });
+});

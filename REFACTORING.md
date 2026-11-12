@@ -681,6 +681,23 @@ were after L6.1.
 - `node test/simple.js` log no longer contains `]3008;...`, `[?2004l`, or
   `[?2004h`.
 
+### L7.10 deliverables (single-host message prefix)
+
+- Debug/verbose and `msg:` notification messages now omit the host prefix when
+  the session has a single primary host and no nested hosts. Repeating the
+  address on every line added noise to single-host logs.
+- Multi-primary and nested-host sessions keep the prefix for disambiguation.
+  The nested flag is sticky so prefixes do not disappear when the nested queue
+  empties.
+- `sessionText` and callback output are unchanged.
+
+#### Verification
+
+- New unit tests cover a single host, multiple primary hosts, nested hosts, and
+  `msg:` notes.
+- `npm run test:unit` and `npm run test:baseline` — 121/121 pass.
+- `node test/simple.js` now logs `Note: ...` without the host address.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes

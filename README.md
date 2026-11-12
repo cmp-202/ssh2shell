@@ -197,8 +197,9 @@ const host = {
 };
 ```
 
-- `msg:` emits a `msg` event with `${host}: Note: ${text}`. The default `msg`
-  handler writes it to the console.
+- `msg:` emits a `msg` event with `${host}: Note: ${text}`. The host prefix is
+  omitted for a single-host session. The default `msg` handler writes it to the
+  console.
 - A backtick-wrapped entry is appended to `sessionText` without being run. This
   avoids the command echo you would get from `echo`.
 
@@ -933,7 +934,9 @@ From [issue #103](https://github.com/cmp-202/ssh2shell/issues/103) and
 - `debug: true` emits internal process steps, including the path through the
   state machine.
 
-Both are emitted as `msg` events. Do not enable them inside
+Both are emitted as `msg` events. Messages are prefixed with the host only when
+the session spans more than one host (multiple primary hosts or nested hosts); a
+single-host session omits the prefix. Do not enable them inside
 `onCommandProcessing`, which runs for every chunk of output.
 
 Add your own messages with the same flags:

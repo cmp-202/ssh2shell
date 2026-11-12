@@ -236,6 +236,11 @@ are covered by level-aware tests that also run against the frozen baseline.
   handler when one exists and falls back to the default handler otherwise.
   Tests: `test/unit/l5-behavior.test.js` — message-sink and duplicate-listener
   cases.
+- **Single-host message prefix.** Debug/verbose and `msg:` notification
+  messages omit the `${host}: ` prefix when the session has one primary host and
+  no nested hosts. Multi-host and nested-host sessions keep the prefix. The
+  frozen baseline always prefixes. Tests: `test/unit/l5-behavior.test.js` —
+  host-prefix cases.
 
 ## README vs code discrepancies
 
