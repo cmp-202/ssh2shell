@@ -428,7 +428,13 @@ class SSH2Shell extends Stream {
       return;
     }
 
-    this.sshObj.sshAuth = false;
+    // A nested connection that authenticates with a key has no prompt to
+    // answer. Mark it authenticated up front so the first remote shell prompt
+    // is treated as success instead of a failed connection. Password and
+    // passphrase auth still start unauthenticated so the first prompt can be
+    // answered.
+    const server = this.sshObj.server;
+    this.sshObj.sshAuth = !server.password && !server.passPhrase;
     this.sshObj.sshToNextHost = true;
 
     // Perfectly combined secure connection command string.

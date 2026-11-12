@@ -247,3 +247,70 @@ describe('_sshConnect command construction', () => {
     }
   });
 });
+
+describe('_sshConnect nested authentication state', () => {
+  function buildKeyOnly(serverOverrides = {}) {
+    const host = createHost({
+      server: Object.assign(
+        // createHost supplies a default password; clear it so the key-only
+        // case really has no interactive credential.
+        { host: 'target.test', port: 22, userName: 'user', password: undefined },
+        serverOverrides
+      ),
+    });
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+    ssh._loadDefaults();
+    ssh._stream = new FakeStream();
+    ssh._runCommand = () => {};
+    return { ssh, host };
+  }
+
+  it('starts key-only nested connections authenticated', () => {
+    if (isBaseline()) {
+      // The baseline always starts unauthenticated.
+      return;
+    }
+
+    const { ssh } = buildKeyOnly();
+    ssh._sshConnect();
+
+    assert.equal(ssh.sshObj.sshAuth, true);
+  });
+
+  it('starts password nested connections unauthenticated', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = buildKeyOnly({ password: 'secret' });
+    ssh._sshConnect();
+
+    assert.equal(ssh.sshObj.sshAuth, false);
+  });
+
+  it('starts passphrase nested connections unauthenticated', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = buildKeyOnly({ passPhrase: 'phrase' });
+    ssh._sshConnect();
+
+    assert.equal(ssh.sshObj.sshAuth, false);
+  });
+
+  it('treats the first remote prompt as success for key auth', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = buildKeyOnly();
+    let next = false;
+    ssh._nextCommand = () => {
+      next = true;
+    };
+
+    ssh._sshConnect();
+    ssh._buffer = 'Welcome\nuser@target:~$ ';
+    ssh._processSSHPrompt();
+
+    assert.equal(next, true);
+    assert.equal(ssh.sshObj.sshToNextHost, false);
+    assert.ok(ssh.sshObj.exitCommands.includes('exit'));
+  });
+});

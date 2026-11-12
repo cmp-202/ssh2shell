@@ -241,6 +241,13 @@ are covered by level-aware tests that also run against the frozen baseline.
   no nested hosts. Multi-host and nested-host sessions keep the prefix. The
   frozen baseline always prefixes. Tests: `test/unit/l5-behavior.test.js` —
   host-prefix cases.
+- **Key-only nested authentication.** `_sshConnect` starts a nested connection
+  authenticated when the nested host has neither a `password` nor a
+  `passPhrase`, so the first remote shell prompt is treated as success. The
+  frozen baseline treats that prompt as a failed connection, so key-only nested
+  hosts never run their commands. Password and passphrase nested hosts still
+  start unauthenticated. Test: `test/unit/ssh-connect.test.js` — nested
+  authentication state.
 
 ## README vs code discrepancies
 
