@@ -102,7 +102,7 @@ const checks = {
     contains: [server1, server2].filter(Boolean),
   },
   tunnel: {
-    contains: [server1, server2].filter(Boolean),
+    contains: [server1, server2, server3].filter(Boolean),
     excludes: ['SSH failed'],
   },
   chaining: {

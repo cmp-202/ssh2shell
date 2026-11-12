@@ -795,6 +795,19 @@ were after L6.1.
 - `npm run test:live` and `node scripts/run-live.js --all` — unchanged; progress
   is off by default and TTY-gated.
 
+### L7.16 deliverables (three-hop tunnel coverage)
+
+- `test/live/tunnel.js` now chains `jump -> bastion (server2) -> target
+  (server3)`, so the live suite exercises two nested `ssh` commands and the
+  back-out path through each connection.
+- The runner's `tunnel` check now requires server3 output as well, so the test
+  fails if the final hop is not reached.
+
+#### Verification
+
+- `node scripts/run-live.js tunnel chaining` — both pass.
+- `node scripts/run-live.js --all` — 17/17 pass.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes

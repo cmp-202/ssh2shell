@@ -23,7 +23,7 @@ const jump = {
   verbose: (process.env.VERBOSE === 'true'),
 };
 
-const target = {
+const bastion = {
   server: {
     host: process.env.SERVER2_HOST,
     port: process.env.SERVER2_PORT || process.env.PORT,
@@ -39,12 +39,25 @@ const target = {
   verbose: (process.env.VERBOSE === 'true'),
 };
 
-jump.hosts = [target];
-
-// Nested hosts can be chained to any depth:
-// jump.hosts = [bastion];
-// bastion.hosts = [target];
-// target.hosts = [];
+const target = {
+  server: {
+    host: process.env.SERVER3_HOST,
+    port: process.env.SERVER3_PORT || process.env.PORT,
+    userName: process.env.SERVER3_USER_NAME,
+    // Hop authentication uses the test key installed on the jump host for the
+    // login user, so the nested connection does not need a password.
+    ssh: {
+      identityFile: hopKeyPath,
+    },
+  },
+  commands: ['hostname', 'uptime'],
+  debug: (process.env.DEBUG === 'true'),
+  verbose: (process.env.VERBOSE === 'true'),
+};
+// Chain the hosts: jump -> bastion -> target. The session backs out through
+// each nested connection after the target's commands finish.
+bastion.hosts = [target];
+jump.hosts = [bastion];
 
 const SSH = new SSH2Shell(jump);
 
