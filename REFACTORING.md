@@ -698,6 +698,43 @@ were after L6.1.
 - `npm run test:unit` and `npm run test:baseline` — 121/121 pass.
 - `node test/simple.js` now logs `Note: ...` without the host address.
 
+### L7.11 deliverables (live-test batch runner)
+
+- Added `scripts/run-live.js`, a cross-platform runner for the live tests. The
+  default batch covers 12 key use cases; `--all` runs every test, `--list` shows
+  the selection, and positional names run a specific subset.
+- Each test runs in its own process with a configurable timeout (default 180s).
+  `scripts/live-instrument.js` is preloaded with `--require` to record the
+  connect callback, session-text length, and `error` events. The runner also
+  applies per-test session/log expectations, so a failed connection cannot pass
+  on exit code alone.
+- Added `npm run test:live` and `npm run test:live:all`.
+
+#### Verification
+
+- `npm run test:live` — 12/12 pass.
+- `node scripts/run-live.js --all` — 17/17 pass.
+- `npm test` — 125/125 unit and baseline pass.
+
+### L7.12 deliverables (nested key-only authentication)
+
+- `_sshConnect` now starts a nested connection authenticated when the nested
+  host has neither a password nor a passphrase. The first remote shell prompt is
+  then treated as success. Previously the first prompt was treated as a failed
+  connection, so key-only nested hosts never ran their commands; the live tests
+  only appeared to pass because the callback still fired with the first host's
+  text.
+- Password and passphrase nested connections still start unauthenticated so the
+  first credential prompt is answered.
+
+#### Verification
+
+- New unit tests cover key-only, password, and passphrase nested auth state and
+  the first-prompt success path.
+- `node scripts/run-live.js tunnel chaining` — both pass and include the nested
+  host output.
+- `npm test` — 125/125 unit and baseline pass.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes

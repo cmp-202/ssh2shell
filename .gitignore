@@ -2,6 +2,7 @@ pm-debug.log
 node_modules
 .env
 *.log
+test/logs/
 
 # Live-test private keys. Only the matching .pub files are committed.
 test/certs/*_ed25519
