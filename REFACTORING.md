@@ -538,7 +538,7 @@ were after L6.1.
     previous DHCP file is kept as `/etc/network/interfaces.dhcp-backup`.
   - Each clone has a unique `/etc/machine-id` and hostname.
 - Test user structure:
-  - `andrew` — manual administration only, admin key.
+  - `ssh2shell` — bootstrap/admin account, sudo, admin key.
   - `tester` — primary automated login, sudo with password, test key.
   - `nopasswd` — sudo with `NOPASSWD` on server2, test key.
   - `suuser` — no sudo, `su` target, test key.
@@ -548,7 +548,7 @@ were after L6.1.
     `user ALL=(ALL) NOPASSWD:ALL` line removed from `/etc/sudoers`.
 - Keys:
   - `test/certs/test_ed25519(.pub)` for test logins and nested hops.
-  - `test/certs/admin_ed25519(.pub)` for `andrew`.
+  - `test/certs/admin_ed25519(.pub)` for `ssh2shell`.
   - Private keys are gitignored; the `.pub` files and
     `test/certs/README.md` are tracked.
   - The test private key is installed as `~/.ssh/id_ed25519` for hop users on
@@ -578,7 +578,7 @@ were after L6.1.
 - `sshd -t` passes on server1; `kbduser` password auth is refused and
   keyboard-interactive succeeds.
 - Key and password logins verified for `tester`, `nopasswd`, and `suuser` on all
-  three hosts; `andrew` verified with the admin key.
+  three hosts; `ssh2shell` verified with the admin key.
 - Static addresses and hostnames verified; all three machine-ids are unique.
 - `npm test` — 116/116 pass after rebuilding `lib/`.
 - Live suite — 17/17 pass with key-based logins and no errors (including the
@@ -620,7 +620,7 @@ were after L6.1.
 - `test/provision/README.md` documents the role matrix, environment variables,
   usage, output markers, and caveats.
 - `.env-example` points to `test/provision/.env.example` and keeps the shared
-  key overrides and `ANDREW_PASSWORD`.
+  key overrides and `SSH2SHELL_PASSWORD`.
 - `npm run provision -- <role>` runs the script.
 
 #### Verification

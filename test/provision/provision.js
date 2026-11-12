@@ -42,8 +42,8 @@ const ROLES = {
     hostname: 'server1',
     ip: '192.168.44.10',
     interfaceName: 'enp0s3',
-    users: ['andrew', 'tester', 'nopasswd', 'suuser', 'kbduser'],
-    sudoUsers: ['andrew', 'tester', 'nopasswd'],
+    users: ['ssh2shell', 'tester', 'nopasswd', 'suuser', 'kbduser'],
+    sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
     hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: true,
@@ -53,8 +53,8 @@ const ROLES = {
     hostname: 'server2',
     ip: '192.168.44.11',
     interfaceName: 'enp0s3',
-    users: ['andrew', 'tester', 'nopasswd', 'suuser'],
-    sudoUsers: ['andrew', 'tester', 'nopasswd'],
+    users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
+    sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
     hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: true,
     hasKbdUser: false,
@@ -64,8 +64,8 @@ const ROLES = {
     hostname: 'server3',
     ip: '192.168.44.12',
     interfaceName: 'enp0s3',
-    users: ['andrew', 'tester', 'nopasswd', 'suuser'],
-    sudoUsers: ['andrew', 'tester', 'nopasswd'],
+    users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
+    sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
     hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: false,
@@ -221,8 +221,8 @@ function buildCommands() {
   const passwordLines = Object.entries(passwords).map(
     ([user, password]) => `${user}:${password}`
   );
-  if (process.env.ANDREW_PASSWORD) {
-    passwordLines.unshift(`andrew:${process.env.ANDREW_PASSWORD}`);
+  if (process.env.SSH2SHELL_PASSWORD) {
+    passwordLines.unshift(`ssh2shell:${process.env.SSH2SHELL_PASSWORD}`);
   }
 
   commands.push(
@@ -292,7 +292,7 @@ function buildCommands() {
   );
 
   for (const user of role.users) {
-    const key = user === 'andrew' ? adminPublicKey : testPublicKey;
+    const key = user === 'ssh2shell' ? adminPublicKey : testPublicKey;
     commands.push(...ensureSshDir(user));
     commands.push(
       ...installFile(`/home/${user}/.ssh/authorized_keys`, key.trim(), 600, user)

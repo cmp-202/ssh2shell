@@ -9,7 +9,7 @@ are visible in review.
 | Key | Purpose | Installed for |
 | --- | --- | --- |
 | `test_ed25519` / `test_ed25519.pub` | Primary test login and nested SSH hops | `tester`, `nopasswd`, `suuser` on all hosts; `kbduser` on server1 |
-| `admin_ed25519` / `admin_ed25519.pub` | Manual administration only | `andrew` on all hosts |
+| `admin_ed25519` / `admin_ed25519.pub` | Bootstrap/admin login | `ssh2shell` on all hosts |
 
 The private test key is also copied to each host as
 `~/.ssh/id_ed25519` for the hop users, so a nested `ssh -i` can authenticate
@@ -24,14 +24,18 @@ ssh-keygen -q -t ed25519 -N "" -C ssh2shell-admin -f test/certs/admin_ed25519
 ```
 
 Then install `test_ed25519.pub` in each test user's `authorized_keys` and
-`admin_ed25519.pub` in `andrew`'s.
+`admin_ed25519.pub` in `ssh2shell`'s. `test/provision/provision.js` does both
+for you.
 
 ## Live host and user matrix
 
 | Host | Static IP | Hostname | Test users |
 | --- | --- | --- | --- |
-| server1 | `192.168.44.10` | `server1` | `tester` (sudo), `nopasswd` (sudo), `suuser` (no sudo), `kbduser` (keyboard-interactive only) |
+| server1 | `192.168.44.10` | `server1` | `tester` (sudo), `nopasswd` (sudo), `suuser` (no sudo), `kbduser` (keyboard-interactive test; password auth disabled) |
 | server2 | `192.168.44.11` | `server2` | `tester` (sudo), `nopasswd` (sudo, `NOPASSWD` on this host), `suuser` (no sudo) |
 | server3 | `192.168.44.12` | `server3` | `tester` (sudo), `nopasswd` (sudo), `suuser` (no sudo) |
 
-`andrew` is the manual admin login and is not used by the automated tests.
+`ssh2shell` is the bootstrap/admin login created by the provisioning script. It
+is not used by the automated tests, which log in as `tester`. Older VMs may
+still have a manually created `andrew` account; the provisioning script does not
+create it.

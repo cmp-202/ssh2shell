@@ -73,7 +73,8 @@ VM with no way to install `openssh-server`.
 
    The script writes the role's static address, so the VM leaves the DHCP range
    and is reachable at `192.168.44.10` (server1), `.11` (server2), or `.12`
-   (server3) afterwards.
+   (server3) afterwards. For later runs, change `PROVISION_<ROLE>_HOST` to that
+   static IP, or clear it so the role default is used.
 
 6. To install updates later, add a temporary second adapter instead of changing
    Adapter 1, so the static address stays put:
@@ -97,18 +98,19 @@ default.
 
 | Role | Hostname | Static IP | Test users | Extra |
 | --- | --- | --- | --- | --- |
-| `server1` | `server1` | `192.168.44.10` | `andrew`, `tester`, `nopasswd`, `suuser`, `kbduser` | `kbduser` is keyboard-interactive only |
-| `server2` | `server2` | `192.168.44.11` | `andrew`, `tester`, `nopasswd`, `suuser` | `nopasswd` has `NOPASSWD` sudo |
-| `server3` | `server3` | `192.168.44.12` | `andrew`, `tester`, `nopasswd`, `suuser` | — |
+| `server1` | `server1` | `192.168.44.10` | `ssh2shell`, `tester`, `nopasswd`, `suuser`, `kbduser` | `kbduser` has password auth disabled |
+| `server2` | `server2` | `192.168.44.11` | `ssh2shell`, `tester`, `nopasswd`, `suuser` | `nopasswd` has `NOPASSWD` sudo |
+| `server3` | `server3` | `192.168.44.12` | `ssh2shell`, `tester`, `nopasswd`, `suuser` | — |
 
-`andrew` is the manual admin account. `tester` is the primary test login.
+`ssh2shell` is the bootstrap/admin account the script creates (it is also the
+default bootstrap login). `tester` is the primary test login.
 `nopasswd` is a normal sudo user except on server2, where
 `/etc/sudoers.d/90-ssh2shell-nopasswd` grants passwordless sudo. `suuser` has no
 sudo and exists for the `su` test.
 
 The test key is installed in every test user's `authorized_keys`. It is also
 copied to `~/.ssh/id_ed25519` for `tester`, `nopasswd`, and `suuser` so nested
-`ssh -i` hops work. `andrew` gets the admin key instead.
+`ssh -i` hops work. `ssh2shell` gets the admin key instead.
 
 ## Building the three VMs
 
@@ -234,7 +236,7 @@ the role, then `PROVISION_ROLE`, then `server1`.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PROVISION_ROLE` | `server1` | Role when no CLI argument is given. |
-| `PROVISION_<ROLE>_HOST` | role static IP | Address of the VM as it is reachable now. Use the DHCP address for a fresh install. |
+| `PROVISION_<ROLE>_HOST` | role static IP | Address of the VM as it is reachable now. Use the DHCP address for the first run, then the role's static IP (or leave it empty) for later runs. |
 | `PROVISION_<ROLE>_PORT` | `PORT` or `22` | SSH port. |
 | `PROVISION_<ROLE>_IP` | role static IP | Static address written to netplan or `/etc/network/interfaces`. |
 | `PROVISION_<ROLE>_HOSTNAME` | role name | Hostname. |
@@ -254,18 +256,23 @@ The test key is only the default bootstrap key for the normal test login. If
 you set a different bootstrap user, such as `ubuntu`, also set that role's
 password or key path.
 
+`PROVISION_<ROLE>_KEY_PATH` is the key used to log in to the VM. It is not the
+key installed for the test users. Those are always `TEST_PUBLIC_KEY_PATH` for
+`tester`, `nopasswd`, `suuser`, and `kbduser`, and `ADMIN_PUBLIC_KEY_PATH` for
+`ssh2shell`, regardless of how the bootstrap login authenticated.
+
 The repository `.env` supplies the live-test users and keys:
 
 | Variable | Purpose |
 | --- | --- |
 | `TEST_PRIVATE_KEY_PATH` | Private test key, also used as the default bootstrap key. Defaults to `test/certs/test_ed25519`. |
 | `TEST_PUBLIC_KEY_PATH` | Public test key installed on the VM. Defaults to `<private>.pub`. |
-| `ADMIN_PUBLIC_KEY_PATH` | Public admin key for `andrew`. Defaults to `test/certs/admin_ed25519.pub`. |
+| `ADMIN_PUBLIC_KEY_PATH` | Public admin key for `ssh2shell`. Defaults to `test/certs/admin_ed25519.pub`. |
 | `PASSWORD` | Password for `tester`; also the default bootstrap password. |
 | `NOPASSWD_PASSWORD` | Password for `nopasswd`. |
 | `SECOND_USER_PASSWORD` | Password for `suuser`. |
 | `KBD_PASSWORD` | Password for `kbduser` (server1). |
-| `ANDREW_PASSWORD` | Sets `andrew`'s password when present. Leave empty to keep the existing one. |
+| `SSH2SHELL_PASSWORD` | Sets `ssh2shell`'s password when present. Leave empty to keep the existing one. |
 | `KEY_PASSPHRASE` | Passphrase for the bootstrap key, if any. |
 | `DEBUG` / `VERBOSE` | `ssh2shell` session output. |
 
@@ -294,9 +301,13 @@ The repository `.env` supplies the live-test users and keys:
    npm run provision -- server3
    ```
 
-5. Reconnect at the role's static IP as `tester` (or `andrew` with the admin
+5. Reconnect at the role's static IP as `tester` (or `ssh2shell` with the admin
    key). The script applies the network last because changing it can drop the
    current session.
+
+6. Before running the same role again, set `PROVISION_<ROLE>_HOST` to the
+   static IP, or clear it so the role default is used. The DHCP address from
+   the first run no longer exists after the static network is applied.
 
 The script is safe to re-run against an already-provisioned VM. Users are
 created only when missing, keys and sudo files are rewritten, and `sshd` is
@@ -335,9 +346,9 @@ non-zero exit code.
   up, it restores the previous netplan directory or
   `/etc/network/interfaces.dhcp-backup` and re-applies it so the VM remains
   reachable on its old address.
-- A freshly created `andrew` has the admin key and no password unless
-  `ANDREW_PASSWORD` is set. Set it before provisioning a new VM if you want
-  password-based admin login.
+- A freshly created `ssh2shell` has the admin key and no password unless
+  `SSH2SHELL_PASSWORD` is set. Set it before provisioning a new VM if you want
+  password-based bootstrap login.
 - The script detects netplan vs `ifupdown` at runtime. The netplan path replaces
   `/etc/netplan/*.yaml` with a single static config, so it assumes one network
   interface. If the interface is not `enp0s3`, set

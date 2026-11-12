@@ -395,7 +395,7 @@ answers in the same order as `prompts`.
 
 ```javascript
 const kbdUser = process.env.KBD_USER || 'kbduser';
-const kbdPassword = process.env.KBD_PASSWORD || process.env.PASSWORD;
+const kbdPassword = process.env.KBD_PASSWORD;
 
 const host = {
   server: {
@@ -526,7 +526,7 @@ automatic. Detect the prompt in `onCommandProcessing` and answer it with the
 stream:
 
 ```javascript
-const secondUser = process.env.SECOND_USER || 'seconduser';
+const secondUser = process.env.SECOND_USER || 'suuser';
 
 const host = {
   server: {

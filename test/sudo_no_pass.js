@@ -6,10 +6,10 @@ const SSH2Shell = require('../src/ssh2shell');
 const { readPrivateKey } = require('./utils/private_key.js');
 
 /*
- * The NOPASSWD user is configured with `ALL=(ALL) NOPASSWD: ALL` on the second
- * test server. `sudo -n` fails immediately if a password would be required, so
- * these commands prove that sudo runs without a prompt and that the normal
- * prompt is still detected so the next command runs.
+ * `nopasswd` has `ALL=(ALL) NOPASSWD: ALL` on server2 only. `SERVER2_HOST` and
+ * `NOPASSWD_USER` come from .env. `sudo -n` fails immediately if a password
+ * would be required, so these commands prove that sudo runs without a prompt
+ * and that the normal prompt is still detected so the next command runs.
  */
 const host = {
   server: {

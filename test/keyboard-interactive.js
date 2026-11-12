@@ -5,9 +5,15 @@ logFile('keyboard-interactive.js');
 const SSH2Shell = require('../src/ssh2shell');
 
 // The keyboard-interactive user has password auth disabled, so the client must
-// answer the challenge through the keyboard-interactive handler below.
+// answer the challenge through the keyboard-interactive handler below. That
+// user is provisioned on server1 only, so KBD_HOST defaults to HOST.
 const kbdUser = process.env.KBD_USER || 'kbduser';
-const kbdPassword = process.env.KBD_PASSWORD || process.env.PASSWORD;
+const kbdPassword = process.env.KBD_PASSWORD;
+
+if (!kbdPassword) {
+  console.error('Set KBD_PASSWORD in .env for the keyboard-interactive user.');
+  process.exit(1);
+}
 
 const host = {
   server: {

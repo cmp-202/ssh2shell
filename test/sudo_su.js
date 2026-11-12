@@ -4,7 +4,10 @@ logFile('sudo_su.js');
 
 const SSH2Shell = require('../src/ssh2shell');
 
-const secondUser = process.env.SECOND_USER || 'seconduser';
+// `HOST` is server1, which has the `suuser` account used as the `su` target.
+// The login password stays here because the library also uses server.password
+// to answer the `sudo` prompt.
+const secondUser = process.env.SECOND_USER || 'suuser';
 
 const host = {
   server: {
