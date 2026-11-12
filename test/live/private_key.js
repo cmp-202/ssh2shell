@@ -2,10 +2,10 @@ const dotenv = require('dotenv').config();
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('private_key.js');
 
-const SSH2Shell = require('../src/ssh2shell');
+const SSH2Shell = require('../../src/ssh2shell');
 
 // `~` is not expanded by fs.readFileSync(), so resolve it against os.homedir().
 const keyPath = path.resolve(

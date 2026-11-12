@@ -1,6 +1,6 @@
 'use strict';
 
-// Runs the live tests in test/ against real hosts.
+// Runs the live tests in test/live/ against real hosts.
 //
 // The default batch covers the key use cases and is meant as a retest after a
 // change. `--all` runs every live test; positional names run only those tests.
@@ -15,8 +15,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repoRoot = path.join(__dirname, '..');
-const testDir = path.join(repoRoot, 'test');
-const logDir = path.join(testDir, 'logs');
+const testDir = path.join(repoRoot, 'test', 'live');
+const logDir = path.join(repoRoot, 'test', 'logs');
 const instrumentPath = path.join(__dirname, 'live-instrument.js');
 const modulePath = path.join(repoRoot, 'src', 'ssh2shell.js');
 const resultPath = path.join(logDir, '.live-result.json');

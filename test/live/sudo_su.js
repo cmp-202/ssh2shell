@@ -1,8 +1,8 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('sudo_su.js');
 
-const SSH2Shell = require('../src/ssh2shell');
+const SSH2Shell = require('../../src/ssh2shell');
 
 // `HOST` is server1, which has the `suuser` account used as the `su` target.
 // The login password stays here because the library also uses server.password

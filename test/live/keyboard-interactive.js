@@ -1,8 +1,8 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('keyboard-interactive.js');
 
-const SSH2Shell = require('../src/ssh2shell');
+const SSH2Shell = require('../../src/ssh2shell');
 
 // The keyboard-interactive user has password auth disabled, so the client must
 // answer the challenge through the keyboard-interactive handler below. That

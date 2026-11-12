@@ -735,6 +735,25 @@ were after L6.1.
   host output.
 - `npm test` — 125/125 unit and baseline pass.
 
+### L7.13 deliverables (live-test folder)
+
+- Moved the 17 live test scripts from `test/` to `test/live/`. The support
+  directories (`certs`, `provision`, `utils`, `logs`) and the offline suites
+  (`unit`, `fixtures`) stay at `test/`.
+- `scripts/run-live.js` now discovers tests in `test/live/`, so an unrelated
+  script dropped in `test/` is not picked up as a live test.
+- Updated the test imports, the `pipe` output path, README links, and
+  `.env-example` references. `npm pack` still publishes only `lib/`; the
+  `.npmignore` `/test` rule is unchanged and already covers the whole folder.
+
+#### Verification
+
+- `npm run test:live` — 12/12 pass.
+- `node scripts/run-live.js --all` — 17/17 pass.
+- `npm test` — 125/125 unit and baseline pass.
+- `npm pack --dry-run` — only `lib/`, `README.md`, `LICENSE`, and
+  `package.json`.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -851,8 +870,8 @@ behavior.
 - `commandTimeout` doubles as a retry point. A timeout handler can answer the
   prompt and write to the stream; the next `onData` either reaches
   `commandComplete` if the prompt is detected or times out again.
-  `test/timeout.js` uses a host `FirstPass` flag to stop that loop. The flag is
-  caller-owned, not library state.
+  `test/live/timeout.js` uses a host `FirstPass` flag to stop that loop. The
+  flag is caller-owned, not library state.
 - Backgrounding `netplan apply` / `ifup` and polling for the address avoids the
   connection drop that a foreground network change causes.
 

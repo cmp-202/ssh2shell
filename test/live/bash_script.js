@@ -1,9 +1,9 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('bash_script.js');
 
-const SSH2Shell = require('../src/ssh2shell');
-const { readPrivateKey } = require('./utils/private_key.js');
+const SSH2Shell = require('../../src/ssh2shell');
+const { readPrivateKey } = require('../utils/private_key.js');
 
 const host = {
   server: {

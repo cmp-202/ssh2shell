@@ -1,9 +1,9 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('sudo_no_pass.js');
 
-const SSH2Shell = require('../src/ssh2shell');
-const { readPrivateKey } = require('./utils/private_key.js');
+const SSH2Shell = require('../../src/ssh2shell');
+const { readPrivateKey } = require('../utils/private_key.js');
 
 /*
  * `nopasswd` has `ALL=(ALL) NOPASSWD: ALL` on server2 only. `SERVER2_HOST` and

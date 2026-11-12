@@ -1,9 +1,9 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
+const { logFile, log } = require('../utils/logging.js');
 logFile('timeout.js');
 
-const SSH2Shell = require('../src/ssh2shell');
-const { readPrivateKey } = require('./utils/private_key.js');
+const SSH2Shell = require('../../src/ssh2shell');
+const { readPrivateKey } = require('../utils/private_key.js');
 
 // Every data response from the server resets the command timeout timer. If
 // onCommandTimeout writes to the stream and the server responds, the timer is

@@ -110,8 +110,8 @@ SSH.on('end', (sessionText, sshObj) => {
 SSH.connect();
 ```
 
-See [`test/simple.js`](./test/simple.js) for a runnable version that writes the
-session to a log file.
+See [`test/live/simple.js`](./test/live/simple.js) for a runnable version that
+writes the session to a log file.
 
 ## Core concepts
 
@@ -203,7 +203,8 @@ const host = {
 - A backtick-wrapped entry is appended to `sessionText` without being run. This
   avoids the command echo you would get from `echo`.
 
-See [`test/notifications.js`](./test/notifications.js) for a runnable example.
+See [`test/live/notifications.js`](./test/live/notifications.js) for a runnable
+example.
 
 ### Prompts and response filters
 
@@ -387,7 +388,8 @@ If the key has a passphrase and it is wrong, ssh2 reports
 Check for typos and for a trailing newline if the value came from a file. Call
 `.trim()` on values read from disk.
 
-See [`test/private_key.js`](./test/private_key.js) for a runnable example.
+See [`test/live/private_key.js`](./test/live/private_key.js) for a runnable
+example.
 
 ### Keyboard-interactive authentication
 
@@ -439,8 +441,8 @@ Keyboard-interactive is only available on the first (primary) connection. A
 nested connection made with the `ssh` command handles authentication through
 the shell prompt instead.
 
-See [`test/keyboard-interactive.js`](./test/keyboard-interactive.js) for a
-complete example.
+See [`test/live/keyboard-interactive.js`](./test/live/keyboard-interactive.js)
+for a complete example.
 
 ### Verify a host fingerprint
 
@@ -497,7 +499,8 @@ connections are made by running `ssh` on the primary host, so their host-key
 handling belongs to that host's `known_hosts` configuration and to the
 `server.ssh` options. See [Security](#security).
 
-See [`test/fingerprint.js`](./test/fingerprint.js) for a runnable example.
+See [`test/live/fingerprint.js`](./test/live/fingerprint.js) for a runnable
+example.
 
 ### Run sudo and su commands
 
@@ -508,7 +511,7 @@ continues.
 
 If the account has a `NOPASSWD` sudoers rule, no password is sent. Use `sudo -n`
 to prove that: it fails instead of prompting when a password would be required.
-See [`test/sudo_no_pass.js`](./test/sudo_no_pass.js).
+See [`test/live/sudo_no_pass.js`](./test/live/sudo_no_pass.js).
 
 ```javascript
 const host = {
@@ -556,7 +559,7 @@ const host = {
 
 The difference between `su`, `sudo su`, and `sudo -u user -i` is explained in
 [this article](http://johnkpaul.tumblr.com/post/19841381351/su-vs-sudo-su-vs-sudo-u-i).
-See [`test/sudo_su.js`](./test/sudo_su.js) for a working example.
+See [`test/live/sudo_su.js`](./test/live/sudo_su.js) for a working example.
 
 ### Respond to a prompt mid-command
 
@@ -602,8 +605,8 @@ Do not define the same handler in both places. It will run twice.
 If no prompt is detected and no answer is sent, `commandTimeout` fires after
 `idleTimeOut`.
 
-See [`test/prompt_response.js`](./test/prompt_response.js) for a runnable
-example.
+See [`test/live/prompt_response.js`](./test/live/prompt_response.js) for a
+runnable example.
 
 ### Handle a command timeout
 
@@ -660,8 +663,8 @@ SSH.on('commandTimeout', function (command, response, stream, connection) {
 });
 ```
 
-See [`test/command_timeout.js`](./test/command_timeout.js) for a runnable
-example.
+See [`test/live/command_timeout.js`](./test/live/command_timeout.js) for a
+runnable example.
 
 ## Multiple hosts
 
@@ -697,7 +700,8 @@ SSH.connect((allSessionText) => {
 Each host is independent. Shared functions can be assigned to multiple host
 objects, and shared handlers can be added to the instance instead.
 
-See [`test/multiple_primary_hosts.js`](./test/multiple_primary_hosts.js).
+See
+[`test/live/multiple_primary_hosts.js`](./test/live/multiple_primary_hosts.js).
 
 ### Tunnelling through a jump host
 
@@ -738,7 +742,7 @@ SSH.connect((sessionText) => console.log(sessionText));
 `identityFile` must be an absolute path on the jump host; the value is
 single-quoted, so `~` is not expanded. For multi-hop chains, use
 `HOP_KEY_PATH` for the first hop and `HOP2_KEY_PATH` for the second (see
-[`test/chaining.js`](./test/chaining.js)).
+[`test/live/chaining.js`](./test/live/chaining.js)).
 
 Nested hosts can be chained to any depth:
 
@@ -822,8 +826,8 @@ Connection-level features such as keyboard-interactive apply to the primary
 connection only. Each nested host uses its own `connectedMessage`,
 `readyMessage`, and `closedMessage`.
 
-See [`test/tunnel.js`](./test/tunnel.js) and
-[`test/chaining.js`](./test/chaining.js).
+See [`test/live/tunnel.js`](./test/live/tunnel.js) and
+[`test/live/chaining.js`](./test/live/chaining.js).
 
 ## Events and the API
 
@@ -923,7 +927,8 @@ echo "<base64>" | base64 -d | bash
 echo "<base64>" | base64 -d | bash -s
 ```
 
-See [`test/bash_script.js`](./test/bash_script.js) for a runnable example.
+See [`test/live/bash_script.js`](./test/live/bash_script.js) for a runnable
+example.
 
 From [issue #103](https://github.com/cmp-202/ssh2shell/issues/103) and
 [issue #104](https://github.com/cmp-202/ssh2shell/issues/104).
@@ -1023,7 +1028,7 @@ npm test
 ```
 
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
-runs the level-aware baseline tests. The other files in `test/` are live tests
+runs the level-aware baseline tests. The files in `test/live/` are live tests
 that need real hosts. Copy `.env-example` to `.env` and fill in the connection
 details.
 
@@ -1050,7 +1055,7 @@ checks the connect callback, the session text, error events, and a small
 per-test expectation rather than relying on the exit code alone: a failed
 connection still reaches the callback with empty session text. A failure prints
 the reason and the test log path under `test/logs/`. A single test can still be
-run directly, for example `node test/simple.js`.
+run directly, for example `node test/live/simple.js`.
 
 Most live tests log in with the key at `PRIVATE_KEY_PATH`; the sudo/su and
 keyboard-interactive tests use the matching passwords because those protocols

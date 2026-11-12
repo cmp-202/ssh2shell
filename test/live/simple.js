@@ -1,9 +1,9 @@
 const dotenv = require('dotenv').config();
-const { logFile, log } = require('./utils/logging.js');
-logFile('notifications.js');
+const { logFile, log } = require('../utils/logging.js');
+logFile('simple.js');
 
-const SSH2Shell = require('../src/ssh2shell');
-const { readPrivateKey } = require('./utils/private_key.js');
+const SSH2Shell = require('../../src/ssh2shell');
+const { readPrivateKey } = require('../utils/private_key.js');
 
 const host = {
   server: {
@@ -14,12 +14,10 @@ const host = {
     passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: [
-    'msg:Starting deployment',
-    '`This line is added to sessionText only`',
-    // The README uses `cd /srv/app` and `./deploy.sh`; these commands are
-    // safe stand-ins for a live host.
-    'cd /tmp',
-    'pwd',
+    'msg:Checking disk usage',
+    'df -h',
+    'msg:Checking memory',
+    'free -m',
   ],
   debug: (process.env.DEBUG === 'true'),
   verbose: (process.env.VERBOSE === 'true'),
@@ -28,6 +26,11 @@ const host = {
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+
+SSH.on('commandComplete', (command, response, sshObj) => {
+  log(`${sshObj.server.host} $ ${command}`);
+  log(response.trim());
+});
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
