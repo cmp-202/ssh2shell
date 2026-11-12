@@ -105,6 +105,9 @@ const checks = {
     contains: [server1, server2, server3].filter(Boolean),
     excludes: ['SSH failed'],
   },
+  progress: {
+    contains: ['progress-demo-', server1, server2].filter(Boolean),
+  },
   chaining: {
     contains: [server1, server2, server3].filter(Boolean),
     excludes: ['SSH failed'],

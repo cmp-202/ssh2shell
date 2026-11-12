@@ -72,9 +72,10 @@ class SSH2Shell extends Stream {
     this.host = "No host";
     this._allSessions = '';
     this._defaultErrorListener = null;
-    // Progress output is opt-in and written to stderr so it never touches
-    // sessionText. The stream and interval are instance state so a test or a
-    // consumer can substitute a TTY-like sink without changing the host config.
+    // Progress output is on by default and written to stderr so it never
+    // touches sessionText. The stream and interval are instance state so a test
+    // or a consumer can substitute a TTY-like sink without changing the host
+    // config.
     this._progressStream = process.stderr;
     this._progressInterval = 1000;
     this._progressTimer = null;
@@ -240,11 +241,11 @@ class SSH2Shell extends Stream {
     return '';
   }
 
-  // Progress output is an opt-in liveness indicator for long-running commands.
-  // It goes to stderr and is gated on a TTY so redirected output and CI logs
-  // stay clean. It never writes to sessionText or the msg stream. Debug and
-  // verbose already report every internal step, so the heartbeat is suppressed
-  // while either is enabled.
+  // Progress output is an on-by-default liveness indicator for long-running
+  // commands. Set `progress: false` on the host to opt out. It goes to stderr
+  // and is gated on a TTY so redirected output and CI logs stay clean. It never
+  // writes to sessionText or the msg stream. Debug and verbose already report
+  // every internal step, so the heartbeat is suppressed while either is enabled.
   _progressEnabled() {
     return (
       this.progress === true &&
@@ -1037,7 +1038,7 @@ class SSH2Shell extends Stream {
     this._buffer = '';
     this.debug = this.sshObj.debug ?? false;
     this.verbose = this.sshObj.verbose ?? false;
-    this.progress = this.sshObj.progress === true;
+    this.progress = this.sshObj.progress !== false;
     this.exposeCredentials = this.sshObj.exposeCredentials ?? false;
     this.host = this.sshObj.server.host;
 

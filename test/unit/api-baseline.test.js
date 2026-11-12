@@ -85,6 +85,9 @@ describe('_loadDefaults baseline', () => {
     assert.equal(host.showBanner, false);
     assert.equal(host.verbose, false);
     assert.equal(host.debug, false);
+    if (!isBaseline()) {
+      assert.equal(host.progress, true);
+    }
     assert.deepEqual(host.hosts, []);
     assert.deepEqual(host.commands, ['echo one']);
     assert.equal(host.standardPrompt, '>$%#');

@@ -77,6 +77,11 @@ A single test can still be run directly, for example
 `node test/live/simple.js`. Direct runs skip the runner's extra checks and just
 write the log and callback output.
 
+To see the progress heartbeat (on by default; set `progress: false` to opt
+out), run `node test/live/progress.js` directly in an interactive terminal.
+Progress only writes when stderr is a TTY, so the runner (which captures stderr
+through a pipe) keeps it silent.
+
 ## Live environment
 
 The suite expects the hosts and users created by the provisioning script:

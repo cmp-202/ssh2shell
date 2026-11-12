@@ -38,10 +38,25 @@ function make(overrides = {}) {
 }
 
 describe('progress indicator', () => {
-  it('defaults to off and writes nothing', () => {
+  it('defaults to on', () => {
     if (isBaseline()) return;
 
     const { ssh, host } = make();
+    assert.equal(host.progress, true);
+    assert.equal(ssh.progress, true);
+
+    ssh.command = 'echo one';
+    ssh._checkCommand();
+    ssh._progressTick();
+    ssh._progressEnd();
+
+    assert.equal(ssh._progressStream.output, '.\n');
+  });
+
+  it('stays silent when explicitly disabled', () => {
+    if (isBaseline()) return;
+
+    const { ssh, host } = make({ progress: false });
     assert.equal(host.progress, false);
     assert.equal(ssh.progress, false);
 

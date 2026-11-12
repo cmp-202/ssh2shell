@@ -248,14 +248,17 @@ are covered by level-aware tests that also run against the frozen baseline.
   hosts never run their commands. Password and passphrase nested hosts still
   start unauthenticated. Test: `test/unit/ssh-connect.test.js` — nested
   authentication state.
-- **Progress indicator.** The opt-in `progress` host flag (default `false`)
-  writes a one-second heartbeat to `process.stderr` while a command is in
-  flight, and only when stderr is a TTY. It ends the line on command completion,
-  timeout, error, close, or host change, and labels host changes with `[host]`
-  when the session spans more than one host. It never modifies `sessionText` or
-  the `msg` stream, and it is suppressed when `debug` or `verbose` is enabled
-  because those already report internal steps. Test:
-  `test/unit/progress.test.js`.
+- **Progress indicator (default on).** The `progress` host flag is now on by
+  default; set `progress: false` to opt out. When enabled, it writes a
+  one-second heartbeat to `process.stderr` while a command is in flight, and
+  only when stderr is a TTY. It ends the line on command completion, timeout,
+  error, close, or host change, and labels host changes with `[host]` when the
+  session spans more than one host. It never modifies `sessionText` or the
+  `msg` stream, and it is suppressed when `debug` or `verbose` is enabled
+  because those already report internal steps. The default changed from `false`
+  to `true` with sign-off because the output is purely visual, unobtrusive, and
+  has no process impact. Tests: `test/unit/progress.test.js` and
+  `test/live/progress.js`.
 
 ## README vs code discrepancies
 

@@ -770,9 +770,10 @@ were after L6.1.
 - Relative links in `test/README.md` resolve to existing files.
 - No code changes; `npm test` and the live runner are unaffected.
 
-### L7.15 deliverables (opt-in progress indicator)
+### L7.15 deliverables (progress indicator)
 
-- Added the `progress` host option (default `false`). When enabled and stderr
+- Added the `progress` host option. It shipped opt-in (default `false`) at
+  L7.15; L7.17 changes the default to `true` (opt-out). When enabled and stderr
   is a TTY, the class writes a one-second heartbeat to `process.stderr` while a
   command is in flight. The indicator never modifies `sessionText` or the `msg`
   stream.
@@ -792,8 +793,8 @@ were after L6.1.
 - `npm test` — 138/138 unit and 138/138 baseline pass. The new
   `test/unit/progress.test.js` skips its assertions against the frozen
   baseline, which has no `progress` option.
-- `npm run test:live` and `node scripts/run-live.js --all` — unchanged; progress
-  is off by default and TTY-gated.
+- `npm run test:live` and `node scripts/run-live.js --all` — unchanged; the
+  indicator is TTY-gated and was off by default at L7.15.
 
 ### L7.16 deliverables (three-hop tunnel coverage)
 
@@ -807,6 +808,22 @@ were after L6.1.
 
 - `node scripts/run-live.js tunnel chaining` — both pass.
 - `node scripts/run-live.js --all` — 17/17 pass.
+
+### L7.17 deliverables (progress on by default)
+
+- `progress` now defaults to `true`; an explicit `progress: false` opts out.
+  Signed off because the output is purely visual, unobtrusive, TTY-gated, and
+  has no process impact.
+- `test/live/progress.js` now exercises the default instead of setting the
+  flag. `test/unit/progress.test.js` covers the default-on and explicit
+  opt-out cases, and `test/unit/api-baseline.test.js` asserts the new default.
+- README, `docs/API-BASELINE.md`, and `test/README.md` describe the opt-out.
+
+#### Verification
+
+- `npm test` — 139/139 unit and 139/139 baseline pass.
+- `node scripts/run-live.js progress` — 1/1 pass.
+- `node scripts/run-live.js --all` — 18/18 pass.
 
 ## Backlog and future work
 
