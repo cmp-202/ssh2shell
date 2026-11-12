@@ -33,7 +33,7 @@ one command to decide what to do next.
   - [Host event handlers](#host-event-handlers)
 - [Recipes](#recipes)
   - [Run commands on a host](#run-commands-on-a-host)
-  - [Capture output](#capture-output)
+  - [React to a command result](#react-to-a-command-result)
   - [Authenticate with a private key](#authenticate-with-a-private-key)
   - [Keyboard-interactive authentication](#keyboard-interactive-authentication)
   - [Verify a host fingerprint](#verify-a-host-fingerprint)
@@ -47,6 +47,7 @@ one command to decide what to do next.
   - [Instance events](#instance-events)
   - [Methods and properties](#methods-and-properties)
 - [Advanced usage](#advanced-usage)
+  - [Log to a file](#log-to-a-file)
   - [Run a generated bash script](#run-a-generated-bash-script)
   - [Verbose and debug output](#verbose-and-debug-output)
   - [Progress indicator](#progress-indicator)
@@ -100,19 +101,18 @@ SSH.connect((sessionText) => {
 });
 ```
 
-The callback receives the complete session text, including the output of every
-command. If you prefer events, listen for `end` instead:
+The function passed to `SSH.connect()` is called when the session finishes. It
+receives the complete session text, including the output of every command. To
+write that text to a file instead of the console:
 
 ```javascript
-SSH.on('end', (sessionText, sshObj) => {
-  console.log(`${sshObj.server.host}:\n${sessionText}`);
+SSH.connect((sessionText) => {
+  fs.writeFileSync('session.log', sessionText);
 });
-
-SSH.connect();
 ```
 
 See [`test/live/simple.js`](./test/live/simple.js) for a runnable version that
-writes the session to a log file.
+appends messages and session text to a log file.
 
 ## Core concepts
 
@@ -129,24 +129,22 @@ const host = {
 **One shell, many commands.** Commands are written to a single shell session in
 order. After each write, `ssh2shell` waits until the output matches
 `standardPrompt` (by default a line ending in `>`, `$`, `%`, or `#`) before it
-sends the next command. This is why the prompt matters: if the host uses a
-different prompt, detection fails and the command times out.
+sends the next command.
 
 **`sessionText`.** Each host accumulates its own output in `sshObj.sessionText`.
 When all hosts finish, `connect(callback)` passes the combined text.
 
-**Primary hosts vs. tunnelling.** These are different features:
+**Connection modes.** There are three ways to connect:
 
-| Feature | Config | How it connects | Use it when |
+| Mode | Config | How it connects | Use it when |
 | --- | --- | --- | --- |
+| Single host | `new SSH2Shell(host)` | One `ssh2` connection | You have one server |
 | Multiple primary hosts | `new SSH2Shell([host1, host2])` | A new `ssh2` connection per host, one after another | You have several independent servers |
 | Tunnelling | `host1.hosts = [host2]` | An `ssh` command run inside the current session | You must reach a host through a jump host |
 
-**Notifications.** Two command entries are handled locally and are not sent to
-the host:
-
-- `"msg:Text"` emits a `msg` event.
-- `` "`Text`" `` adds `Text` to `sessionText` only.
+**Notifications.** `commands` entries can emit a `msg` or add text to
+`sessionText` without sending anything to the host. See
+[Commands and notifications](#commands-and-notifications).
 
 ## Configuration reference
 
@@ -229,8 +227,9 @@ still works, but a prompt ending in `:` will not.
 `passPromptText` is shared by password and passphrase detection. If your host
 uses different wording, set it to text common to both prompts.
 
-Filters only affect the text that `ssh2shell` matches and stores. They do not
-change what the host sends.
+Filters only affect the text that `ssh2shell` matches and adds to
+`sshObj.sessionText`. They do not change the raw output from an `on('data')`
+event.
 
 When ASCII filtering is enabled, complete terminal escape sequences (CSI and
 OSC, such as bracketed paste and shell-integration markers) are removed before
@@ -265,18 +264,15 @@ value overrides the instance value for that host.
 | `readyMessage` | string | `"Ready"` | Emitted as a `msg` when the shell is ready. |
 | `closedMessage` | string | `"Closed"` | Emitted as a `msg` when the connection closes. |
 | `msg` | function \| `{ send }` | `console.log` | Receives every `msg` event. The legacy `{ send: fn }` shape is accepted. |
-| `verbose` | boolean | `false` | Emit the response text after each command. |
+| `verbose` | boolean | `false` | Emit process details, including the loaded host config and intermediate values useful for troubleshooting. |
 | `debug` | boolean | `false` | Emit internal process steps. |
 | `progress` | boolean | `true` | Write a stderr liveness indicator while a command is in flight. Set to `false` to disable. TTY-only; never affects `sessionText`. |
-| `exposeCredentials` | boolean | `false` | Do **not** redact passwords/passphrases in debug and verbose output. |
+| `exposeCredentials` | boolean | `false` | Redact passwords and passphrases in debug and verbose output. Set to `true` to show them. |
 | `showBanner` | boolean | `false` | Include the host banner in `sessionText`. |
 | `enter` | string | `"\n"` | End-of-line sequence written after each command. |
 | `streamEncoding` | string | `"utf8"` | Encoding applied to the shell stream. |
 | `window` | boolean | `true` | First argument to `connection.shell()`. An explicit `false` is preserved. |
 | `pty` | boolean | `true` | Pseudo-terminal option passed to `connection.shell()`. An explicit `false` is preserved. |
-
-> **Note:** `connect`, `ready`, and `close` are **not** instance events. Use the
-> `msg` event and the three message properties above, or listen for `end`.
 
 ### Host event handlers
 
@@ -292,7 +288,7 @@ with `SSH.on(...)` run for every host, in parallel with any host handler.
 | `onData` | `data` | Raw data arrives from the stream. |
 | `onStderrData` | `data` | Data arrives on stderr. |
 | `onCommandProcessing` | `command, response, sshObj, stream` | Output arrives before the prompt is detected. |
-| `onCommandComplete` | `command, response, sshObj` | A command returns to the prompt. |
+| `onCommandComplete` | `command, response, sshObj` | A command returns to the prompt. Use it to inspect the response or queue follow-up commands. |
 | `onCommandTimeout` | `command, response, stream, connection` | No data arrives for `idleTimeOut` milliseconds. |
 | `onEnd` | `sessionText, sshObj` | The host session finishes. |
 | `onError` | `err, type, close, callback` | An error is raised. |
@@ -306,10 +302,19 @@ progress.
 can answer a prompt with `stream.write('y\n')`. See
 [Respond to a prompt mid-command](#respond-to-a-prompt-mid-command).
 
-If an `onError` handler needs to close the connection, call
-`this.connection.end()` for the SSH connection or `this.close()` for the shell
-stream. The default error handler closes the shell when its `close` argument is
-`true`.
+A host `onError` handler runs before the default handler. The default handler
+reports the error and closes the shell stream when its `close` argument is
+`true`; the stream close handler then ends the SSH connection. Use
+`this.close()` to stop the session yourself; it is safe before the shell opens.
+Avoid `this.connection.end()` in `onError`: it bypasses the shell close path,
+and the connection may not exist yet.
+
+A command that is waiting for input is not a fatal error. Write Ctrl-C
+(`stream.write('\x03')`) from `onCommandProcessing` or `onCommandTimeout` to
+cancel that command and keep the session open. `onCommandTimeout` also receives
+the connection, so it can terminate the session with `connection.end()` when the
+error is terminal. Closing the shell should be reserved for errors that make the
+session unusable.
 
 ## Recipes
 
@@ -344,20 +349,36 @@ SSH.connect((sessionText) => {
 });
 ```
 
-### Capture output
+### React to a command result
 
-The callback receives the combined text from every host. For per-command
-output, use `commandComplete`:
+`onCommandComplete` runs after each command with the raw response, so it can
+decide what to run next. The completed command has already been removed from
+`sshObj.commands`; `unshift` adds work to the front of the queue.
+
+For example, install a missing package and then retry the check. `2>&1` sends
+the error message to stdout so it appears in `response`; stderr is reported
+separately and is not part of the command buffer.
 
 ```javascript
-SSH.on('commandComplete', (command, response, sshObj) => {
-  console.log(`${sshObj.server.host} $ ${command}`);
-  console.log(response.trim());
-});
+const checkNano = 'dpkg -s nano 2>&1';
+
+const host = {
+  // ...
+  commands: [checkNano],
+  onCommandComplete: function (command, response, sshObj) {
+    if (command === checkNano && response.includes('not installed')) {
+      sshObj.commands.unshift(
+        'sudo apt-get install -y nano',
+        checkNano
+      );
+    }
+  },
+};
 ```
 
-`response` is the raw buffer for the command. `sshObj.sessionText` contains the
-accumulated text for the current host.
+Most interactive handling belongs in `onCommandProcessing` or
+`onCommandTimeout`, which run while the command is still in flight and receive
+the live stream.
 
 ### Authenticate with a private key
 
@@ -508,9 +529,11 @@ example.
 ### Run sudo and su commands
 
 `sudo` is handled automatically. When output matches `passwordPrompt`,
-`ssh2shell` sends `server.password` once and continues. A rejected `sudo`
-password is reported as debug output, the command is cancelled, and the session
-continues.
+`ssh2shell` sends `server.password` once and continues. A rejected password
+cancels the current command and the session continues, but the rejection is only
+reported in debug or verbose output. The same password is reused, so later
+`sudo` commands will fail too. If that matters, check the failure text in
+`onCommandComplete` and clear `sshObj.commands` to stop the run.
 
 If the account has a `NOPASSWD` sudoers rule, no password is sent. Use `sudo -n`
 to prove that: it fails instead of prompting when a password would be required.
@@ -614,8 +637,8 @@ runnable example.
 ### Handle a command timeout
 
 The default timeout handler adds the last response to `sessionText` and closes
-the connection. Override `onCommandTimeout` if you want to answer the prompt or
-keep the session open.
+the shell stream, which ends the connection. Override `onCommandTimeout` if you
+want to answer the prompt or keep the session open.
 
 ```javascript
 // idleTimeOut defaults to 5000 ms. This command is local so the example does
@@ -858,11 +881,16 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `data` | `data` | Raw data from the shell stream. |
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
-| `commandComplete` | `command, response, sshObj` | A command returned to the prompt. |
+| `commandComplete` | `command, response, sshObj` | A command returned to the prompt. The handler can modify `sshObj.commands` to queue follow-up work. |
 | `commandTimeout` | `command, response, stream, connection` | No data arrived for `idleTimeOut` milliseconds. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
 | `error` | `err, type, close, callback` | An error occurred. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
+
+`commandComplete` receives the raw response after the command has been removed
+from `sshObj.commands`. `connect`, `ready`, and `close` are not instance events;
+use the `msg` event with `connectedMessage`, `readyMessage`, and
+`closedMessage`, or listen for `end`.
 
 `newPrimaryHost` is used internally to move between primary hosts and is not
 part of the public API.
@@ -889,6 +917,32 @@ know when the session is complete.
 configuration and `ssh2shell` does not emit `pipe` or `unpipe` events.
 
 ## Advanced usage
+
+### Log to a file
+
+Set `msg` on the host to send status messages to a file instead of the console,
+and append the final transcript in the callback:
+
+```javascript
+const fs = require('fs');
+const log = (text) => fs.appendFileSync('ssh2shell.log', `${text}\n`);
+
+const host = {
+  // ...
+  msg: log,
+};
+
+const SSH = new SSH2Shell(host);
+
+SSH.connect((sessionText) => {
+  log(sessionText);
+});
+```
+
+`msg` receives every message emitted by `ssh2shell`, including the connection
+messages and any `msg:` notifications. The callback's `sessionText` is the
+complete transcript. For live per-command output as the run progresses, enable
+`verbose`.
 
 ### Run a generated bash script
 
@@ -938,7 +992,9 @@ From [issue #103](https://github.com/cmp-202/ssh2shell/issues/103) and
 
 ### Verbose and debug output
 
-- `verbose: true` emits the response text after each command.
+- `verbose: true` emits process details and the response text after each
+  command, including the loaded host config and intermediate values useful for
+  troubleshooting.
 - `debug: true` emits internal process steps, including the path through the
   state machine.
 
@@ -1012,8 +1068,9 @@ Recheck the passphrase, try connecting manually with the same value, and
 `.trim()` values read from files.
 
 **`Password was incorrect` for `sudo`.** The `sudo` password was rejected. The
-command is cancelled and the session continues; the message is debug output, not
-a terminating error.
+command is cancelled and the session continues; the message is debug or verbose
+output, not a terminating error. Later `sudo` commands reuse the same password,
+so correct it or stop the run.
 
 **A nested host fails to authenticate.** Nested connections use the `ssh`
 command on the primary host. Confirm that the primary host can reach the target
