@@ -215,7 +215,7 @@ before it is matched and stored.
 | `passwordPrompt` | string | `":"` | Text that identifies a password prompt. |
 | `passphrasePrompt` | string | `":"` | Text that identifies a passphrase prompt. |
 | `passPromptText` | string | `"Password"` | Text that must appear before the password/passphrase prompt. Shared by both prompt types. |
-| `asciiFilter` | string | `"[^\r\n\x20-\x7e]"` | Regex that removes non-standard ASCII. Tabs are preserved by the compiled default. |
+| `asciiFilter` | string | `"[^\r\n\x20-\x7e]"` | Regex that removes non-standard ASCII. Complete terminal escape sequences are removed first. Tabs are preserved by the compiled default. |
 | `disableASCIIFilter` | boolean | `false` | Set to `true` to keep non-standard ASCII. |
 | `textColorFilter` | string | `"\\x1b\\[[0-9;]*m"` | Regex that removes ANSI colour codes. |
 | `disableColorFilter` | boolean | `false` | Set to `true` to keep ANSI colour codes. |
@@ -229,6 +229,11 @@ uses different wording, set it to text common to both prompts.
 
 Filters only affect the text that `ssh2shell` matches and stores. They do not
 change what the host sends.
+
+When ASCII filtering is enabled, complete terminal escape sequences (CSI and
+OSC, such as bracketed paste and shell-integration markers) are removed before
+`asciiFilter` runs. Otherwise the ESC byte would be dropped but its printable
+payload would remain in the response. Set `disableASCIIFilter` to keep them.
 
 ### Timeouts
 

@@ -661,6 +661,26 @@ were after L6.1.
   `/etc/network/interfaces.dhcp-backup` when the static address does not come
   up) is still unexercised. Only the successful apply path has run on 26.04.
 
+### L7.9 deliverables (terminal escape filtering)
+
+- Ubuntu 26.04's shell emits bracketed-paste (`ESC[?2004h` / `ESC[?2004l`) and
+  OSC 3008 shell-integration markers. The default `asciiFilter` removed only the
+  ESC byte, leaving the printable payload (`[?2004l`, `]3008;...`) in
+  `commandComplete` responses and `sessionText`.
+- Added `stripTerminalEscapes` in `src/ssh2shell/util.js` and applied it before
+  `asciiFilter` when ASCII filtering is enabled. It removes complete CSI, OSC,
+  and two-character escape sequences.
+- `disableASCIIFilter` still keeps the sequences.
+
+#### Verification
+
+- New unit test covers a response containing both bracketed-paste and OSC 3008
+  sequences; the current build strips them and the baseline fixture still
+  leaves the payload.
+- `npm run test:unit` and `npm run test:baseline` — 117/117 pass.
+- `node test/simple.js` log no longer contains `]3008;...`, `[?2004l`, or
+  `[?2004h`.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes

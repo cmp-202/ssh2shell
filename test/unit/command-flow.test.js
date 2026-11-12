@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   installFakeSsh2,
+  isBaseline,
   loadSSH2Shell,
   createHost,
   waitFor,
@@ -105,6 +106,46 @@ describe('single-host command flow', () => {
 
     assert.ok(host.sessionText.startsWith('BANNER\n$ '));
     assert.ok(session.callbackText.includes('BANNER'));
+  });
+
+  it('strips complete terminal escape sequences from command responses', async () => {
+    const completed = [];
+    const host = createHost({
+      commands: ['df -h'],
+      onCommandComplete: (command, response) =>
+        completed.push({ command, response }),
+    });
+
+    const session = await start(host);
+    const bracketedPasteOff = '\x1b[?2004l';
+    const bracketedPasteOn = '\x1b[?2004h';
+    const shellIntegration =
+      '\x1b]3008;start=abc;type=command;cwd=/home/tester\x1b\\';
+
+    session.ssh._stream.onWrite = (data, stream) => {
+      setTimeout(
+        () =>
+          stream.receive(
+            `${data}${bracketedPasteOff}${shellIntegration}` +
+              `Filesystem Size Used\n${bracketedPasteOn}tester@host:~$ `
+          ),
+        1
+      );
+    };
+    session.ssh._stream.receive('$ ');
+
+    await waitFor(() => completed.length === 1, { label: 'commandComplete' });
+
+    if (isBaseline()) {
+      // Baseline drops only the ESC byte, leaving the sequence payload.
+      assert.ok(completed[0].response.includes(']3008;'));
+      assert.ok(completed[0].response.includes('[?2004l'));
+    } else {
+      assert.ok(!completed[0].response.includes(']3008;'));
+      assert.ok(!completed[0].response.includes('[?2004l'));
+      assert.ok(!completed[0].response.includes('[?2004h'));
+      assert.ok(completed[0].response.includes('Filesystem Size Used'));
+    }
   });
 
   it('raises commandTimeout when data arrives but no prompt follows', async () => {

@@ -12,6 +12,18 @@ function shellQuote(value) {
 
 const shellControlChars = /[;&|`$\n\r]/;
 
+// Terminal escape sequences arrive as complete CSI or OSC strings. The ASCII
+// filter only removes the ESC byte, which leaves the printable payload (for
+// example `[?2004l` and `]3008;...`) in the response. Remove the whole
+// sequence while ESC is still present. Covers CSI, OSC (BEL or ST terminated),
+// and two-character escapes.
+const terminalEscapePattern =
+  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-_]/g;
+
+function stripTerminalEscapes(value) {
+  return String(value).replace(terminalEscapePattern, '');
+}
+
 function compileAsciiFilter(configured) {
   if (configured === '[^\r\n\x20-\x7e]') {
     return { filter: /[^\t\r\n\x20-\x7e]/g, usedFallback: false };
@@ -132,5 +144,6 @@ module.exports = {
   redactString,
   shellControlChars,
   shellQuote,
+  stripTerminalEscapes,
   typeIsArray,
 };
