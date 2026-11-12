@@ -1028,55 +1028,9 @@ npm test
 ```
 
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
-runs the level-aware baseline tests. The files in `test/live/` are live tests
-that need real hosts. Copy `.env-example` to `.env` and fill in the connection
-details.
-
-Run the curated live batch after a change with:
-
-```bash
-npm run test:live
-```
-
-The batch covers the key use cases: basic commands and notifications,
-keyboard-interactive auth, password and passwordless sudo, prompt and timeout
-handling, multiple primary hosts, one-hop and chained tunnelling, a long command
-queue, and multi-line shell scripts. Use `npm run test:live:all` for every live
-test, or name tests explicitly:
-
-```bash
-node scripts/run-live.js simple tunnel chaining
-node scripts/run-live.js --list
-node scripts/run-live.js --all --timeout 300
-```
-
-Each test runs in its own process with a 180-second default timeout. The runner
-checks the connect callback, the session text, error events, and a small
-per-test expectation rather than relying on the exit code alone: a failed
-connection still reaches the callback with empty session text. A failure prints
-the reason and the test log path under `test/logs/`. A single test can still be
-run directly, for example `node test/live/simple.js`.
-
-Most live tests log in with the key at `PRIVATE_KEY_PATH`; the sudo/su and
-keyboard-interactive tests use the matching passwords because those protocols
-need them. Nested-hop tests use `HOP_KEY_PATH` / `HOP2_KEY_PATH` for the key's
-path on each jump host; key-only nested connections do not need a password or
-passphrase. See [`test/certs/README.md`](./test/certs/README.md) for the key and
-user layout, and `REFACTORING.md` for the status of the remaining legacy
-scripts. The README recipes link to their runnable tests.
-
-To rebuild a live-test VM from a fresh Ubuntu install, use
-[`test/provision/provision.js`](./test/provision/provision.js) with the
-`server1`, `server2`, or `server3` role:
-
-```bash
-npm run provision -- server3
-```
-
-Per-server addresses and bootstrap credentials live in
-`test/provision/.env` (copy `test/provision/.env.example`). See
-[`test/provision/README.md`](./test/provision/README.md) for the role matrix,
-environment variables, and recovery behavior.
+runs the level-aware baseline tests. The live tests need real hosts. See
+[`test/README.md`](./test/README.md) for the test layout, live runner,
+environment variables, keys, and VM provisioning.
 
 ## License
 

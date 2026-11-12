@@ -754,6 +754,22 @@ were after L6.1.
 - `npm pack --dry-run` — only `lib/`, `README.md`, `LICENSE`, and
   `package.json`.
 
+### L7.14 deliverables (test documentation hub)
+
+- Added `test/README.md` as the entry point for the testing environment:
+  folder layout, offline commands, the curated live batch and runner options,
+  environment variables, host roles, provisioning, how to add a live test, and
+  where the logs go.
+- Trimmed the main `README.md` Development section to install/test plus a link
+  to `test/README.md`. The detailed live-test and provisioning material lives
+  with the tests; `test/certs/README.md` and `test/provision/README.md` remain
+  the deep references.
+
+#### Verification
+
+- Relative links in `test/README.md` resolve to existing files.
+- No code changes; `npm test` and the live runner are unaffected.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
