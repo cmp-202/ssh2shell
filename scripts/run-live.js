@@ -49,6 +49,9 @@ const defaultTests = [
   'stop_on_failure',
   'close_from_handler',
   'stop_multiple_hosts',
+  'graceful_close',
+  'sudo_rejected',
+  'transport_drop',
   'tunnel',
   'chaining',
   'notifications',
@@ -118,6 +121,22 @@ const checks = {
     contains: ['stop-host-one'],
     excludes: ['stop-host-one-second', 'stop-host-two-marker'],
     logContains: ['Stop requested: command-failed', 'end-events:1'],
+  },
+  graceful_close: {
+    contains: ['jump-graceful-before', 'nested-graceful-before'],
+    excludes: ['nested-graceful-after'],
+    logContains: ['end-events:2'],
+  },
+  sudo_rejected: {
+    contains: ['sudo-rejected-continued'],
+    logContains: ['Sudo authentication failed for', 'sudo-failed:true'],
+    logExcludes: ['Stop requested'],
+  },
+  transport_drop: {
+    contains: ['transport-drop-before'],
+    excludes: ['transport-drop-after'],
+    logContains: ['end-events:1'],
+    allowErrors: ['Connection close', 'Connection', 'Stream.read error'],
   },
   tunnel: {
     contains: [server1, server2, server3].filter(Boolean),

@@ -255,8 +255,9 @@ R1–R8 were signed off and implemented.
 
 - Unit coverage lives in `test/unit/shutdown.test.js`.
 - Live coverage lives in `test/live/stop_on_failure.js`,
-  `test/live/close_from_handler.js`, and `test/live/stop_multiple_hosts.js`; the
-  curated live batch includes them.
+  `test/live/close_from_handler.js`, `test/live/stop_multiple_hosts.js`,
+  `test/live/graceful_close.js`, `test/live/sudo_rejected.js`, and
+  `test/live/transport_drop.js`; the curated live batch includes them.
 - The README stopping/closing section documents the same matrix.
 
 ## API sketch

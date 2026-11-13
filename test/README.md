@@ -56,10 +56,11 @@ npm run test:live
 ```
 
 The batch covers basic commands and notifications, keyboard-interactive auth,
-password and passwordless sudo, prompt and timeout handling, multiple primary
-hosts, stopping and closing from handlers (including multi-host fail-fast),
-nested and chained tunnelling, a long command queue, and multi-line shell
-scripts. Use the full suite or select tests explicitly:
+password and passwordless sudo, sudo rejection, prompt and timeout handling,
+multiple primary hosts, stopping and closing from handlers (including graceful
+close, multi-host fail-fast, and transport drops), nested and chained tunnelling,
+a long command queue, and multi-line shell scripts. Use the full suite or select
+tests explicitly:
 
 ```bash
 npm run test:live:all

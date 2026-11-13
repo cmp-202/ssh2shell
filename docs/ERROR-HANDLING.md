@@ -220,4 +220,6 @@ branches on `isBaseline()` and records the difference. Where a defect exists in
 both, the test locks in the current behavior and points at the finding above.
 
 Shutdown and finalization behavior is covered separately by
-`test/unit/shutdown.test.js`.
+`test/unit/shutdown.test.js`. The live suite also covers graceful close, sudo
+rejection, and a transport drop in `test/live/graceful_close.js`,
+`test/live/sudo_rejected.js`, and `test/live/transport_drop.js`.
