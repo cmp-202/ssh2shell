@@ -1,7 +1,8 @@
 # ssh2shell refactor ledger
 
 This document tracks each level of improvement to `ssh2shell` as an atomic,
-tagged, independently revertible step on the `Refactoring` branch.
+independently revertible step. The refactor was developed on the `Refactoring`
+branch and completed on `master`, which is now the mainline.
 
 The goal is simple: at any point we can identify exactly what changed at a given
 level, verify it, and roll back to it without guessing.
@@ -12,8 +13,8 @@ level, verify it, and roll back to it without guessing.
 | --- | --- |
 | End state | Modern JavaScript (CoffeeScript toolchain removed) |
 | Compatibility | Strict: same public API, events, config keys, and observable behavior |
-| Verification | Offline unit harness with a mocked `ssh2`; the same suite also runs against the frozen baseline artifact (live hosts not required) |
-| Rollback tracking | One annotated tag per level plus this ledger |
+| Verification | Offline unit harness with a mocked `ssh2`; the same suite also runs against the frozen baseline artifact. Live-host tests are optional for unit work but required for release validation. |
+| Rollback tracking | Annotated tags for levels through L7.6; later levels are ledger-only (see [Branch and tag policy](#branch-and-tag-policy)) |
 
 ## Compatibility contract
 
@@ -57,12 +58,21 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
 
 ## Branch and tag policy
 
-- `Refactoring` is the integration branch for all levels.
-- `master` stays untouched until the refactor is accepted.
+- The refactor was developed on `Refactoring` and completed on `master`, which
+  is now the mainline.
+- `Refactoring` remains at `07f93ee` (v2.1.0) as a historical branch. It is no
+  longer the integration branch.
 - `refactor/L0-baseline` marks the pristine pre-refactor state.
-- Each level gets one annotated tag: `refactor/L1`, `refactor/L2`, ...
-- Each level is one atomic commit (or a small, clearly-scoped commit series).
-- Tags are the source of truth for rollback; commit SHAs are informational.
+- Annotated tags exist locally for `refactor/L0-baseline` and `refactor/L1`
+  through `refactor/L7.6`. Only `refactor/L7`-`refactor/L7.3` are on `origin`;
+  `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
+- `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
+  never tagged, locally or remotely. `L7.18` is ledger-only for the same
+  reason.
+- Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
+  series). Later levels were recorded after the fact.
+- Tags are the source of truth for rollback where they exist; commit SHAs are
+  informational.
 
 ## Rollback recipes
 
@@ -82,9 +92,13 @@ git reset --hard refactor/L2
 git checkout refactor/L2 -- path/to/file
 ```
 
+> Levels after L7.6 have no tag. Inspect them with the commit ranges in the
+> ledger or with `git log`.
+
 ## Level completion checklist
 
-Every level must satisfy all of these before it is tagged:
+Every level must satisfy all of these before it is completed (and tagged, for
+levels through L7.6):
 
 1. Scope is limited to the level's stated goal.
 2. Characterization/unit tests pass against the current build.
@@ -94,7 +108,8 @@ Every level must satisfy all of these before it is tagged:
    changes the publish flow).
 5. Public API/event smoke checks pass.
 6. `REFACTORING.md` ledger row is updated.
-7. Commit created and annotated tag `refactor/LN` applied.
+7. Commit created and annotated tag `refactor/LN` applied. This applied through
+   L7.6; later levels are recorded in the ledger without a tag.
 8. `git status` is clean.
 
 ## Baseline dual-run
@@ -128,6 +143,7 @@ When adding a test:
 | L6 | Signed-off post-L5 backlog, per-host prompt/filter, and error-handling fixes | Only with sign-off |
 | L6.1 | Approved optimisation and robustness follow-ups (readability, timer/option de-duplication, SSH prompt timeout, guarded close, empty command, own-property options, build-sync guard) | Only with sign-off |
 | L7 | Tooling, docs, CI, and publish pipeline | None |
+| L7.x | Post-L7 follow-ups: live VMs and provisioning, escape filtering, message prefixes, the live runner, the progress indicator, and stop/close semantics | Only with sign-off |
 
 The ladder can be reordered or split as we learn more; any change to the plan
 must be recorded here.
@@ -136,8 +152,8 @@ must be recorded here.
 
 | Level | Tag | Commit | Status | Goal | Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- |
-| L0 | `refactor/L0-baseline` | `43ab187` | Done | Tag pristine `v2.0.14` and add this ledger | Baseline tag points at the unmodified release commit | `git reset --hard refactor/L0-baseline` |
-| L1 | `refactor/L1` | - | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
+| L0 | `refactor/L0-baseline` | — | Done | Tag pristine `v2.0.14` and add this ledger | Baseline tag points at the unmodified release commit | `git reset --hard refactor/L0-baseline` |
+| L1 | `refactor/L1` | — | Done | Offline `ssh2` mock and 57 characterization tests | `npm run test:unit` passes; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L1` |
 | L2 | `refactor/L2` | — | Done | 1:1 JavaScript port; CoffeeScript source and toolchain removed | 61 tests pass against the port (57 baseline characterizations plus 4 port-semantics tests); baseline-vs-port comparison matches defaults, prototype surface, SSH command construction, return values, and event payloads; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L2` |
 | L3 | `refactor/L3` | — | Done | Split pure helpers into focused modules behind the existing class facade | 61 tests pass unchanged; baseline-vs-port comparison still matches; `npm run build` copies the module tree and leaves `lib/` in sync | `git reset --hard refactor/L3` |
 | L4 | `refactor/L4` | — | Done | Modernize syntax and remove dead code, duplication, and obsolete compatibility shims | 62 tests pass; the same 62 pass against the frozen baseline artifact, with only the `_nextPrimaryHost` empty-queue assertion level-aware; baseline-vs-port comparison still matches; `npm run build` leaves `lib/` in sync | `git reset --hard refactor/L4` |
@@ -151,10 +167,23 @@ must be recorded here.
 | L7.4 | `refactor/L7.4` | — | Done | README refactor for accuracy, use-case ordering, examples, and security guidance | Every JavaScript block passes `node --check`; all internal anchors and local links resolve; 112 tests pass on the current build and the frozen baseline; `npm run check:build` passes | `git reset --hard refactor/L7.4` |
 | L7.5 | `refactor/L7.5` | — | Done | Mirror the README's full examples as live tests with `dotenv` and logging | Every new or reworked live test passes `node --check`; `npm test` passes; every local README link resolves; `.env-example` documents the variables the tests read | `git reset --hard refactor/L7.5` |
 | L7.6 | `refactor/L7.6` | — | Done | Audit and clean up the remaining legacy live tests | `npm test` passes on the current build and the frozen baseline; the deleted scripts' scenarios are covered by unit tests; every kept live test passes `node --check` and uses `dotenv`, `logFile()`/`log()`, and `../src` | `git reset --hard refactor/L7.6` |
+| L7.7 | — (ledger-only) | — | Done | Live VM host and user structure: static addresses, test users, sudo rules, keys, and authentication | `sshd -t` and the key/password auth checks pass; `npm test` 116/116; live suite 17/17 | No tag; see [L7.7 deliverables](#l77-deliverables-live-vm-host-and-user-structure) |
+| L7.8 | — (ledger-only) | — | Done | Live-test VM provisioning script | All three roles report `sudoers: OK`, `sshd: OK`, and `network: OK`; `npm test` 116/116; live suite 17/17 | No tag; see [L7.8 deliverables](#l78-deliverables-live-test-vm-provisioning) |
+| L7.9 | — (ledger-only) | — | Done | Strip complete terminal escape sequences before ASCII filtering | New unit test covers CSI/OSC removal; `test:unit` and `test:baseline` 117/117; live log is clean | No tag; see [L7.9 deliverables](#l79-deliverables-terminal-escape-filtering) |
+| L7.10 | — (ledger-only) | — | Done | Omit the host prefix for single-host messages | New unit tests cover single, multi-primary, and nested hosts; 121/121; live log omits the address | No tag; see [L7.10 deliverables](#l710-deliverables-single-host-message-prefix) |
+| L7.11 | — (ledger-only) | — | Done | Cross-platform live-test batch runner | Curated batch 12/12; `--all` 17/17; `npm test` 125/125 | No tag; see [L7.11 deliverables](#l711-deliverables-live-test-batch-runner) |
+| L7.12 | — (ledger-only) | — | Done | Start nested key-only connections authenticated | New unit tests cover key-only, password, and passphrase auth; tunnel/chaining pass with nested output; 125/125 | No tag; see [L7.12 deliverables](#l712-deliverables-nested-key-only-authentication) |
+| L7.13 | — (ledger-only) | — | Done | Move live tests to `test/live/` | Curated 12/12; `--all` 17/17; 125/125; `npm pack --dry-run` still only `lib/`, `README.md`, `LICENSE`, and `package.json` | No tag; see [L7.13 deliverables](#l713-deliverables-live-test-folder) |
+| L7.14 | — (ledger-only) | — | Done | Add `test/README.md` as the testing documentation hub | Relative links resolve; no code changes, so the suites are unaffected | No tag; see [L7.14 deliverables](#l714-deliverables-test-documentation-hub) |
+| L7.15 | — (ledger-only) | — | Done | Opt-in progress indicator | 138/138 unit and 138/138 baseline; live suite unchanged | No tag; see [L7.15 deliverables](#l715-deliverables-progress-indicator) |
+| L7.16 | — (ledger-only) | — | Done | Three-hop tunnel coverage | `tunnel` and `chaining` pass; `--all` 17/17 | No tag; see [L7.16 deliverables](#l716-deliverables-three-hop-tunnel-coverage) |
+| L7.17 | — (ledger-only) | — | Done | Progress on by default | 139/139 unit and 139/139 baseline; `progress` 1/1; `--all` 18/18 | No tag; see [L7.17 deliverables](#l717-deliverables-progress-on-by-default) |
+| L7.18 | — (ledger-only) | — | Done | Post-3.1.0 shutdown semantics: `stop()` and `close({ graceful: true })`, centralized host finalization, the `Connection close` payload, handler flags, and visible sudo failures with `abortOnSudoFailure` | `npm test` 149/149 on the current build and the frozen baseline; curated live 18/18; full live 24/24; `git diff --check` clean | No tag; see [L7.18 deliverables](#l718-deliverables-post-310-shutdown-semantics) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
-its own hash. The annotated tags are the stable rollback references; use
-`git rev-parse refactor/LN^{commit}` when a commit SHA is needed.
+its own hash. Where a tag exists, it is the stable rollback reference; use
+`git rev-parse refactor/LN^{commit}` when a commit SHA is needed. `L7.7` onward
+are ledger-only and have no tag.
 
 ### L1 deliverables
 
@@ -315,6 +344,8 @@ Signed-off-by: user review of the backlog, before further error-handling work.
   `dataIdleTime`, with `dataIdleTime` as a fallback.
 - `src/ssh2shell.js` — sudo password rejection is a debug `msg` notification,
   not an `error` event. The command is still cancelled with `Ctrl-C`.
+  *(Superseded at L7.18: rejection is now a visible `msg` with `sudoFailed` and
+  optional `abortOnSudoFailure`.)*
 - `src/ssh2shell/ssh-command.js` — `forceProtocolVersion` and
   `forceAddressType` map to allow-listed `ssh` flags. `true` selects `-2` / `-4`;
   invalid truthy values return a `Security Alert` error.
@@ -825,6 +856,48 @@ were after L6.1.
 - `node scripts/run-live.js progress` — 1/1 pass.
 - `node scripts/run-live.js --all` — 18/18 pass.
 
+### L7.18 deliverables (post-3.1.0 shutdown semantics)
+
+Signed-off-by: user review of `docs/CLOSE-SEMANTICS.md` and the stop/close work.
+
+- `src/ssh2shell.js` — added `stop(reason)` as the whole-run abort. It clears
+  every command and host queue, sends `Ctrl-C` when a command is in flight,
+  keeps and drains `exitCommands` bounded by `idleTimeOut`, finalizes each
+  visited host once, closes once, and calls the callback once.
+- `src/ssh2shell.js` — `close()` is a safe shutdown; `close({ graceful: true })`
+  runs queued exit commands and backs out of nested shells first. Remaining
+  primary hosts still run, matching the compatibility contract.
+- `src/ssh2shell.js` — centralized host finalization so `sessionText` is
+  complete before `end` and the final callback, including when a transport drop
+  skips the stream `finish` event.
+- `src/ssh2shell.js` — a connection close with `had_error` emits an `Error` with
+  `level = 'Connection close'` and `hadError`, instead of a bare string.
+- `src/ssh2shell.js` — command handlers can set `skipCommands`, `skipHosts`,
+  `skipPrimaryHosts`, and `abort`; `stop()` and `close()` are safe from any
+  handler.
+- `src/ssh2shell.js` and `src/ssh2shell/defaults.js` — sudo rejection emits a
+  visible `msg`, sets `sudoFailed`, and calls `stop('sudo-failed')` only when
+  `abortOnSudoFailure` is true.
+- `test/unit/shutdown.test.js` — stop/close, finalization, handler flags, and
+  sudo-failure coverage. Existing unit tests were updated for the new payloads
+  and messages.
+- `test/live/stop_on_failure.js`, `close_from_handler.js`,
+  `stop_multiple_hosts.js`, `graceful_close.js`, `sudo_rejected.js`, and
+  `transport_drop.js` — live coverage for the new paths; `scripts/run-live.js`
+  applies per-test checks and includes them in the curated batch.
+- `docs/CLOSE-SEMANTICS.md` and `docs/ERROR-HANDLING.md` — the stop/close matrix,
+  flags, finalization order, and error payloads.
+- `README.md` and `test/README.md` — the API table, stop/close guidance, sudo
+  behavior, and live-test layout were updated to match.
+
+#### Verification
+
+- `npm test` — 149/149 pass on the current build and 149/149 on the frozen
+  baseline, with `check:build` confirming `lib/` is in sync.
+- `npm run test:live` — 18/18 curated tests pass.
+- `node scripts/run-live.js --all` — 24/24 live tests pass.
+- `git diff --check` — clean.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -862,8 +935,10 @@ observable behavior or security posture and needs its own level and sign-off.
   invalid values return a `Security Alert` error.
 - **Done at L4:** removed `_nextPrimaryHost`'s bare `@_runExit` reference as
   dead code; the normal back-out path is `_runExit` via `_previousHost`.
-- **Done post-L5 (signed off):** sudo password rejection is a debug notification,
-  not an `error` event. The command is cancelled and the session continues.
+- **Done post-L5 (signed off, superseded at L7.18):** sudo password rejection
+  was a debug notification, not an `error` event. L7.18 makes it a visible `msg`,
+  sets `sshObj.sudoFailed`, and optionally stops the run with
+  `abortOnSudoFailure: true`.
 - **Done post-L5 (signed off):** resolve the error-handling findings in
   `docs/ERROR-HANDLING.md`. The default listener guards `_stream.close()`
   (F1/F3), Connection/Shell/Connection.connect errors classify by live stream
@@ -1028,7 +1103,9 @@ These are sensible defaults until confirmed:
   published package contains only `lib/` (plus the README, `LICENSE`, and
   `package.json`), and `prepublishOnly` runs the full suite. There is no
   separate build-only publish flow.
-- **Push policy:** keep levels local until you approve pushing to `origin`.
+- **Push policy:** `master` and the release tags are pushed to `origin`.
+  Refactor tags `L7`-`L7.3` are on `origin`; `L0`-`L6.1` and `L7.4`-`L7.6`
+  remain local, and `L7.7` onward have no tag.
 - **Live hosts:** the local `192.168.44.0/24` VMs are used for the manual live
   suite (see L7.7); `npm test` stays offline.
 - **Behavior-changing fixes:** require explicit sign-off. L5 and L6 changes were
