@@ -309,9 +309,21 @@ describe('error handling and connection termination', () => {
 
     const args = errors.find((entry) => entry[1] === 'Connection close');
     assert.ok(args);
-    assert.equal(args[0], true);
-    assert.equal(args[2], undefined);
-    assert.equal(callbackValue, '');
+
+    if (isBaseline()) {
+      assert.equal(args[0], true);
+      assert.equal(args[2], undefined);
+      assert.equal(callbackValue, '');
+    } else {
+      // R6: the payload is a readable Error, and R5 finalizes the host before
+      // the callback so a drop still returns the host-prefixed session text.
+      assert.ok(args[0] instanceof Error);
+      assert.equal(args[0].message, 'Connection closed with error');
+      assert.equal(args[0].level, 'Connection close');
+      assert.equal(args[0].hadError, true);
+      assert.equal(args[2], undefined);
+      assert.equal(callbackValue, 'example.test: \n');
+    }
   });
 
   it('reports sudo authentication failures as a notification', () => {

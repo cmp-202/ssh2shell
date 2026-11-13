@@ -27,11 +27,6 @@ const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
 
-SSH.on('commandComplete', (command, response, sshObj) => {
-  log(`${sshObj.server.host} $ ${command}`);
-  log(response.trim());
-});
-
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
   log(text);

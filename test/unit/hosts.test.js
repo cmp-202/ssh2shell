@@ -95,7 +95,12 @@ describe('host lifecycle', () => {
 
     assert.equal(removed, true);
     assert.equal(ends.length, 1);
-    assert.equal(ends[0][0], 'first: ');
+    if (isBaseline()) {
+      assert.equal(ends[0][0], 'first: ');
+    } else {
+      // R5 finalizes the host here, appending its (empty) sessionText.
+      assert.equal(ends[0][0], 'first: \n');
+    }
     assert.equal(ssh.sshObj, second);
     assert.equal(ssh._primaryhostSessionText, 'second.test: ');
     assert.equal(initiated, 'ACTION');

@@ -57,8 +57,9 @@ npm run test:live
 
 The batch covers basic commands and notifications, keyboard-interactive auth,
 password and passwordless sudo, prompt and timeout handling, multiple primary
-hosts, nested and chained tunnelling, a long command queue, and multi-line
-shell scripts. Use the full suite or select tests explicitly:
+hosts, stopping and closing from handlers (including multi-host fail-fast),
+nested and chained tunnelling, a long command queue, and multi-line shell
+scripts. Use the full suite or select tests explicitly:
 
 ```bash
 npm run test:live:all
@@ -75,7 +76,9 @@ small per-test expectation. A failure prints the reason and the log path.
 
 A single test can still be run directly, for example
 `node test/live/simple.js`. Direct runs skip the runner's extra checks and just
-write the log and callback output.
+write the log and callback output. Set `DEBUG=true` (or `VERBOSE=true`) when
+running a stop/close test directly to see the state transitions, including the
+`Stop requested` reason and the host-finalization steps.
 
 To see the progress heartbeat (on by default; set `progress: false` to opt
 out), run `node test/live/progress.js` directly in an interactive terminal.
@@ -152,5 +155,7 @@ whole `logs/` directory is gitignored.
   changes.
 - [`../docs/ERROR-HANDLING.md`](../docs/ERROR-HANDLING.md) — error paths and
   their tests.
+- [`../docs/CLOSE-SEMANTICS.md`](../docs/CLOSE-SEMANTICS.md) — stop, close, and
+  host-finalization behavior.
 - [`certs/README.md`](./certs/README.md) — keys, users, and host matrix.
 - [`provision/README.md`](./provision/README.md) — VM provisioning.

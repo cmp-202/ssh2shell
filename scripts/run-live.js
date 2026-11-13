@@ -46,6 +46,9 @@ const defaultTests = [
   'prompt_response',
   'command_timeout',
   'multiple_primary_hosts',
+  'stop_on_failure',
+  'close_from_handler',
+  'stop_multiple_hosts',
   'tunnel',
   'chaining',
   'notifications',
@@ -100,6 +103,21 @@ const checks = {
   },
   multiple_primary_hosts: {
     contains: [server1, server2].filter(Boolean),
+  },
+  stop_on_failure: {
+    contains: ['stop-test-first'],
+    excludes: ['stop-test-second', 'This message must not run'],
+    logContains: ['Stop requested: command-failed', 'end-events:1'],
+  },
+  close_from_handler: {
+    contains: ['close-test-first'],
+    excludes: ['close-test-second'],
+    logContains: ['end-events:1'],
+  },
+  stop_multiple_hosts: {
+    contains: ['stop-host-one'],
+    excludes: ['stop-host-one-second', 'stop-host-two-marker'],
+    logContains: ['Stop requested: command-failed', 'end-events:1'],
   },
   tunnel: {
     contains: [server1, server2, server3].filter(Boolean),

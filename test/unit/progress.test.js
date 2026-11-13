@@ -145,6 +145,9 @@ describe('progress indicator', () => {
 
     ssh.sshObj = second;
     ssh.host = second.server.host;
+    // This test drives two primary hosts without going through
+    // _nextPrimaryHost, which is what normally resets the close flag.
+    ssh._closing = false;
     ssh._loadDefaults();
     ssh._stream = new FakeStream();
     ssh.command = 'echo two';

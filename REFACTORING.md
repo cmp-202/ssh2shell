@@ -984,7 +984,7 @@ behavior.
   `commandProcessing` or `commandTimeout`, not by the library. Prompt answering
   cannot move to `commandComplete`, which runs only after the prompt returns.
 
-**Candidate improvements (behavior changes, need sign-off)**
+**Candidate improvements (behavior changes; implemented items are marked)**
 
 - Pass the handled response to `commandComplete`: remove the echoed command,
   trailing prompt, ANSI, and wrap artifacts. The handler already receives
@@ -996,14 +996,15 @@ behavior.
 - Treat `commandTimeout` as a first-class retry path: document that answering a
   prompt from the timeout handler can resume normal completion, and consider a
   built-in attempt counter instead of per-host `FirstPass` flags.
-- Define and test the queue-mutation contract: `sshObj.commands`
-  push/unshift/splice from `commandComplete`, plus an explicit skip/stop flag
-  checked by `_nextCommand`. Document that the running command is not in the
-  queue and that `exitCommands` must be drained when stopping inside a nested
-  `ssh` session.
-- Make termination explicit and race-free. Today draining the queues and
-  letting `_runExit()` close works, but calling `this.close()` inside
-  `commandComplete` still lets `_nextCommand()` run against a closing stream.
+- **Implemented:** define and test the queue-mutation contract: `sshObj.commands`
+  push/unshift/splice from `commandComplete`, plus explicit skip/stop flags
+  (`skipCommands`, `skipHosts`, `skipPrimaryHosts`, `abort`/`stop`) checked by
+  `_nextCommand`. The running command is not in the queue, and `stop()` drains
+  `exitCommands` before closing. See `docs/CLOSE-SEMANTICS.md`.
+- **Implemented:** make termination explicit and race-free. Draining the queues
+  and letting `_runExit()` close still works, and `this.close()` / `stop()` from
+  `commandComplete` no longer let `_nextCommand()` write against a closing
+  stream. See `docs/CLOSE-SEMANTICS.md`.
 - Decide how to handle silent long-running commands: a heartbeat/expect option,
   or a documented distinction between "no output yet" and "prompt missed".
 - Opt-in stderr capture in the command response, or document `onStderrData` as

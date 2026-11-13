@@ -42,6 +42,7 @@ class SSH2Shell extends Stream {
     this._initiate = this._initiate.bind(this);
     this._removeListeners = this._removeListeners.bind(this);
     this.close = this.close.bind(this);
+    this.stop = this.stop.bind(this);
     this._runExit = this._runExit.bind(this);
     this._sshConnect = this._sshConnect.bind(this);
     this._nextPrimaryHost = this._nextPrimaryHost.bind(this);
@@ -51,6 +52,22 @@ class SSH2Shell extends Stream {
     this._checkCommand = this._checkCommand.bind(this);
     this._nextCommand = this._nextCommand.bind(this);
     this._commandComplete = this._commandComplete.bind(this);
+    this._finalizeHost = this._finalizeHost.bind(this);
+    this._finalizeRun = this._finalizeRun.bind(this);
+    this._mergeNestedText = this._mergeNestedText.bind(this);
+    this._applyHandlerFlags = this._applyHandlerFlags.bind(this);
+    this._resetRunState = this._resetRunState.bind(this);
+    this._callFinalCallback = this._callFinalCallback.bind(this);
+    this._beginStopExit = this._beginStopExit.bind(this);
+    this._finishStop = this._finishStop.bind(this);
+    this._forceStop = this._forceStop.bind(this);
+    this._clearStopTimer = this._clearStopTimer.bind(this);
+    this._armStopTimer = this._armStopTimer.bind(this);
+    this._prepareGracefulClose = this._prepareGracefulClose.bind(this);
+    this._clearCloseTimer = this._clearCloseTimer.bind(this);
+    this._armCloseTimer = this._armCloseTimer.bind(this);
+    this._forceClose = this._forceClose.bind(this);
+    this._closeStreamNow = this._closeStreamNow.bind(this);
     this._processNotifications = this._processNotifications.bind(this);
     this._processSSHPrompt = this._processSSHPrompt.bind(this);
     this._resetFromSudoError = this._resetFromSudoError.bind(this);
@@ -83,6 +100,24 @@ class SSH2Shell extends Stream {
     this._progressLine = false;
     this._progressHost = null;
     this._progressMsgListener = null;
+
+    // Shutdown state. `_closing` means no more writes; `_stopping` means the
+    // whole run (commands, nested hosts, and primary hosts) is being aborted.
+    this._closing = false;
+    this._stopping = false;
+    this._stopReason = null;
+    this._stopTimer = null;
+    this._commandInFlight = false;
+    this._inCommandComplete = false;
+    this._started = false;
+    this._runComplete = false;
+    this._callbackCalled = false;
+    this._gracefulClosing = false;
+    this._closeTimer = null;
+    // Hosts are tracked by object identity so finalization and nested-text
+    // merging are idempotent across the normal path and an abrupt close.
+    this._finalizedHosts = new Set();
+    this._mergedHosts = new Set();
     this._loadDefaultListeners();
   }
   
@@ -359,6 +394,11 @@ class SSH2Shell extends Stream {
   // Arms the command idle timer. The response is passed through unchanged so
   // callers can keep their existing commandTimeout payloads.
   _scheduleIdleTimeout(response) {
+    // During shutdown the stop/close timer is the only bound that matters.
+    if (this._stopping || this._closing || this._runComplete) {
+      return null;
+    }
+
     this.idleTimer = setTimeout(() => {
       this._progressEnd();
       this.emit(
@@ -374,6 +414,12 @@ class SSH2Shell extends Stream {
   }
   
   _onData(data) {
+    // After close no further command processing is meaningful. During a stop
+    // data still arrives so the prompt can trigger the exit commands.
+    if (this._closing || this._runComplete) {
+      return;
+    }
+
     this._buffer += data;
     if (
       this.command.length > 0 &&
@@ -486,6 +532,11 @@ class SSH2Shell extends Stream {
       // No password.
       case passwordPrompt && !this.sshObj.server.password:
         this._systemMsg('debug', `processSudoPrompt: No password set`);
+        this.sshObj.sudoFailed = true;
+        this.emit(
+          'msg',
+          `${this._hostPrefix()}Sudo authentication failed for ${this.sshObj.server.userName}: no password configured`
+        );
         
         return this._resetFromSudoError();
       case passwordPrompt && !this.sshObj.pwSent:
@@ -499,14 +550,18 @@ class SSH2Shell extends Stream {
       case passwordPrompt && this.sshObj.pwSent:
         this._systemMsg('debug', `processSudoPrompt: Failed login`);
         
-        // A rejected sudo password is a notification, not a terminator: the
-        // command is cancelled and the session continues. Report it as debug
-        // output instead of raising a non-closing `error`.
+        // A rejected sudo password is visible by default. It is not fatal
+        // unless the host opts in with `abortOnSudoFailure: true`.
         this._systemMsg(
           'debug',
           `Password was incorrect for ${this.sshObj.server.userName}`
         );
         this._systemMsg('verbose',`processSudoPrompt: Failed login: Response: ${response}`);
+        this.sshObj.sudoFailed = true;
+        this.emit(
+          'msg',
+          `${this._hostPrefix()}Sudo authentication failed for ${this.sshObj.server.userName}`
+        );
         
         this.sshObj.pwSent = false;
         // Add buffer to sessionText so the sudo response can be seen.
@@ -531,11 +586,25 @@ class SSH2Shell extends Stream {
     this.sshObj.sessionText += `${this._buffer}`;
     this._buffer = '';
     this.command = '';
+    this._commandInFlight = false;
     // Cancel command on host.
-    return this._stream.write('\x03');
+    const result = this._stream.write('\x03');
+
+    if (this.sshObj.abortOnSudoFailure && !this._stopping) {
+      // Wait for the shell to return to a prompt (or the idle timeout) before
+      // running exit commands, so the Ctrl-C has a chance to cancel sudo.
+      this._commandInFlight = true;
+      this.stop('sudo-failed');
+    }
+
+    return result;
   }
 
   _sshConnect() {
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     const result = buildSshCommand(this.sshObj);
     if (result.error) {
       this.emit('error', result.error, 'Security Alert', true);
@@ -605,6 +674,7 @@ class SSH2Shell extends Stream {
         
         this._systemMsg('verbose',`processSSHPrompt: SSH failed: Response: ${response}`);
         
+        this._commandInFlight = false;
         this.sshObj.sessionText += `${this.host}: SSH failed: Response: ${response}`;
         return this._runExit();
       } else {
@@ -633,6 +703,7 @@ class SSH2Shell extends Stream {
           );
         }
 
+        this._commandInFlight = false;
         return this._runExit();
       }
     } else {
@@ -647,6 +718,7 @@ class SSH2Shell extends Stream {
         if (this.sshObj.showBanner) {
           this.sshObj.sessionText += `\n ${response}`;
         }
+        this._commandInFlight = false;
         this.sshObj.exitCommands.push('exit');
         this.emit('msg', `${this.sshObj.connectedMessage}`);
         this.emit('msg', `${this.sshObj.readyMessage}`);
@@ -665,6 +737,7 @@ class SSH2Shell extends Stream {
         
         this._systemMsg('verbose',`processSSHPrompt: failed response: ${response}`);
         
+        this._commandInFlight = false;
         this.sshObj.sshAuth = false;
         let using;
         switch (true) {
@@ -739,6 +812,7 @@ class SSH2Shell extends Stream {
 
   _commandComplete() {
     this._progressEnd();
+    this._commandInFlight = false;
     const response = this._buffer.trim();
     // Check sudo su has been authenticated and add an extra exit command.
     if (
@@ -753,14 +827,74 @@ class SSH2Shell extends Stream {
         `commandComplete:\nCommand:\n ${this.command}\nResponse: ${response}`
       );
       this.sshObj.sessionText += response;
-      
-      this.emit('commandComplete', this.command, this._buffer, this.sshObj);
+
+      // Handlers may set `sshObj` flags (abort/skip*) or call stop()/close().
+      // Apply the flags after the event so a handler always sees the completed
+      // response, then let the guarded command loop decide what runs next.
+      this._inCommandComplete = true;
+      try {
+        this.emit('commandComplete', this.command, this._buffer, this.sshObj);
+      } finally {
+        this._inCommandComplete = false;
+      }
+      this._applyHandlerFlags();
     }
     return this._nextCommand();
   }
 
+  // Applies the declarative flags a commandComplete handler can set. The
+  // handlers receive `sshObj`, so this is the compatibility-friendly way to
+  // fail fast without reaching into private instance state.
+  _applyHandlerFlags() {
+    const sshObj = this.sshObj;
+    if (!sshObj) {
+      return;
+    }
+
+    if (sshObj.skipCommands) {
+      if (Array.isArray(sshObj.commands)) {
+        sshObj.commands.length = 0;
+      }
+      sshObj.skipCommands = false;
+    }
+
+    if (sshObj.skipHosts) {
+      // Open question 5: this clears only the current host's own nested queue.
+      // Sibling nested hosts queued on a parent still run.
+      if (Array.isArray(sshObj.hosts)) {
+        sshObj.hosts.length = 0;
+      }
+      sshObj.skipHosts = false;
+    }
+
+    if (sshObj.skipPrimaryHosts) {
+      this._hosts.length = 0;
+      sshObj.skipPrimaryHosts = false;
+    }
+
+    if (sshObj.abort || sshObj.stop) {
+      const reason =
+        typeof sshObj.abort === 'string'
+          ? sshObj.abort
+          : typeof sshObj.stop === 'string'
+            ? sshObj.stop
+            : 'command-failed';
+      sshObj.abort = false;
+      sshObj.stop = false;
+      this.stop(reason);
+    }
+  }
+
   _nextCommand() {
+    if (this._closing || this._runComplete) {
+      return;
+    }
+
     this._buffer = '';
+    if (this._stopping || this._gracefulClosing) {
+      return this._runExit();
+    }
+
     // Process the next command if there are any.
     if (this.sshObj.commands.length > 0) {
       this._systemMsg('debug',`nextCommand: Setting next command`);      
@@ -786,6 +920,14 @@ class SSH2Shell extends Stream {
   }
 
   _checkCommand() {
+    if (this._closing || this._runComplete) {
+      return;
+    }
+
+    if (this._stopping || this._gracefulClosing) {
+      return this._runExit();
+    }
+
     // If there is still a command to run then run it or exit.
     if (this.command !== '') {
       this._progressStart();
@@ -799,21 +941,109 @@ class SSH2Shell extends Stream {
   }
 
   _runCommand(command) {
+    // After a stop or close no write is attempted. The baseline silently wrote
+    // the rest of the queue into a closed channel; that produced confusing
+    // session notes and debug output.
+    if (this._closing || this._runComplete || !this._hasLiveStream()) {
+      return false;
+    }
+
     this._systemMsg('debug',`runCommand:`);
     
     this._systemMsg('verbose',`runCommand: Command: ${command}`);
     
+    this._commandInFlight = Boolean(command);
     return this._stream.write(`${command}${this.sshObj.enter}`);
   }
 
+  // Merge a nested host's text into the primary host's sessionText exactly
+  // once. Called before exit commands so the text survives even if leaving the
+  // nested shell times out.
+  _mergeNestedText(host = this.sshObj) {
+    if (!host || !host.server || !this._connections || this._connections.length === 0) {
+      return false;
+    }
+    if (this._mergedHosts.has(host)) {
+      return false;
+    }
+
+    const root = this._connections[0];
+    if (!root || root === host) {
+      return false;
+    }
+
+    this._mergedHosts.add(host);
+    root.sessionText += `\n${host.server.host}: ${host.sessionText || ''}`;
+    return true;
+  }
+
+  // Finalizes one visited host exactly once: nested text is merged, the
+  // primary host's text is appended to _allSessions, and `end` is emitted.
+  _finalizeHost(host = this.sshObj, reason = null) {
+    if (!host || !host.server) {
+      return false;
+    }
+    if (this._finalizedHosts.has(host)) {
+      return false;
+    }
+    this._finalizedHosts.add(host);
+
+    const isPrimary =
+      !this._connections ||
+      this._connections.length === 0 ||
+      host === this._connections[0];
+
+    if (!isPrimary) {
+      this._mergeNestedText(host);
+      this._systemMsg(
+        'debug',
+        `finalizeHost: end nested host ${host.server.host}${reason ? ` (${reason})` : ''}`
+      );
+      this.emit('end', `${host.server.host}: \n${host.sessionText || ''}`, host);
+      return true;
+    }
+
+    this._primaryhostSessionText += `${host.sessionText || ''}\n`;
+    this._allSessions += this._primaryhostSessionText;
+    this._systemMsg(
+      'debug',
+      `finalizeHost: end primary host ${host.server.host}${reason ? ` (${reason})` : ''}`
+    );
+    this.emit('end', this._primaryhostSessionText, host);
+    return true;
+  }
+
+  // Finalizes the current host and any ancestors still on the connection
+  // stack, deepest first. This is the safety net for an abrupt transport drop:
+  // every visited host gets one `end`, and the callback still receives the
+  // complete session text.
+  _finalizeRun(reason = null) {
+    const hosts = [];
+    if (this.sshObj && this.sshObj.server) {
+      hosts.push(this.sshObj);
+    }
+    if (this._connections) {
+      for (let index = this._connections.length - 1; index >= 0; index -= 1) {
+        const host = this._connections[index];
+        if (host && host.server) {
+          hosts.push(host);
+        }
+      }
+    }
+
+    for (const host of hosts) {
+      this._finalizeHost(host, reason);
+    }
+  }
+
   _previousHost() {
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     this._systemMsg('debug',`previousHost: raise end event on current connection: ${this.host}`);
     
-    this.emit(
-      'end',
-      `${this.sshObj.server.host}: \n${this.sshObj.sessionText}`,
-      this.sshObj
-    );
+    this._finalizeHost(this.sshObj, 'previous-host');
     this._systemMsg(
       'debug', 
       `previousHost: Check for previous connections and reload its configuration if one exists`
@@ -838,6 +1068,10 @@ class SSH2Shell extends Stream {
   }
 
   _nextHost() {
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     this._removeListeners();
     const nextHost = this.sshObj.hosts.shift();
     this._systemMsg(
@@ -853,6 +1087,10 @@ class SSH2Shell extends Stream {
   }
 
   _nextPrimaryHost(connect) {
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     if (this._hosts.length > 0) {
       this._systemMsg('debug', `nextPrimaryHost: load next host for ssh2 connection`);
       
@@ -861,41 +1099,51 @@ class SSH2Shell extends Stream {
       if (this.sshObj.server) {
         this._systemMsg('debug', `nextPrimaryHost: end current host ${this.host}`);
         
-        this.emit('end', this._primaryhostSessionText, this.sshObj);
+        this._finalizeHost(this.sshObj, 'next-primary-host');
       }
       
       this._systemMsg('debug',`nextPrimaryHost: Load next primary host: ${this.host}`);
       
       this._removeListeners();
       // A new primary host gets a new connection, so drop the previous host's
-      // stream reference. Otherwise an early error could close the old stream.
+      // stream reference and nested stack. Otherwise an early error could close
+      // the old stream or the new host could be mistaken for a nested one.
       this._stream = {};
+      this._connections = [];
       this.sshObj = this._hosts.shift();
       this.host = this.sshObj.server.host;
       this._primaryhostSessionText = `${this.host}: `;
+      this._closing = false;
+      this._gracefulClosing = false;
+      this._commandInFlight = false;
       return this._initiate(connect);
     }
   }
 
   _runExit() {
+    if (this._runComplete) {
+      return;
+    }
+
     this._progressEnd();
     this._systemMsg('debug',`runExit: Process an exit`);
+
+    if (this._stopping) {
+      return this._beginStopExit();
+    }
     
-    // Run the exit commands loaded by ssh and sudo su commands.
+    // Run the exit commands loaded when a nested ssh shell opens. Merge the
+    // nested text first so it is captured even if the exit command times out.
     if (this.sshObj.exitCommands && this.sshObj.exitCommands.length > 0) {
       this._systemMsg(
         'verbose',
           `runExit: Queued exit commands: ${this.sshObj.exitCommands.length}`
         );
       
+      this._mergeNestedText();
       this.command = this.sshObj.exitCommands.pop();
-      if (this._connections && this._connections.length > 0) {
-        this._systemMsg('verbose',`runExit: Primary host: ${this._connections[0].server.host}`);
-        
-        this._connections[0].sessionText += `\n${this.host}: ${this.sshObj.sessionText}`;
-      }
       return this._runCommand(this.command);
-    } else if (this.sshObj.hosts && this.sshObj.hosts.length > 0) {
+    } else if (!this._gracefulClosing && this.sshObj.hosts && this.sshObj.hosts.length > 0) {
       // More hosts to connect to so process the next one.
       this._systemMsg('debug',`runExit: Load next host`);
       
@@ -906,7 +1154,7 @@ class SSH2Shell extends Stream {
       
       this.emit('msg', `${this._hostPrefix()}${this.sshObj.closedMessage}`);
       return this._previousHost();
-    } else if (this.command === 'exit') {
+    } else if (!this._gracefulClosing && this.command === 'exit') {
       this._systemMsg('debug',`runExit: run exit command`);
       
       return this._runCommand('exit');
@@ -916,17 +1164,284 @@ class SSH2Shell extends Stream {
     }
   }
 
-  close() {
-    this._progressEnd();
-    this._systemMsg('debug',`Stream: close`);
+  // ---------------------------------------------------------------------------
+  // Shutdown
+  // ---------------------------------------------------------------------------
 
-    // Calling close() before the shell opens would otherwise throw on the
-    // prototype `{}` placeholder. There is nothing to close yet.
-    if (!this._hasLiveStream()) {
+  stop(reason = 'user') {
+    if (this._runComplete || this._stopping) {
+      return this;
+    }
+    // Safe before connect() and after the run has finished: no-op.
+    if (!this._started && !this._hasLiveStream()) {
+      return this;
+    }
+
+    this._stopping = true;
+    this._stopReason = reason;
+    this._gracefulClosing = false;
+    this._clearCloseTimer();
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+    }
+    if (this.sshObj) {
+      this.sshObj.stopReason = reason;
+    }
+
+    // Clear every command and host queue, including the private primary-host
+    // queue and nested queues queued on parents. The library's exit commands are
+    // deliberately kept so a nested shell can be left cleanly.
+    const clearQueues = (host) => {
+      if (!host) {
+        return;
+      }
+      if (Array.isArray(host.commands)) {
+        host.commands.length = 0;
+      }
+      if (Array.isArray(host.hosts)) {
+        host.hosts.length = 0;
+      }
+    };
+    clearQueues(this.sshObj);
+    if (Array.isArray(this._connections)) {
+      for (const host of this._connections) {
+        clearQueues(host);
+      }
+    }
+    this._hosts.length = 0;
+
+    this._systemMsg('debug', `stop: requested (${reason})`);
+    this.emit('msg', `${this._hostPrefix()}Stop requested: ${reason}`);
+
+    if (this._commandInFlight) {
+      // Interrupt the running command and wait for the prompt or the idle
+      // timeout before running the exit commands.
+      this._armStopTimer();
+      if (this._hasLiveStream()) {
+        this._stream.write('\x03');
+      }
+      return this;
+    }
+
+    if (this._inCommandComplete) {
+      // The handler is still running. _nextCommand() will start the exit path
+      // as soon as the handler returns.
+      this._armStopTimer();
+      return this;
+    }
+
+    this._beginStopExit();
+    return this;
+  }
+
+  _beginStopExit() {
+    if (this._runComplete) {
       return;
     }
 
-    return this._stream.close();
+    if (!this._hasLiveStream()) {
+      return this._finishStop();
+    }
+
+    const exitCommands = this.sshObj && Array.isArray(this.sshObj.exitCommands)
+      ? this.sshObj.exitCommands
+      : [];
+
+    if (exitCommands.length > 0) {
+      this._armStopTimer();
+      this.command = exitCommands.pop();
+      this._systemMsg('debug', `stop: run queued exit command`);
+      const written = this._runCommand(this.command);
+      if (written === false) {
+        return this._finishStop();
+      }
+      return written;
+    }
+
+    return this._finishStop();
+  }
+
+  _finishStop() {
+    if (this._runComplete) {
+      return this._allSessions;
+    }
+
+    this._clearStopTimer();
+    this._clearCloseTimer();
+    this._commandInFlight = false;
+    this._closing = true;
+    this._runComplete = true;
+    this._finalizeRun(this._stopReason || 'stop');
+
+    if (this._hasLiveStream()) {
+      this._stream.close();
+      return this._allSessions;
+    }
+
+    if (this.connection && typeof this.connection.end === 'function') {
+      this.connection.end();
+      return this._allSessions;
+    }
+
+    return this._callFinalCallback();
+  }
+
+  _forceStop() {
+    this._clearStopTimer();
+    this._systemMsg('debug', `stop: idle timeout while stopping`);
+    return this._finishStop();
+  }
+
+  _clearStopTimer() {
+    if (this._stopTimer) {
+      clearTimeout(this._stopTimer);
+      this._stopTimer = null;
+    }
+  }
+
+  _armStopTimer() {
+    this._clearStopTimer();
+    const timeout = toPositiveNumber(this.idleTime) || 5000;
+    this._stopTimer = setTimeout(() => {
+      this._forceStop();
+    }, timeout);
+    if (typeof this._stopTimer.unref === 'function') {
+      this._stopTimer.unref();
+    }
+  }
+
+  // Graceful close runs queued exit commands and backs out of nested shells
+  // before closing. Remaining primary hosts still run, matching close()'s
+  // compatibility contract.
+  _prepareGracefulClose() {
+    const clearQueues = (host) => {
+      if (!host) {
+        return;
+      }
+      if (Array.isArray(host.commands)) {
+        host.commands.length = 0;
+      }
+      if (Array.isArray(host.hosts)) {
+        host.hosts.length = 0;
+      }
+    };
+    clearQueues(this.sshObj);
+    if (Array.isArray(this._connections)) {
+      for (const host of this._connections) {
+        clearQueues(host);
+      }
+    }
+  }
+
+  _clearCloseTimer() {
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
+    }
+  }
+
+  _armCloseTimer() {
+    this._clearCloseTimer();
+    const timeout = toPositiveNumber(this.idleTime) || 5000;
+    this._closeTimer = setTimeout(() => {
+      this._forceClose();
+    }, timeout);
+    if (typeof this._closeTimer.unref === 'function') {
+      this._closeTimer.unref();
+    }
+  }
+
+  _forceClose() {
+    this._clearCloseTimer();
+    this._systemMsg('debug', `close: idle timeout while closing`);
+    return this._closeStreamNow();
+  }
+
+  _closeStreamNow() {
+    this._clearCloseTimer();
+    this._clearStopTimer();
+    this._gracefulClosing = false;
+    this._closing = true;
+    this._progressEnd();
+    this._systemMsg('debug',`Stream: close`);
+    this._finalizeRun('close');
+
+    if (this._hasLiveStream()) {
+      const result = this._stream.close();
+      // Unit tests and embedders can supply a stream without a client. Without
+      // a connection no `close` event will arrive, so finish here.
+      if (!this.connection) {
+        this._callFinalCallback();
+      }
+      return result;
+    }
+    if (this.connection && typeof this.connection.end === 'function') {
+      return this.connection.end();
+    }
+    return this._callFinalCallback();
+  }
+
+  close(options = {}) {
+    if (this._runComplete || this._closing) {
+      return;
+    }
+
+    // Calling close() before the shell opens is a no-op; the run can still
+    // start. This preserves the existing behavior (G10).
+    if (!this._started && !this._hasLiveStream() && !this.connection) {
+      return;
+    }
+
+    const graceful = Boolean(options && options.graceful);
+    if (graceful && !this._stopping && this._hasLiveStream()) {
+      this._gracefulClosing = true;
+      this._progressEnd();
+      this._systemMsg('debug',`Stream: graceful close`);
+      this._prepareGracefulClose();
+
+      if (this._commandInFlight) {
+        this._armCloseTimer();
+        this._stream.write('\x03');
+        return;
+      }
+      if (this._inCommandComplete) {
+        this._armCloseTimer();
+        return;
+      }
+      return this._runExit();
+    }
+
+    return this._closeStreamNow();
+  }
+
+  _callFinalCallback() {
+    if (this._callbackCalled) {
+      return this._allSessions;
+    }
+    this._callbackCalled = true;
+    if (typeof this._callback === 'function') {
+      this._callback(this._allSessions);
+    }
+    return this._allSessions;
+  }
+
+  _resetRunState() {
+    this._clearStopTimer();
+    this._clearCloseTimer();
+    this._closing = false;
+    this._stopping = false;
+    this._stopReason = null;
+    this._commandInFlight = false;
+    this._inCommandComplete = false;
+    this._runComplete = false;
+    this._callbackCalled = false;
+    this._gracefulClosing = false;
+    this._finalizedHosts = new Set();
+    this._mergedHosts = new Set();
+    this._connections = [];
+    this._stream = {};
+    this._allSessions = '';
+    this._primaryhostSessionText = '';
   }
 
   _removeListeners() {
@@ -990,7 +1505,10 @@ class SSH2Shell extends Stream {
   }
 
   _initiate(action) {
-    
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     this._loadDefaults();
     
     if (typeof action === 'function') {
@@ -1178,10 +1696,17 @@ class SSH2Shell extends Stream {
       this._callback = callback;
     }
 
+    this._resetRunState();
+    this._started = true;
+
     return this.emit('newPrimaryHost', this._nextPrimaryHost(this._connect));
   }
 
   _connect() {
+    if (this._stopping || this._runComplete) {
+      return;
+    }
+
     this.connection = new this.ssh2Client();
 
     this.connection.on(
@@ -1251,18 +1776,18 @@ class SSH2Shell extends Stream {
             this._progressEnd();
             this._systemMsg('debug', `connect: Stream.finish`);
 
-            this._primaryhostSessionText += `${this.sshObj.sessionText}\n`;
-            this._allSessions += this._primaryhostSessionText;
-            if (this._hosts.length === 0) {
-              this.emit('end', this._allSessions, this.sshObj);
-            }
+            // Finalize through the same path as close/connection close so the
+            // text is appended and `end` fires exactly once per host.
+            this._finalizeHost(this.sshObj, 'stream-finish');
           });
 
           this._stream.on('close', (code, signal) => {
             this._progressEnd();
             this._systemMsg('debug', `connect: Stream.close`);
             
-            this.connection.end();
+            if (this.connection && typeof this.connection.end === 'function') {
+              this.connection.end();
+            }
           });
         }
       );
@@ -1287,23 +1812,41 @@ class SSH2Shell extends Stream {
       if (this.dataReceivedTimer) {
         clearTimeout(this.dataReceivedTimer);
       }
+
+      // A transport drop may skip stream `finish`, so finalize the current
+      // host and any ancestors before reporting the close. This keeps the
+      // callback text complete even when the last command never returned.
+      this._finalizeRun(
+        this._stopping ? this._stopReason : 'connection-close'
+      );
+
       if (had_error) {
-        this.emit('error', had_error, 'Connection close');
+        const err = new Error('Connection closed with error');
+        err.level = 'Connection close';
+        err.hadError = had_error;
+        this.emit('error', err, 'Connection close');
       } else {
-        this.emit('msg', this.sshObj.closedMessage);
+        const closedMessage =
+          this.sshObj && this.sshObj.closedMessage
+            ? this.sshObj.closedMessage
+            : 'Closed';
+        this.emit('msg', closedMessage);
       }
 
-      if (this._hosts.length === 0) {
-        if (typeof this._callback === 'function') {
-          this._callback(this._allSessions);
-          return this._allSessions;
-        }
-      } else {
+      if (this._stopping || this._runComplete) {
+        return this._callFinalCallback();
+      }
+
+      if (this._hosts.length > 0) {
+        this._closing = false;
+        this._gracefulClosing = false;
         return this.emit(
           'newPrimaryHost',
           this._nextPrimaryHost(this._connect)
         );
       }
+
+      return this._callFinalCallback();
     });
 
     if (this.sshObj.server && this.sshObj.commands) {

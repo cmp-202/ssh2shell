@@ -91,7 +91,13 @@ describe('error and stream lifecycle', () => {
     ssh.connection.emit('close', false);
 
     await waitFor(() => text !== undefined, { label: 'callback' });
-    assert.equal(text, '');
+    if (isBaseline()) {
+      assert.equal(text, '');
+    } else {
+      // R5 finalizes the host on a connection close, so the callback receives
+      // the host-prefixed session text instead of an empty string.
+      assert.equal(text, 'example.test: \n');
+    }
   });
 
   it('close() closes the shell stream', async () => {
