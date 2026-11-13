@@ -68,7 +68,8 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
   `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
 - `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
   never tagged, locally or remotely. `L7.18` is ledger-only for the same
-  reason.
+  reason. Use the release tags as the coarse rollback boundary; see
+  [Rollback after L7.6](#rollback-after-l76).
 - Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
   series). Later levels were recorded after the fact.
 - Tags are the source of truth for rollback where they exist; commit SHAs are
@@ -92,8 +93,34 @@ git reset --hard refactor/L2
 git checkout refactor/L2 -- path/to/file
 ```
 
-> Levels after L7.6 have no tag. Inspect them with the commit ranges in the
-> ledger or with `git log`.
+> Levels after L7.6 have no tag. Use the release boundaries below.
+
+### Rollback after L7.6
+
+The release tags give a stable coarse boundary for the untagged levels:
+
+| Range | Boundary | Covers |
+| --- | --- | --- |
+| `refactor/L7.6..v3.1.0` | `v3.1.0` | L7.7-L7.17 plus follow-up commits (16 commits) |
+| `v3.1.0..HEAD` | unreleased | L7.18 (post-3.1.0 shutdown work) |
+
+```bash
+# Inspect everything after the last tagged level
+git log --oneline refactor/L7.6..v3.1.0
+git diff refactor/L7.6..v3.1.0
+
+# Inspect the post-3.1.0 work
+git log --oneline v3.1.0..HEAD
+git diff v3.1.0..HEAD
+
+# Revert the post-3.1.0 work as one commit (keeps history)
+git revert --no-commit v3.1.0..HEAD
+git commit -m "revert post-3.1.0 work"
+```
+
+`v2.0.14`, `v2.1.0`, `v3.0.0`, and `v3.1.0` are the release boundaries. The
+release process, tag convention, and `gitHead` check are in
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Level completion checklist
 
