@@ -67,8 +67,8 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
   through `refactor/L7.6`. Only `refactor/L7`-`refactor/L7.3` are on `origin`;
   `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
 - `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
-  never tagged, locally or remotely. `L7.18` is ledger-only for the same
-  reason. Use the release tags as the coarse rollback boundary; see
+  never tagged, locally or remotely. `L7.18` has no level tag either; it shipped
+  in `v3.2.0`. Use the release tags as the coarse rollback boundary; see
   [Rollback after L7.6](#rollback-after-l76).
 - Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
   series). Later levels were recorded after the fact.
@@ -102,7 +102,7 @@ The release tags give a stable coarse boundary for the untagged levels:
 | Range | Boundary | Covers |
 | --- | --- | --- |
 | `refactor/L7.6..v3.1.0` | `v3.1.0` | L7.7-L7.17 plus follow-up commits (16 commits) |
-| `v3.1.0..HEAD` | unreleased | L7.18 (post-3.1.0 shutdown work) |
+| `v3.1.0..v3.2.0` | `v3.2.0` | L7.18 (post-3.1.0 shutdown work) |
 
 ```bash
 # Inspect everything after the last tagged level
@@ -110,16 +110,16 @@ git log --oneline refactor/L7.6..v3.1.0
 git diff refactor/L7.6..v3.1.0
 
 # Inspect the post-3.1.0 work
-git log --oneline v3.1.0..HEAD
-git diff v3.1.0..HEAD
+git log --oneline v3.1.0..v3.2.0
+git diff v3.1.0..v3.2.0
 
 # Revert the post-3.1.0 work as one commit (keeps history)
-git revert --no-commit v3.1.0..HEAD
+git revert --no-commit v3.1.0..v3.2.0
 git commit -m "revert post-3.1.0 work"
 ```
 
-`v2.0.14`, `v2.1.0`, `v3.0.0`, and `v3.1.0` are the release boundaries. The
-release process, tag convention, and `gitHead` check are in
+`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, and `v3.2.0` are the release
+boundaries. The release process, tag convention, and `gitHead` check are in
 [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Level completion checklist
@@ -205,7 +205,7 @@ must be recorded here.
 | L7.15 | — (ledger-only) | — | Done | Opt-in progress indicator | 138/138 unit and 138/138 baseline; live suite unchanged | No tag; see [L7.15 deliverables](#l715-deliverables-progress-indicator) |
 | L7.16 | — (ledger-only) | — | Done | Three-hop tunnel coverage | `tunnel` and `chaining` pass; `--all` 17/17 | No tag; see [L7.16 deliverables](#l716-deliverables-three-hop-tunnel-coverage) |
 | L7.17 | — (ledger-only) | — | Done | Progress on by default | 139/139 unit and 139/139 baseline; `progress` 1/1; `--all` 18/18 | No tag; see [L7.17 deliverables](#l717-deliverables-progress-on-by-default) |
-| L7.18 | — (ledger-only) | — | Done | Post-3.1.0 shutdown semantics: `stop()` and `close({ graceful: true })`, centralized host finalization, the `Connection close` payload, handler flags, and visible sudo failures with `abortOnSudoFailure` | `npm test` 149/149 on the current build and the frozen baseline; curated live 18/18; full live 24/24; `git diff --check` clean | No tag; see [L7.18 deliverables](#l718-deliverables-post-310-shutdown-semantics) |
+| L7.18 | — (ledger-only) | — | Done (v3.2.0) | Post-3.1.0 shutdown semantics: `stop()` and `close({ graceful: true })`, centralized host finalization, the `Connection close` payload, handler flags, and visible sudo failures with `abortOnSudoFailure` | `npm test` 149/149 on the current build and the frozen baseline; curated live 18/18; full live 24/24; `git diff --check` clean | No level tag; released in `v3.2.0`; see [L7.18 deliverables](#l718-deliverables-post-310-shutdown-semantics) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -886,6 +886,8 @@ were after L6.1.
 ### L7.18 deliverables (post-3.1.0 shutdown semantics)
 
 Signed-off-by: user review of `docs/CLOSE-SEMANTICS.md` and the stop/close work.
+
+Released in `v3.2.0`.
 
 - `src/ssh2shell.js` — added `stop(reason)` as the whole-run abort. It clears
   every command and host queue, sends `Ctrl-C` when a command is in flight,
