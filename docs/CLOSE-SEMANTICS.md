@@ -145,8 +145,8 @@ With the implemented changes:
 | Operation | Meaning |
 | --- | --- |
 | `sshObj.commands.length = 0` / `sshObj.skipCommands = true` | Stop the current host after this command. Let the normal back-out run. |
-| `sshObj.hosts.length = 0` / `sshObj.skipHosts = true` | Stop the current host's own nested hosts. Sibling nested hosts queued on a parent still run. Continue with the next primary host. |
-| `sshObj.skipPrimaryHosts = true` | Stop after the current host; do not connect the remaining primary hosts. |
+| `sshObj.hosts.length = 0` / `sshObj.skipHosts = true` | Skip the current host's own nested hosts. The current host continues its commands unless `skipCommands` is also set; sibling nested hosts queued on a parent still run; primary hosts continue. |
+| `sshObj.skipPrimaryHosts = true` | Do not connect the remaining primary hosts. The current host finishes its commands unless `skipCommands` is also set. |
 | `SSH.stop(reason)` / `sshObj.abort = true` / `sshObj.stop = true` | Stop the whole run: no more commands, no more nested or primary hosts. |
 | `SSH.close()` | Immediate close of the current shell connection. Remaining primary hosts still run. |
 | `SSH.close({ graceful: true })` | Run queued exit commands and back out of nested shells before closing. |
@@ -156,8 +156,8 @@ Implemented matrix:
 | Action | Commands | Nested / primary hosts | `sessionText` and `end` | Stream and connection | Output |
 | --- | --- | --- | --- | --- | --- |
 | Clear `commands` / `skipCommands` | current host stops | children and primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
-| Clear `hosts` / `skipHosts` | current host stops | current host's children skipped; sibling nested hosts queued on a parent continue; primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
-| `skipPrimaryHosts` | current host stops | no further primary hosts | complete; `end` once per host | normal close | progress ends; normal close |
+| Clear `hosts` / `skipHosts` | current host continues unless `skipCommands` is also set | current host's children skipped; sibling nested hosts queued on a parent continue; primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
+| `skipPrimaryHosts` | current host continues unless `skipCommands` is also set | no further primary hosts | complete; `end` once per host | normal close | progress ends; normal close |
 | `stop(reason)` | all queues cleared | all remaining hosts skipped | current response and nested text merged; `end` once per visited host; callback once | one close; exit commands run first | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
 | `close()` | no further writes | current connection ends; primary hosts continue (compat) | current host finalized; `end` once per visited host | one close | progress ends; `closedMessage` |
 | `close({ graceful: true })` | no further commands | exit commands and back-out run; primary hosts continue | complete; `end` once per visited host | one close | progress ends; normal close |

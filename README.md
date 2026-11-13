@@ -529,7 +529,7 @@ reused, so later `sudo` commands will fail too. If that matters, check
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
 | `abortOnSudoFailure` | boolean | `false` | Call `stop('sudo-failed')` when the sudo password is rejected or no password is configured. |
-| `sudoFailed` | boolean | `false` | Set by `ssh2shell` when a sudo password is rejected. Reset for each host. |
+| `sudoFailed` | boolean | `false` | Set by `ssh2shell` when a sudo password is rejected. Starts `false` for each host. |
 
 If the account has a `NOPASSWD` sudoers rule, no password is sent. Use `sudo -n`
 to prove that: it fails instead of prompting when a password would be required.
@@ -880,7 +880,7 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `commandComplete` | `command, response, sshObj` | A command returned to the prompt. The handler can modify `sshObj.commands` to queue follow-up work. |
 | `commandTimeout` | `command, response, stream, connection` | No data arrived for `idleTimeOut` milliseconds. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
-| `error` | `err, type, close, callback` | An error occurred. `close` requests a connection close; `callback(err, type)` runs before closing. |
+| `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
 
 `commandComplete` receives the raw response after the command has been removed
@@ -899,9 +899,11 @@ part of the public API.
 | Member | Description |
 | --- | --- |
 | `connect(callback)` | Start the session. `callback(sessionText)` is optional and receives the combined text when all hosts finish. |
-| `close()` | Close the current shell stream. A no-op if the shell has not opened yet. |
+| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, runs the library's queued `exitCommands` (bounded by `idleTimeOut`), closes once, and calls the callback once. A no-op before `connect()` or after the run finishes. |
+| `close()` | Close the current shell stream. A no-op if the shell has not opened yet. Remaining primary hosts still run; use `stop()` to abandon them. |
+| `close({ graceful: true })` | Run queued exit commands and back out of nested shells before closing. Remaining primary hosts still run. |
 | `emit(name, ...args)` | Raise an event. Inherited from `EventEmitter`. |
-| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, and `pwSent`. |
+| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, `hosts`, `exitCommands`, `pwSent`, `sudoFailed`, `stopReason`, and the `skipCommands` / `skipHosts` / `skipPrimaryHosts` / `abort` flags. |
 | `command` | The command currently being processed. |
 | `idleTime` | The active command timeout in milliseconds. |
 | `dataIdleTime` | The active response-settling delay in milliseconds. |
@@ -915,9 +917,10 @@ configuration and `ssh2shell` does not emit `pipe` or `unpipe` events.
 ### Stopping and closing
 
 There are three levels of stopping: stop the current host, skip the remaining
-primary hosts, or abort the whole run. Set the flags from `onCommandComplete`.
-The completed response is already in `sessionText`, so stopping does not lose
-the command that triggered it.
+primary hosts, or abort the whole run. `close()` is a separate connection
+operation. Set the flags from `onCommandComplete`; `stop()` and `close()` can be
+called from any handler. The completed response is already in `sessionText`, so
+stopping does not lose the command that triggered it.
 
 **Common cases**
 
@@ -986,12 +989,16 @@ onCommandProcessing(command, response, sshObj, stream) {
 **What the flags do**
 
 - `skipCommands` stops the current host after the completed command.
-- `skipHosts` also skips the current host's own nested hosts. Sibling nested
-  hosts already queued on a parent still run.
-- `skipPrimaryHosts` skips the remaining primary hosts.
-- `stop(reason)` clears every queue, runs the library's queued `exitCommands`
-  (bounded by `idleTimeOut`), closes once, and calls the callback once. The
-  reason appears as `Stop requested: <reason>` and in `sshObj.stopReason`.
+- `skipHosts` also clears the current host's own nested hosts. Pair it with
+  `skipCommands` to stop the current host; sibling nested hosts already queued
+  on a parent still run.
+- `skipPrimaryHosts` skips the remaining primary hosts. Pair it with
+  `skipCommands` if the current host should stop now; otherwise its remaining
+  commands still run.
+- `stop(reason)` clears every queue. If a command is still running it sends
+  Ctrl-C first, then runs the library's queued `exitCommands` (bounded by
+  `idleTimeOut`), closes once, and calls the callback once. The reason appears
+  as `Stop requested: <reason>` and in `sshObj.stopReason`.
 - `close()` closes the current connection but still runs the remaining primary
   hosts, matching earlier releases. Use `stop()` to abandon them.
 - `close({ graceful: true })` runs the queued exit commands and backs out of
