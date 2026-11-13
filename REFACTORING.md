@@ -60,8 +60,8 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
 
 - The refactor was developed on `Refactoring` and completed on `master`, which
   is now the mainline.
-- `Refactoring` remains at `07f93ee` (v2.1.0) as a historical branch. It is no
-  longer the integration branch.
+- The `Refactoring` branch was deleted after the refactor. Its tip remains
+  tagged `v2.1.0` (`07f93ee`), so the history is still reachable.
 - `refactor/L0-baseline` marks the pristine pre-refactor state.
 - Annotated tags exist locally for `refactor/L0-baseline` and `refactor/L1`
   through `refactor/L7.6`. Only `refactor/L7`-`refactor/L7.3` are on `origin`;

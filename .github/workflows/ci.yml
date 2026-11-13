@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - Refactoring
   pull_request:
 
 permissions:
