@@ -915,105 +915,64 @@ configuration and `ssh2shell` does not emit `pipe` or `unpipe` events.
 ### Stopping and closing
 
 There are three levels of stopping: stop the current host, skip the remaining
-hosts, or abort the whole run. The command queue and a host's nested-host queue
-are plain arrays, so a handler can also change them directly. The flags below
-are the supported shorthand and work in `onCommandComplete`.
+primary hosts, or abort the whole run. Set the flags from `onCommandComplete`.
+The completed response is already in `sessionText`, so stopping does not lose
+the command that triggered it.
 
-| Goal | From a handler | Remaining commands | Nested and primary hosts | `sessionText` and `end` | Stream and connection | Output |
-| --- | --- | --- | --- | --- | --- | --- |
-| Stop this host after the current command | `sshObj.commands.length = 0` or `sshObj.skipCommands = true` | not run | nested hosts run; remaining primary hosts run | completed response kept; `end` once per visited host | normal close | progress stops; normal close message |
-| Also skip this host's own nested hosts | `sshObj.hosts.length = 0` or `sshObj.skipHosts = true` | not run | this host's nested hosts skipped; remaining primary hosts run | completed response kept; `end` once per visited host | normal close | progress stops; normal close message |
-| Skip the remaining primary hosts | `sshObj.skipPrimaryHosts = true` | not run | current host's nested hosts run; no further primary hosts | completed response kept; `end` once per visited host | normal close | progress stops; normal close message |
-| Abort the whole run | `sshObj.abort = true` or `this.stop(reason)` | all queues cleared | no nested or primary hosts run | current response and nested text merged; callback once; `end` once per visited host | one close; queued exit commands run first | `Stop requested: <reason>`; `closedMessage` on a clean close |
-| Close the current connection immediately | `this.close()` | no further writes | current connection ends; remaining primary hosts still run (compatibility) | current host finalized; `end` once | one close | progress stops; `closedMessage` |
-| Close after leaving nested shells | `this.close({ graceful: true })` | no further commands | runs queued exit commands and backs out before closing; remaining primary hosts still run | complete for every visited host | one close | progress stops; normal close message |
-| Cancel an in-flight command | `stream.write('\x03')` | unchanged | unchanged | partial output stays in the buffer | stays open | unchanged |
-| Let a timeout end the command | default `onCommandTimeout` | current command ends | remaining primary hosts run | default handler adds the partial buffer before closing | error closes the stream, then the connection | progress stops; error message |
-
-For rows that close the session, the text described is what has already
-accumulated when the handler runs. `close()` finalizes the current host, so its
-text and `end` event are not lost. `stop()` is the only operation that abandons
-the remaining primary hosts.
-
-**Commands and arrays.** `onCommandComplete` runs after the completed response
-has been added to `sessionText`, so clearing `sshObj.commands` does not lose
-that command's output. Clearing `sshObj.hosts` skips only the current host's
-own nested hosts. If the current host is itself nested, sibling hosts queued on
-its parent are still in the parent's `hosts` array and still run. This is a
-known limitation; see open question 5 in
-[`docs/CLOSE-SEMANTICS.md`](./docs/CLOSE-SEMANTICS.md).
-
-After `stop()` or `close()`, the command loop no longer shifts or writes the
-remaining queue. A close from `onCommandComplete` therefore does not attempt to
-write the next queued command to a closed stream.
-
-**Whole-run stop.** `SSH.stop(reason)` clears every command queue, every nested
-`hosts` queue, and the private primary-host queue. If a command is in flight it
-writes Ctrl-C and waits for the prompt. It then runs the library's queued
-`exitCommands` (the `exit` it adds when a nested `ssh` shell opens), bounded by
-`idleTimeOut`, finalizes every visited host, closes once, and calls the final
-callback once. Explicit `exit` entries in `commands` are cleared with the rest of
-the queue; closing the connection still ends any `sudo -i` or `su` shell. The reason is emitted as `Stop requested: <reason>` and stored in
-`sshObj.stopReason`. `stop()` is safe before `connect()` and after the run has
-finished; both are no-ops.
+**Common cases**
 
 ```javascript
-// Abort the whole run when a command fails.
-onCommandComplete(command, response, sshObj) {
-  if (/failed/i.test(response)) this.stop('command-failed');
-}
-```
-
-```javascript
-// Declarative form for the same outcome.
-onCommandComplete(command, response, sshObj) {
-  if (/failed/i.test(response)) sshObj.abort = 'command-failed';
-}
-```
-
-**Connections.** `this.close()` closes the shell stream; the stream's close then
-ends the SSH connection. Remaining primary hosts still run, matching earlier
-releases; use `stop()` to abort them. Do not call `this.connection.end()` from a
-handler: it bypasses the shell close path and can skip the final session text.
-`close({ graceful: true })` runs the queued exit commands and backs out of
-nested shells before closing.
-
-A host `onError` handler runs before the default handler, so it can record the
-error before the session closes. The default handler reports the error and
-closes the shell stream when its `close` argument is `true`; `this.close()` is
-also safe before the shell opens. A command that is waiting for input is not a
-fatal error: write Ctrl-C from `onCommandProcessing` or `onCommandTimeout` to
-cancel that command and keep the session open. If a timeout is terminal, call
-`this.close()` rather than `connection.end()`.
-
-**Hosts and `sessionText`.** A normal queue drain runs the queued exit commands,
-backs out to the previous host, then closes. `close()` finalizes the current host
-even when it bypasses that back-out, so its text is merged into the parent and
-its `end` event fires once. The final callback and the `end` event receive the
-same combined text. Finalization also runs when the transport drops, so a
-connection error does not lose the last host's text.
-
-**Process output.** `progress` stops when the command or stream ends. `debug`
-and `verbose` report the close path. A clean close emits `closedMessage`; a
-dropped connection emits an `error` of type `Connection close` with a readable
-`Error` (`Connection closed with error`). `stderrData` is unaffected.
-
-Recommended patterns:
-
-```javascript
-// Stop this host when a command reports failure.
+// Stop this host when a command fails. Nested and primary hosts still run.
 onCommandComplete(command, response, sshObj) {
   if (/failed/i.test(response)) sshObj.skipCommands = true;
 }
 ```
 
 ```javascript
-// Stop this host and skip its nested hosts.
+// Stop this host and skip its own nested hosts. Primary hosts still run.
 onCommandComplete(command, response, sshObj) {
   if (/failed/i.test(response)) {
     sshObj.skipCommands = true;
     sshObj.skipHosts = true;
   }
+}
+```
+
+```javascript
+// Skip the remaining primary hosts, but finish this host cleanly.
+onCommandComplete(command, response, sshObj) {
+  if (/failed/i.test(response)) {
+    sshObj.skipCommands = true;
+    sshObj.skipPrimaryHosts = true;
+  }
+}
+```
+
+```javascript
+// Abort the whole run. No remaining commands or hosts are run.
+onCommandComplete(command, response, sshObj) {
+  if (/failed/i.test(response)) this.stop('command-failed');
+}
+```
+
+```javascript
+// Declarative form for the same whole-run abort.
+onCommandComplete(command, response, sshObj) {
+  if (/failed/i.test(response)) sshObj.abort = 'command-failed';
+}
+```
+
+```javascript
+// Close now because the shell itself is unusable.
+onError(err, type, close) {
+  if (close) this.close();
+}
+```
+
+```javascript
+// Leave nested shells cleanly before closing.
+onCommandComplete(command, response, sshObj) {
+  if (/finished/i.test(response)) this.close({ graceful: true });
 }
 ```
 
@@ -1024,15 +983,34 @@ onCommandProcessing(command, response, sshObj, stream) {
 }
 ```
 
-Prefer clearing the queues over closing when the shell is still usable. Closing
-is appropriate when the shell itself is unusable: the prompt is not recognised
-and Ctrl-C does not recover, the connection is compromised, or the remaining
-transcript does not matter. Clearing `sshObj.commands` lets the exit commands
-and host back-out run, which leaves `sudo` and nested shells cleanly and
-preserves the text. Use `stop()` when a failure should abandon every remaining
-host.
+**What the flags do**
 
-The detailed behavior matrix, gaps, and open questions are in
+- `skipCommands` stops the current host after the completed command.
+- `skipHosts` also skips the current host's own nested hosts. Sibling nested
+  hosts already queued on a parent still run.
+- `skipPrimaryHosts` skips the remaining primary hosts.
+- `stop(reason)` clears every queue, runs the library's queued `exitCommands`
+  (bounded by `idleTimeOut`), closes once, and calls the callback once. The
+  reason appears as `Stop requested: <reason>` and in `sshObj.stopReason`.
+- `close()` closes the current connection but still runs the remaining primary
+  hosts, matching earlier releases. Use `stop()` to abandon them.
+- `close({ graceful: true })` runs the queued exit commands and backs out of
+  nested shells before closing.
+
+**Notes**
+
+- Clearing `sshObj.commands` or `sshObj.hosts` directly is equivalent to the
+  matching flag.
+- Every visited host still gets one `end`, and the callback runs once. The final
+  callback and the `end` event receive the same combined text.
+- A command timeout uses `onCommandTimeout`; the default reports the error and
+  closes the shell, then the connection.
+- Prefer clearing the queues while the shell is usable. Close when the prompt is
+  not recognised and Ctrl-C does not recover, or the connection is compromised.
+- Do not call `this.connection.end()` from a handler. Use `close()` so the final
+  session text is preserved.
+
+The full behavior matrix and internal details are in
 [`docs/CLOSE-SEMANTICS.md`](./docs/CLOSE-SEMANTICS.md).
 
 ## Advanced usage

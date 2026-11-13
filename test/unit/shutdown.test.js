@@ -279,7 +279,7 @@ describe('handler stop flags', () => {
     assert.equal(host.skipPrimaryHosts, false);
   });
 
-  it('skipHosts leaves sibling nested hosts on a parent queued (open question 5)', () => {
+  it('skipHosts leaves sibling nested hosts on a parent queued (by design)', () => {
     if (isBaseline()) return;
 
     const parent = createHost({ server: { host: 'parent.test' } });

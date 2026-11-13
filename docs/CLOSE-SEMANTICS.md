@@ -6,8 +6,8 @@
 - **Source of truth:** `src/ssh2shell.js` (current build). `lib/ssh2shell.js` is
   its published copy.
 - **Status:** R1–R8 are implemented and covered by
-  `test/unit/shutdown.test.js` plus the live stop/close tests. Open question 5 is
-  still pending; see [Open questions](#open-questions).
+  `test/unit/shutdown.test.js` plus the live stop/close tests. G11 is resolved
+  by design; see [Decisions](#decisions).
 
 ## Why this matters
 
@@ -74,7 +74,7 @@ close() / close({ graceful: true })
 | --- | --- | --- | --- | --- | --- |
 | Queue empties (default) | none | nested hosts run, then remaining primary hosts | every response is added; `end` fires per host | stream closes when the run is done | progress ends; `closedMessage` on a clean close |
 | `sshObj.commands.length = 0` or `sshObj.skipCommands = true` in `onCommandComplete` | current host stops | that host's nested hosts still run; remaining primary hosts still run | response already added; `end` once per visited host | normal close | progress ends; normal close message |
-| also `sshObj.hosts.length = 0` or `sshObj.skipHosts = true` | current host stops | that host's own nested hosts are skipped; remaining primary hosts still run | response already added; `end` once per visited host | normal close | progress ends; normal close message |
+| also `sshObj.hosts.length = 0` or `sshObj.skipHosts = true` | current host stops | that host's own nested hosts are skipped; sibling nested hosts queued on a parent still run; remaining primary hosts still run | response already added; `end` once per visited host | normal close | progress ends; normal close message |
 | `sshObj.skipPrimaryHosts = true` | current host stops | no further primary hosts | response already added; `end` once per visited host | normal close | progress ends; normal close message |
 | `sshObj.abort = true` / `sshObj.stop = true` / `this.stop(reason)` | all queues cleared | no nested or primary hosts run | current response and nested text merged; `end` once per visited host; callback once | one close; queued exit commands run first | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
 | `this.close()` in a handler | no further writes | current connection ends; remaining primary hosts still connect; current host's nested children are skipped | current host finalized; `end` once per visited host | stream closes, then `connection.end()` | progress ends; `closedMessage` |
@@ -116,7 +116,7 @@ Notes:
 | G8 | `sessionText` finalization depends on stream `finish`, so a drop can lose the last host's text. | **Resolved** by centralized finalization on stream finish, connection close, `close()`, and `stop()`. |
 | G9 | A rejected `sudo` password is invisible unless `debug`/`verbose` is on, and later commands fail in sequence. | **Resolved.** Visible `msg`, `sshObj.sudoFailed`, optional `abortOnSudoFailure`. |
 | G10 | `close()` before `connect()` is a silent no-op; the run can still start. | **Unchanged.** `close()` before a live stream is still a no-op; `stop()` before `connect()` is also a no-op. |
-| G11 | Clearing `sshObj.hosts` skips only the current host's children. Sibling nested hosts queued on a parent still run, and the parent's queue is private. | **Open question 5.** Current behavior is unchanged: only the current host's `hosts` array is cleared. |
+| G11 | Clearing `sshObj.hosts` skips only the current host's children. Sibling nested hosts queued on a parent still run, and the parent's queue is private. | **By design.** Matches the matrix: `skipHosts` skips the current host's own nested hosts only; sibling nested hosts queued on a parent still run. |
 
 ## Provisioning experience
 
@@ -145,7 +145,7 @@ With the implemented changes:
 | Operation | Meaning |
 | --- | --- |
 | `sshObj.commands.length = 0` / `sshObj.skipCommands = true` | Stop the current host after this command. Let the normal back-out run. |
-| `sshObj.hosts.length = 0` / `sshObj.skipHosts = true` | Stop the current host's nested hosts. Continue with the next primary host. |
+| `sshObj.hosts.length = 0` / `sshObj.skipHosts = true` | Stop the current host's own nested hosts. Sibling nested hosts queued on a parent still run. Continue with the next primary host. |
 | `sshObj.skipPrimaryHosts = true` | Stop after the current host; do not connect the remaining primary hosts. |
 | `SSH.stop(reason)` / `sshObj.abort = true` / `sshObj.stop = true` | Stop the whole run: no more commands, no more nested or primary hosts. |
 | `SSH.close()` | Immediate close of the current shell connection. Remaining primary hosts still run. |
@@ -156,7 +156,7 @@ Implemented matrix:
 | Action | Commands | Nested / primary hosts | `sessionText` and `end` | Stream and connection | Output |
 | --- | --- | --- | --- | --- | --- |
 | Clear `commands` / `skipCommands` | current host stops | children and primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
-| Clear `hosts` / `skipHosts` | current host stops | current host's children skipped; primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
+| Clear `hosts` / `skipHosts` | current host stops | current host's children skipped; sibling nested hosts queued on a parent continue; primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
 | `skipPrimaryHosts` | current host stops | no further primary hosts | complete; `end` once per host | normal close | progress ends; normal close |
 | `stop(reason)` | all queues cleared | all remaining hosts skipped | current response and nested text merged; `end` once per visited host; callback once | one close; exit commands run first | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
 | `close()` | no further writes | current connection ends; primary hosts continue (compat) | current host finalized; `end` once per visited host | one close | progress ends; `closedMessage` |
@@ -223,7 +223,8 @@ R1–R8 were signed off and implemented.
 - `sshObj.abort` or `sshObj.stop` calls `stop()` after the handler returns.
 - `sshObj.skipCommands` clears the current host's `commands` array.
 - `sshObj.skipHosts` clears the current host's `hosts` array. It does **not**
-  clear a parent's queue (open question 5).
+  clear a parent's queue: sibling nested hosts queued on a parent still run, by
+  design.
 - `sshObj.skipPrimaryHosts` clears the private primary-host queue.
 - Flags are consumed (reset to `false`) so a later host does not inherit them.
 
@@ -309,7 +310,7 @@ onError(err, type, close) {
 - Changing `close()` to cancel remaining primary hosts would break existing
   multi-host callers. The current behavior is kept and `stop()` is the abort.
 
-## Open questions
+## Decisions
 
 1. ~~Should `close()` continue with remaining primary hosts (compatibility) or
    abort the run?~~ **Signed off:** continue; use `stop()` to abort.
@@ -319,7 +320,7 @@ onError(err, type, close) {
    a visible message and offer `abortOnSudoFailure`.
 4. ~~Should handlers use `sshObj` flags or return values?~~ **Signed off:** flags,
    for compatibility with the existing mutation style.
-5. **Pending:** should `skipHosts` also clear nested-host queues on the parent
-   hosts in `_connections`? The current implementation clears only the current
-   host's `hosts` array, so sibling nested hosts queued on a parent still run.
-   This needs a documentation review before deciding.
+5. ~~Should `skipHosts` also clear nested-host queues on the parent hosts in
+   `_connections`?~~ **Signed off:** no. `skipHosts` clears only the current
+   host's `hosts` array, matching the matrix; sibling nested hosts queued on a
+   parent still run.
