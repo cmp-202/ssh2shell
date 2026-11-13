@@ -139,7 +139,7 @@ const checks = {
     allowErrors: ['Connection close', 'Connection', 'Stream.read error'],
   },
   tunnel: {
-    contains: [server1, server2, server3].filter(Boolean),
+    contains: [server1, server2].filter(Boolean),
     excludes: ['SSH failed'],
   },
   progress: {

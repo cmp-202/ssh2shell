@@ -10,9 +10,12 @@ let currentLogFile = null;
 function logFile(name) {
   // Store the path in the module-level variable so log() can see it
   currentLogFile = path.join(logDir, `${name}.log`);
-  
-  fs.mkdirSync(logDir, { recursive: true });
-  fs.writeFileSync(currentLogFile, '', 'utf8');
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.writeFileSync(currentLogFile, '', 'utf8');
+  } catch (err) {
+    throw new Error(`Failed to write file: ${currentLogFile}`, err);
+  }
 } 
 
 function log(content) {
@@ -24,8 +27,11 @@ function log(content) {
   if (typeof content === 'object' && content !== null) {
     content = JSON.stringify(content, null, '\t');
   }
-  
-  fs.appendFileSync(currentLogFile, `${content}\n`, 'utf8');
+  try {
+    fs.writeFileSync(currentLogFile, `${content}\n`, { encoding: 'utf8', flag: 'a' });
+  } catch (err) {
+    throw new Error(`Failed to append to log: ${currentLogFile}`, err);
+  }  
 }
 
 module.exports = {
