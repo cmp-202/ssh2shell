@@ -68,7 +68,7 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
   `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
 - `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
   never tagged, locally or remotely. `L7.18` has no level tag either; it shipped
-  in `v3.2.0`. `L7.19`-`L7.21` are the unreleased opt-in response/timeout
+  in `v3.2.0`. `L7.19`-`L7.23` are the unreleased opt-in response/timeout
   features (minor release target). Use the release tags as the coarse rollback
   boundary; see [Rollback after L7.6](#rollback-after-l76).
 - Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
@@ -171,7 +171,7 @@ When adding a test:
 | L6 | Signed-off post-L5 backlog, per-host prompt/filter, and error-handling fixes | Only with sign-off |
 | L6.1 | Approved optimisation and robustness follow-ups (readability, timer/option de-duplication, SSH prompt timeout, guarded close, empty command, own-property options, build-sync guard) | Only with sign-off |
 | L7 | Tooling, docs, CI, and publish pipeline | None |
-| L7.x | Post-L7 follow-ups: live VMs and provisioning, escape filtering, message prefixes, the live runner, the progress indicator, stop/close semantics, and opt-in prompt/response/timeout controls | Only with sign-off |
+| L7.x | Post-L7 follow-ups: live VMs and provisioning, escape filtering, message prefixes, the live runner, the progress indicator, stop/close semantics, and opt-in prompt/response/timeout/silent-command/stderr controls | Only with sign-off |
 
 The ladder can be reordered or split as we learn more; any change to the plan
 must be recorded here.
@@ -210,6 +210,8 @@ must be recorded here.
 | L7.19 | — (ledger-only) | — | Done | Opt-in full prompt regex (`standardPromptRegex`) | New suite covers string, `RegExp`, invalid-pattern fallback, and completion/sudo/nested paths; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.19 deliverables](#l719-deliverables-standardpromptregex) |
 | L7.20 | — (ledger-only) | — | Done | Opt-in handled `commandComplete` payload (`commandResponse`) | New suite covers the raw default, echo/prompt removal, PTY-wrapped echo, and no-regex behavior; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.20 deliverables](#l720-deliverables-handled-commandcomplete-payload) |
 | L7.21 | — (ledger-only) | — | Done | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No tag; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
+| L7.22 | — (ledger-only) | — | Done | Opt-in `commandStartTimeout` for silent commands and `details.noOutput` | New suite covers the default no-timer behavior, start-timer arming, `noOutput` true/false, and the per-command reset; `npm test` 179/179 unit and 179/179 baseline | No tag; see [L7.22 deliverables](#l722-deliverables-silent-command-timeout) |
+| L7.23 | — (ledger-only) | — | Done | Opt-in stderr capture in the command response (`captureStderr`) | New suite covers the default, raw merge, handled merge, escape filtering, and per-command reset; `npm test` 179/179 unit and 179/179 baseline | No tag; see [L7.23 deliverables](#l723-deliverables-stderr-capture) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -998,6 +1000,46 @@ Signed-off-by: user request for library-owned retry re-arming.
   tests pass. The original keeps the handler-managed `FirstPass` approach; the
   new one answers on a non-final attempt and closes on the final one.
 
+### L7.22 deliverables (silent command timeout)
+
+Signed-off-by: user request for the silent-command and "no output yet" distinction.
+
+- `src/ssh2shell.js` — `_runCommand` arms the idle timer when
+  `commandStartTimeout` is `true` and resets `_commandSawData` for the new
+  command. `_onData` marks data as seen once a command is in flight.
+  `_scheduleIdleTimeout` adds `noOutput` to the `commandTimeout` details and logs
+  whether no output or no prompt caused the timeout.
+- `src/ssh2shell/defaults.js` — `commandStartTimeout` defaults to `false`, so
+  the data-driven timer is unchanged unless opted in.
+- `test/unit/command-start-timeout.test.js` — 5 tests: default no-timer
+  behavior, start-timer arming, `noOutput` true for a silent command,
+  `noOutput` false after partial output, and the per-command reset.
+
+#### Verification
+
+- `npm test` — 179/179 unit and 179/179 baseline.
+- The default test runs against both artifacts; the opt-in cases are guarded by
+  `isBaseline()`.
+
+### L7.23 deliverables (stderr capture)
+
+Signed-off-by: user request for opt-in stderr in the command response.
+
+- `src/ssh2shell.js` — `_captureStderr()` filters and buffers stderr,
+  `_mergeStderr()` appends the trimmed capture with one newline, and
+  `_commandComplete` merges it into the raw or handled response and
+  `sessionText` and exposes `details.stderr`. The stderr handler captures before
+  emitting `stderrData`, and `_runCommand` resets the buffer per command.
+- `src/ssh2shell/defaults.js` — `captureStderr` defaults to `false`.
+- `test/unit/stderr-capture.test.js` — 5 tests: default no-merge behavior, raw
+  merge and `details.stderr`, handled-response merge, escape filtering, and the
+  per-command reset.
+
+#### Verification
+
+- `npm test` — 179/179 unit and 179/179 baseline.
+- `stderrData` still fires in every case; the default payload is unchanged.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -1150,10 +1192,10 @@ behavior.
 - A command that restarts networking or `sshd` in the foreground can drop the
   session or exceed `idleTimeOut`; the current workaround is `nohup ... &` plus
   polling.
-- stderr is emitted through `stderrData`, not appended to `_buffer`. stderr is
-  only really handled at the `ssh2` connection layer; the command layer does not
-  merge it. With a PTY OpenSSH usually merges it, but the response/session text
-  should not rely on that.
+- stderr is emitted through `stderrData`, not appended to `_buffer` by default.
+  stderr is only really handled at the `ssh2` connection layer; the command layer
+  does not merge it unless `captureStderr` is enabled. With a PTY OpenSSH usually
+  merges it, but the response/session text should not rely on that.
 - Prompts that are not the standard prompt (`su`, `ssh` host-key confirmation,
   pagers, installers, `read`, custom/localized `sudo -p`) are caller-handled in
   `commandProcessing` or `commandTimeout`, not by the library. Prompt answering
@@ -1180,10 +1222,13 @@ behavior.
   and letting `_runExit()` close still works, and `this.close()` / `stop()` from
   `commandComplete` no longer let `_nextCommand()` write against a closing
   stream. See `docs/CLOSE-SEMANTICS.md`.
-- Decide how to handle silent long-running commands: a heartbeat/expect option,
-  or a documented distinction between "no output yet" and "prompt missed".
-- Opt-in stderr capture in the command response, or document `onStderrData` as
-  required when diagnostics matter.
+- **Implemented:** handle silent long-running commands. `commandStartTimeout`
+  arms the idle timer when the command is written, and `details.noOutput`
+  distinguishes "no output yet" from "prompt missed". See
+  [L7.22 deliverables](#l722-deliverables-silent-command-timeout).
+- **Implemented:** opt-in stderr capture in the command response with
+  `captureStderr` and `details.stderr`; `onStderrData` remains the always-on
+  event. See [L7.23 deliverables](#l723-deliverables-stderr-capture).
 
 These are library changes, not provisioning scope. The netplan run should be
 completed first so the findings are not mixed with an untested network path.

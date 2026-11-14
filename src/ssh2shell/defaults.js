@@ -32,6 +32,16 @@ function applyHostDefaults(sshObj) {
   // changes the second `commandComplete` argument.
   sshObj.commandResponse =
     sshObj.commandResponse === 'handled' ? 'handled' : 'raw';
+  // Opt-in: arm the command idle timer when the command is written. Without
+  // this, a command that never produces any output never arms the timer.
+  if (sshObj.commandStartTimeout !== true) {
+    sshObj.commandStartTimeout = false;
+  }
+  // Opt-in: merge stderr into the command response and sessionText. The
+  // `stderrData` event still fires either way.
+  if (sshObj.captureStderr !== true) {
+    sshObj.captureStderr = false;
+  }
   if (!sshObj.hosts) {
     sshObj.hosts = [];
   }

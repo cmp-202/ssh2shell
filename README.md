@@ -52,6 +52,8 @@ one command to decide what to do next.
   - [Run a generated bash script](#run-a-generated-bash-script)
   - [Verbose and debug output](#verbose-and-debug-output)
   - [Progress indicator](#progress-indicator)
+  - [Silent commands](#silent-commands)
+  - [Capturing stderr](#capturing-stderr)
   - [Credential handling](#credential-handling)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
@@ -218,6 +220,7 @@ before it is matched and stored.
 | `passphrasePrompt` | string | `":"` | Text that identifies a passphrase prompt. |
 | `passPromptText` | string | `"Password"` | Text that must appear before the password/passphrase prompt. Shared by both prompt types. |
 | `commandResponse` | `"raw"` \| `"handled"` | `"raw"` | Shape of the `commandComplete` response. `handled` removes the echoed command and trailing prompt and trims; `details.rawResponse` keeps the raw buffer. `sessionText` stays raw. |
+| `captureStderr` | boolean | `false` | Merge captured stderr into the `commandComplete` response and `sessionText`. `details.stderr` carries the captured text. `stderrData` still fires. |
 | `asciiFilter` | string | `"[^\r\n\x20-\x7e]"` | Regex that removes non-standard ASCII. Complete terminal escape sequences are removed first. Tabs are preserved by the compiled default. |
 | `disableASCIIFilter` | boolean | `false` | Set to `true` to keep non-standard ASCII. |
 | `textColorFilter` | string | `"\\x1b\\[[0-9;]*m"` | Regex that removes ANSI colour codes. |
@@ -239,6 +242,12 @@ argument. Without `standardPromptRegex`, only the final prompt character (plus
 optional whitespace) is removed. Set the full prompt regex to remove the whole
 prompt.
 
+`captureStderr: true` opts into a merged response. Stderr is filtered with the
+same colour and ASCII filters, appended to the `commandComplete` response and
+`sessionText` with one separating newline, and exposed as `details.stderr`.
+The `stderrData` event still fires for every chunk. The capture is reset for
+each command, and the default `false` keeps stderr out of the response.
+
 `passPromptText` is shared by password and passphrase detection. If your host
 uses different wording, set it to text common to both prompts.
 
@@ -257,13 +266,16 @@ payload would remain in the response. Set `disableASCIIFilter` to keep them.
 | --- | --- | --- | --- |
 | `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. Every `onData` event resets the timer. |
 | `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. |
+| `commandStartTimeout` | boolean | `false` | Arm `idleTimeOut` as soon as a command is written, so a command that never produces output still times out. |
 | `commandTimeoutRetries` | number | `0` | Number of times to re-arm `commandTimeout` after a non-final attempt. `0` preserves the single-timeout behavior. |
 
 `idleTimeOut` is an inactivity timeout, not a limit on how long a command may
 run. Every `onData` event resets the timer, so a command that keeps producing
 output stays alive. When no data has arrived for `idleTimeOut` milliseconds, the
 `commandTimeout` event fires with a fifth `details` argument:
-`{ attempt, maxRetries, final }`.
+`{ attempt, maxRetries, final, noOutput }`. `noOutput` is `true` when the command
+has not produced any data yet, which distinguishes a silent command from a
+missed prompt.
 
 The library owns the attempt count. With `commandTimeoutRetries` set, it
 re-arms the timer after each non-final attempt; the handler only reacts. The
@@ -283,8 +295,10 @@ onCommandTimeout(command, response, stream, connection, details) {
 ```
 
 The idle timer is armed by incoming data. A command that produces no output at
-all is not covered by `commandTimeout`; use a server keepalive or an external
-timeout for that case.
+all is not covered by `commandTimeout` unless you opt in with
+`commandStartTimeout: true`, which arms the timer when the command is written.
+The timeout details then report `noOutput: true`. Without the option, use a
+server keepalive or an external timeout for completely silent commands.
 
 `dataIdleTimeOut` is the response-settling delay. It groups stream chunks into
 one response before prompt matching. It is not the command timeout.
@@ -339,11 +353,14 @@ progress.
 can answer a prompt with `stream.write('y\n')`. See
 [Respond to a prompt mid-command](#respond-to-a-prompt-mid-command).
 
-`onCommandTimeout` receives `details` as `{ attempt, maxRetries, final }`. With
-`commandTimeoutRetries` set, the library re-arms the timer for non-final
-attempts; the handler does not need to count. Set
-`this.sshObj.retryCommandTimeout = false` to stop retrying for the current
-command.
+`onCommandTimeout` receives `details` as
+`{ attempt, maxRetries, final, noOutput }`. With `commandTimeoutRetries` set, the
+library re-arms the timer for non-final attempts; the handler does not need to
+count. Set `this.sshObj.retryCommandTimeout = false` to stop retrying for the
+current command.
+
+`onCommandComplete` receives `details.rawResponse` and, when `captureStderr` is
+enabled, `details.stderr` with the captured stderr text.
 
 To stop a host early, answer a prompt, or close a session from a handler, see
 [Stopping and closing](#stopping-and-closing).
@@ -919,8 +936,8 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `data` | `data` | Raw data from the shell stream. |
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
-| `commandComplete` | `command, response, sshObj, details` | A command returned to the prompt. `response` is raw by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer. The handler can modify `sshObj.commands` to queue follow-up work. |
-| `commandTimeout` | `command, response, stream, connection, details` | No data arrived for `idleTimeOut` milliseconds. `details` is `{ attempt, maxRetries, final }`. |
+| `commandComplete` | `command, response, sshObj, details` | A command returned to the prompt. `response` is raw by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer; `details.stderr` carries captured stderr when `captureStderr` is enabled. The handler can modify `sshObj.commands` to queue follow-up work. |
+| `commandTimeout` | `command, response, stream, connection, details` | No data arrived for `idleTimeOut` milliseconds, or `commandStartTimeout` armed the timer at command start. `details` is `{ attempt, maxRetries, final, noOutput }`. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
 | `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
@@ -1193,6 +1210,49 @@ Progress output is separate from `verbose` and `debug`. When either is enabled,
 the heartbeat is suppressed because those modes already report each internal
 step. Enable `progress` only when you want a terminal heartbeat for long or
 silent commands; it produces nothing when stderr is redirected to a file.
+
+### Silent commands
+
+A command that never writes anything does not arm the data-driven idle timer.
+Opt in with `commandStartTimeout: true` to arm it when the command is written:
+
+```javascript
+const host = {
+  // ...
+  commandStartTimeout: true,
+  idleTimeOut: 30000,
+  onCommandTimeout(command, response, stream, connection, details) {
+    if (details.noOutput) {
+      this.emit('msg', `${command} produced no output`);
+    }
+  },
+};
+```
+
+The timeout details still report `{ attempt, maxRetries, final, noOutput }`, so
+the same handler works with `commandTimeoutRetries`.
+
+### Capturing stderr
+
+Stderr is emitted through `stderrData` and is not part of the command response
+by default. Set `captureStderr: true` to merge it into `commandComplete` and
+`sessionText`:
+
+```javascript
+const host = {
+  // ...
+  captureStderr: true,
+  onCommandComplete(command, response, sshObj, details) {
+    if (details.stderr) {
+      this.emit('msg', `${command} stderr: ${details.stderr}`);
+    }
+  },
+};
+```
+
+Captured stderr is filtered with the same colour and ASCII filters as stdout
+and is trimmed before it is merged. The `stderrData` event still fires for every
+chunk, so existing stderr handlers keep working.
 
 ### Credential handling
 

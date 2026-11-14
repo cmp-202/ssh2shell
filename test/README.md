@@ -36,9 +36,11 @@ No hosts or `.env` values are needed for these.
 
 Feature-specific suites include `test/unit/prompt-regex.test.js`
 (`standardPromptRegex`), `test/unit/command-response.test.js`
-(`commandResponse: 'handled'`), and `test/unit/timeout-retries.test.js`
-(`commandTimeoutRetries`). Opt-in cases are guarded by `isBaseline()` so the
-frozen artifact still passes.
+(`commandResponse: 'handled'`), `test/unit/timeout-retries.test.js`
+(`commandTimeoutRetries`), `test/unit/command-start-timeout.test.js`
+(`commandStartTimeout` and `details.noOutput`), and
+`test/unit/stderr-capture.test.js` (`captureStderr` and `details.stderr`).
+Opt-in cases are guarded by `isBaseline()` so the frozen artifact still passes.
 
 ## Live tests
 
