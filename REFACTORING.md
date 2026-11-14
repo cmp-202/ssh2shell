@@ -68,9 +68,9 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
   `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
 - `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
   never tagged, locally or remotely. `L7.18` has no level tag either; it shipped
-  in `v3.2.0`. `L7.19`-`L7.23` are the unreleased opt-in response/timeout
-  features (minor release target). Use the release tags as the coarse rollback
-  boundary; see [Rollback after L7.6](#rollback-after-l76).
+  in `v3.2.0`. `L7.19`-`L7.23` have no level tags either; they shipped in
+  `v3.3.0`. Use the release tags as the coarse rollback boundary; see
+  [Rollback after L7.6](#rollback-after-l76).
 - Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
   series). Later levels were recorded after the fact.
 - Tags are the source of truth for rollback where they exist; commit SHAs are
@@ -104,6 +104,7 @@ The release tags give a stable coarse boundary for the untagged levels:
 | --- | --- | --- |
 | `refactor/L7.6..v3.1.0` | `v3.1.0` | L7.7-L7.17 plus follow-up commits (16 commits) |
 | `v3.1.0..v3.2.0` | `v3.2.0` | L7.18 (post-3.1.0 shutdown work) |
+| `v3.2.0..v3.3.0` | `v3.3.0` | L7.19-L7.23 (opt-in prompt/response/timeout/silent-command/stderr features) |
 
 ```bash
 # Inspect everything after the last tagged level
@@ -114,14 +115,18 @@ git diff refactor/L7.6..v3.1.0
 git log --oneline v3.1.0..v3.2.0
 git diff v3.1.0..v3.2.0
 
-# Revert the post-3.1.0 work as one commit (keeps history)
-git revert --no-commit v3.1.0..v3.2.0
-git commit -m "revert post-3.1.0 work"
+# Inspect the post-3.2.0 work
+git log --oneline v3.2.0..v3.3.0
+git diff v3.2.0..v3.3.0
+
+# Revert the post-3.2.0 work as one commit (keeps history)
+git revert --no-commit v3.2.0..v3.3.0
+git commit -m "revert post-3.2.0 work"
 ```
 
-`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, and `v3.2.0` are the release
-boundaries. The release process, tag convention, and `gitHead` check are in
-[docs/PUBLISHING.md](docs/PUBLISHING.md).
+`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, `v3.2.0`, and `v3.3.0` are the
+release boundaries. The release process, tag convention, and `gitHead` check
+are in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Level completion checklist
 
@@ -207,11 +212,11 @@ must be recorded here.
 | L7.16 | — (ledger-only) | — | Done | Three-hop tunnel coverage | `tunnel` and `chaining` pass; `--all` 17/17 | No tag; see [L7.16 deliverables](#l716-deliverables-three-hop-tunnel-coverage) |
 | L7.17 | — (ledger-only) | — | Done | Progress on by default | 139/139 unit and 139/139 baseline; `progress` 1/1; `--all` 18/18 | No tag; see [L7.17 deliverables](#l717-deliverables-progress-on-by-default) |
 | L7.18 | — (ledger-only) | — | Done (v3.2.0) | Post-3.1.0 shutdown semantics: `stop()` and `close({ graceful: true })`, centralized host finalization, the `Connection close` payload, handler flags, and visible sudo failures with `abortOnSudoFailure` | `npm test` 149/149 on the current build and the frozen baseline; curated live 18/18; full live 24/24; `git diff --check` clean | No level tag; released in `v3.2.0`; see [L7.18 deliverables](#l718-deliverables-post-310-shutdown-semantics) |
-| L7.19 | — (ledger-only) | — | Done | Opt-in full prompt regex (`standardPromptRegex`) | New suite covers string, `RegExp`, invalid-pattern fallback, and completion/sudo/nested paths; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.19 deliverables](#l719-deliverables-standardpromptregex) |
-| L7.20 | — (ledger-only) | — | Done | Opt-in handled `commandComplete` payload (`commandResponse`) | New suite covers the raw default, echo/prompt removal, PTY-wrapped echo, and no-regex behavior; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.20 deliverables](#l720-deliverables-handled-commandcomplete-payload) |
-| L7.21 | — (ledger-only) | — | Done | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No tag; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
-| L7.22 | — (ledger-only) | — | Done | Opt-in `commandStartTimeout` for silent commands and `details.noOutput` | New suite covers the default no-timer behavior, start-timer arming, `noOutput` true/false, and the per-command reset; `npm test` 179/179 unit and 179/179 baseline | No tag; see [L7.22 deliverables](#l722-deliverables-silent-command-timeout) |
-| L7.23 | — (ledger-only) | — | Done | Opt-in stderr capture in the command response (`captureStderr`) | New suite covers the default, raw merge, handled merge, escape filtering, and per-command reset; `npm test` 179/179 unit and 179/179 baseline | No tag; see [L7.23 deliverables](#l723-deliverables-stderr-capture) |
+| L7.19 | — (ledger-only) | — | Done (v3.3.0) | Opt-in full prompt regex (`standardPromptRegex`) | New suite covers string, `RegExp`, invalid-pattern fallback, and completion/sudo/nested paths; `npm test` 169/169 unit and 169/169 baseline | No level tag; released in `v3.3.0`; see [L7.19 deliverables](#l719-deliverables-standardpromptregex) |
+| L7.20 | — (ledger-only) | — | Done (v3.3.0) | Opt-in handled `commandComplete` payload (`commandResponse`) | New suite covers the raw default, echo/prompt removal, PTY-wrapped echo, and no-regex behavior; `npm test` 169/169 unit and 169/169 baseline | No level tag; released in `v3.3.0`; see [L7.20 deliverables](#l720-deliverables-handled-commandcomplete-payload) |
+| L7.21 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No level tag; released in `v3.3.0`; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
+| L7.22 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandStartTimeout` for silent commands and `details.noOutput` | New suite covers the default no-timer behavior, start-timer arming, `noOutput` true/false, and the per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.22 deliverables](#l722-deliverables-silent-command-timeout) |
+| L7.23 | — (ledger-only) | — | Done (v3.3.0) | Opt-in stderr capture in the command response (`captureStderr`) | New suite covers the default, raw merge, handled merge, escape filtering, and per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.23 deliverables](#l723-deliverables-stderr-capture) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -937,6 +942,8 @@ Released in `v3.2.0`.
 
 Signed-off-by: user request for an opt-in full prompt match.
 
+Released in `v3.3.0`.
+
 - `src/ssh2shell/util.js` — `compilePromptRegex()` accepts a string or `RegExp`,
   wraps it as `(?:source)$`, strips `g`/`y`/`m`, and reports whether it fell
   back. `compilePrompts()` uses it for `standardPrompt` and returns the fallback
@@ -957,6 +964,8 @@ Signed-off-by: user request for an opt-in full prompt match.
 
 Signed-off-by: user request for an opt-in handled response.
 
+Released in `v3.3.0`.
+
 - `src/ssh2shell.js` — `stripEchoedCommand()` removes the command echo
   (tolerating PTY CR/LF wrapping), `_handleCommandResponse()` removes the echo
   and trailing prompt and trims, and `_commandComplete` emits the handled
@@ -975,6 +984,8 @@ Signed-off-by: user request for an opt-in handled response.
 ### L7.21 deliverables (command timeout retries)
 
 Signed-off-by: user request for library-owned retry re-arming.
+
+Released in `v3.3.0`.
 
 - `src/ssh2shell.js` — `_scheduleIdleTimeout` increments
   `commandTimeoutAttempt`, computes `final`, emits `details`, and re-arms for
@@ -1004,6 +1015,8 @@ Signed-off-by: user request for library-owned retry re-arming.
 
 Signed-off-by: user request for the silent-command and "no output yet" distinction.
 
+Released in `v3.3.0`.
+
 - `src/ssh2shell.js` — `_runCommand` arms the idle timer when
   `commandStartTimeout` is `true` and resets `_commandSawData` for the new
   command. `_onData` marks data as seen once a command is in flight.
@@ -1024,6 +1037,8 @@ Signed-off-by: user request for the silent-command and "no output yet" distincti
 ### L7.23 deliverables (stderr capture)
 
 Signed-off-by: user request for opt-in stderr in the command response.
+
+Released in `v3.3.0`.
 
 - `src/ssh2shell.js` — `_captureStderr()` filters and buffers stderr,
   `_mergeStderr()` appends the trimmed capture with one newline, and

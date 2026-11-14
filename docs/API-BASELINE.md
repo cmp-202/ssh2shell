@@ -264,7 +264,7 @@ are covered by level-aware tests that also run against the frozen baseline.
   has no process impact. Tests: `test/unit/progress.test.js` and
   `test/live/progress.js`.
 
-## Post-L7.18 opt-in features (minor release)
+## Post-L7.18 opt-in features (released in v3.3.0)
 
 These are additive, opt-in controls. Defaults preserve the raw
 `commandComplete` payload and the single-timeout behavior; tests that cover them
