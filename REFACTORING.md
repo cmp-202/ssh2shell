@@ -68,8 +68,9 @@ rather than discarded. See `docs/API-BASELINE.md` for the exact order.
   `L0`-`L6.1` and `L7.4`-`L7.6` are local only.
 - `refactor/L7.7` through `refactor/L7.17` were recorded in this ledger but
   never tagged, locally or remotely. `L7.18` has no level tag either; it shipped
-  in `v3.2.0`. Use the release tags as the coarse rollback boundary; see
-  [Rollback after L7.6](#rollback-after-l76).
+  in `v3.2.0`. `L7.19`-`L7.21` are the unreleased opt-in response/timeout
+  features (minor release target). Use the release tags as the coarse rollback
+  boundary; see [Rollback after L7.6](#rollback-after-l76).
 - Levels through L7.6 are one atomic commit (or a small, clearly-scoped commit
   series). Later levels were recorded after the fact.
 - Tags are the source of truth for rollback where they exist; commit SHAs are
@@ -170,7 +171,7 @@ When adding a test:
 | L6 | Signed-off post-L5 backlog, per-host prompt/filter, and error-handling fixes | Only with sign-off |
 | L6.1 | Approved optimisation and robustness follow-ups (readability, timer/option de-duplication, SSH prompt timeout, guarded close, empty command, own-property options, build-sync guard) | Only with sign-off |
 | L7 | Tooling, docs, CI, and publish pipeline | None |
-| L7.x | Post-L7 follow-ups: live VMs and provisioning, escape filtering, message prefixes, the live runner, the progress indicator, and stop/close semantics | Only with sign-off |
+| L7.x | Post-L7 follow-ups: live VMs and provisioning, escape filtering, message prefixes, the live runner, the progress indicator, stop/close semantics, and opt-in prompt/response/timeout controls | Only with sign-off |
 
 The ladder can be reordered or split as we learn more; any change to the plan
 must be recorded here.
@@ -206,6 +207,9 @@ must be recorded here.
 | L7.16 | — (ledger-only) | — | Done | Three-hop tunnel coverage | `tunnel` and `chaining` pass; `--all` 17/17 | No tag; see [L7.16 deliverables](#l716-deliverables-three-hop-tunnel-coverage) |
 | L7.17 | — (ledger-only) | — | Done | Progress on by default | 139/139 unit and 139/139 baseline; `progress` 1/1; `--all` 18/18 | No tag; see [L7.17 deliverables](#l717-deliverables-progress-on-by-default) |
 | L7.18 | — (ledger-only) | — | Done (v3.2.0) | Post-3.1.0 shutdown semantics: `stop()` and `close({ graceful: true })`, centralized host finalization, the `Connection close` payload, handler flags, and visible sudo failures with `abortOnSudoFailure` | `npm test` 149/149 on the current build and the frozen baseline; curated live 18/18; full live 24/24; `git diff --check` clean | No level tag; released in `v3.2.0`; see [L7.18 deliverables](#l718-deliverables-post-310-shutdown-semantics) |
+| L7.19 | — (ledger-only) | — | Done | Opt-in full prompt regex (`standardPromptRegex`) | New suite covers string, `RegExp`, invalid-pattern fallback, and completion/sudo/nested paths; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.19 deliverables](#l719-deliverables-standardpromptregex) |
+| L7.20 | — (ledger-only) | — | Done | Opt-in handled `commandComplete` payload (`commandResponse`) | New suite covers the raw default, echo/prompt removal, PTY-wrapped echo, and no-regex behavior; `npm test` 169/169 unit and 169/169 baseline | No tag; see [L7.20 deliverables](#l720-deliverables-handled-commandcomplete-payload) |
+| L7.21 | — (ledger-only) | — | Done | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No tag; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -926,6 +930,71 @@ Released in `v3.2.0`.
 - `npm run test:live` — 18/18 curated tests pass.
 - `node scripts/run-live.js --all` — 24/24 live tests pass.
 - `git diff --check` — clean.
+
+### L7.19 deliverables (standardPromptRegex)
+
+Signed-off-by: user request for an opt-in full prompt match.
+
+- `src/ssh2shell/util.js` — `compilePromptRegex()` accepts a string or `RegExp`,
+  wraps it as `(?:source)$`, strips `g`/`y`/`m`, and reports whether it fell
+  back. `compilePrompts()` uses it for `standardPrompt` and returns the fallback
+  flag.
+- `src/ssh2shell.js` — `_loadDefaults` logs a debug message when the configured
+  regex is invalid and falls back to `standardPrompt`.
+- `test/unit/prompt-regex.test.js` — 6 tests: full-prompt matching, `RegExp`
+  flags, invalid fallback, no false completion on output ending in a prompt
+  character, sudo completion, and nested-SSH completion.
+
+#### Verification
+
+- `npm test` — 169/169 unit and 169/169 baseline.
+- The suite passes against both the current build and the frozen baseline; the
+  opt-in cases are guarded by `isBaseline()`.
+
+### L7.20 deliverables (handled commandComplete payload)
+
+Signed-off-by: user request for an opt-in handled response.
+
+- `src/ssh2shell.js` — `stripEchoedCommand()` removes the command echo
+  (tolerating PTY CR/LF wrapping), `_handleCommandResponse()` removes the echo
+  and trailing prompt and trims, and `_commandComplete` emits the handled
+  payload plus `details.rawResponse`.
+- `src/ssh2shell/defaults.js` — `commandResponse` defaults to `'raw'`, so the
+  second `commandComplete` argument is unchanged unless opted in.
+- `test/unit/command-response.test.js` — 5 tests: raw default, echo/prompt
+  removal with `sessionText` staying raw, PTY-wrapped echo, no-regex behavior,
+  and a response without the echoed command.
+
+#### Verification
+
+- `npm test` — 169/169 unit and 169/169 baseline.
+- `sessionText` remains raw; only the `commandComplete` payload changes.
+
+### L7.21 deliverables (command timeout retries)
+
+Signed-off-by: user request for library-owned retry re-arming.
+
+- `src/ssh2shell.js` — `_scheduleIdleTimeout` increments
+  `commandTimeoutAttempt`, computes `final`, emits `details`, and re-arms for
+  non-final attempts unless `retryCommandTimeout` is `false` or a data event
+  already scheduled the next timer. `toNonNegativeInteger()` coerces the retry
+  count. `_runCommand` resets the attempt count when the same command is
+  written, and `_commandComplete` resets it after completion. The default
+  handler closes only on the final attempt.
+- `src/ssh2shell/defaults.js` — `commandTimeoutRetries` is coerced to a
+  non-negative integer and `commandTimeoutAttempt` starts at `0`.
+- `test/unit/timeout-retries.test.js` — 9 tests: unchanged single-timeout
+  default, re-arm to the configured count, handler answer mid-command, no
+  re-arm after `stop()`, `retryCommandTimeout` opt-out, final-only default
+  close, and the three reset points.
+- `test/live/timeout.js` — migrated from the `FirstPass` flag to
+  `commandTimeoutRetries` and `details.final`.
+
+#### Verification
+
+- `npm test` — 169/169 unit and 169/169 baseline.
+- `node scripts/run-live.js timeout` — the live prompt/timeout test answers the
+  first prompt on a non-final attempt and closes on the final one.
 
 ## Backlog and future work
 

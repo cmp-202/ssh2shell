@@ -34,6 +34,12 @@ npm run test:src        # run the unit suite against src/ instead of lib/
 
 No hosts or `.env` values are needed for these.
 
+Feature-specific suites include `test/unit/prompt-regex.test.js`
+(`standardPromptRegex`), `test/unit/command-response.test.js`
+(`commandResponse: 'handled'`), and `test/unit/timeout-retries.test.js`
+(`commandTimeoutRetries`). Opt-in cases are guarded by `isBaseline()` so the
+frozen artifact still passes.
+
 ## Live tests
 
 The live suite logs in to the three test VMs and exercises real prompts, sudo,

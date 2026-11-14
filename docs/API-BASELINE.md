@@ -88,7 +88,7 @@ until `_connections` is empty and `close()` runs.
 | `_buffer` | Raw response buffer for the current command. |
 | `idleTime` | Command timeout in ms (`idleTimeOut`, default 5000). |
 | `dataIdleTime` | Internal data-settle timer in ms; intended public key is `dataIdleTimeOut`, default 500. |
-| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Compiled `RegExp` prompt detectors. |
+| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Compiled `RegExp` prompt detectors. `standardPrompt` is compiled from `standardPromptRegex` when that opt-in is set, otherwise from the `standardPrompt` character set. |
 | `asciiFilter`, `textColorFilter` | Compiled `RegExp` response filters. |
 
 ### Events emitted by the code
@@ -101,8 +101,8 @@ until `_connections` is empty and `close()` runs.
 | `error` | `(err, type, close = false, callback)` | Connection, shell, stream, timeout, sudo, and nested-SSH failures. |
 | `end` | `(sessionText, sshObj)` | Stream `finish`, `_previousHost`, `_nextPrimaryHost`. |
 | `commandProcessing` | `(command, response, sshObj, stream)` | `_onData` while a command is still producing output. |
-| `commandComplete` | `(command, response, sshObj)` | `_commandComplete` after a prompt is detected. |
-| `commandTimeout` | `(command, response, stream, connection)` | Idle/data-settle timers in `_onData`. |
+| `commandComplete` | `(command, response, sshObj, details)` | `_commandComplete` after a prompt is detected. `response` is the raw buffer by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer. |
+| `commandTimeout` | `(command, response, stream, connection, details)` | `_scheduleIdleTimeout`, armed by `_onData`. `details` is `{ attempt, maxRetries, final }`. |
 | `keyboard-interactive` | `(name, instructions, lang, prompts, finish)` | Re-emitted from the `ssh2.Client`. |
 | `newPrimaryHost` | value returned by `_nextPrimaryHost`, which is `_initiate`'s return value: at `connect()` time this is `_stream` (the prototype placeholder `{}` until the shell opens) | `connect` and connection `close`. |
 | `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README no longer lists them. |
@@ -113,13 +113,15 @@ until `_connections` is empty and `close()` runs.
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
 `debug`, `progress`, `exposeCredentials`, `enter`, `streamEncoding`, `window`,
 `pty`, `idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
-undocumented `dataIdleTime`), `sessionText`, `exitCommands`.
+undocumented `dataIdleTime`), `commandResponse`, `commandTimeoutRetries`,
+`sessionText`, `exitCommands`.
 
-**Prompts and filters:** `standardPrompt`, `passwordPrompt`, `passphrasePrompt`,
-`passPromptText`, `asciiFilter`, `disableASCIIFilter`, `textColorFilter`,
-`disableColorFilter`.
+**Prompts and filters:** `standardPrompt`, `standardPromptRegex`,
+`passwordPrompt`, `passphrasePrompt`, `passPromptText`, `asciiFilter`,
+`disableASCIIFilter`, `textColorFilter`, `disableColorFilter`.
 
-**Runtime flags:** `pwSent`, `sshAuth`, `sshToNextHost`.
+**Runtime flags:** `pwSent`, `sshAuth`, `sshToNextHost`,
+`commandTimeoutAttempt`, `retryCommandTimeout`.
 
 **Event handlers:** `onCommandProcessing`, `onCommandComplete`,
 `onCommandTimeout`, `onKeyboardInteractive`, `onData`, `onStderrData`,
@@ -259,6 +261,36 @@ are covered by level-aware tests that also run against the frozen baseline.
   to `true` with sign-off because the output is purely visual, unobtrusive, and
   has no process impact. Tests: `test/unit/progress.test.js` and
   `test/live/progress.js`.
+
+## Post-L7.18 opt-in features (minor release)
+
+These are additive, opt-in controls. Defaults preserve the raw
+`commandComplete` payload and the single-timeout behavior; tests that cover them
+run against both the current build and the frozen baseline, guarded by
+`isBaseline()` where the baseline has no equivalent.
+
+- **`standardPromptRegex`.** A string or `RegExp` that replaces the
+  `standardPrompt` character class for prompt detection. It is wrapped as
+  `(?:source)$` so it is always end-anchored; the stateful `g`, `y`, and `m`
+  flags are stripped so repeated `.test()` calls stay stable. An invalid pattern
+  falls back to `standardPrompt` and logs a debug message. It is used everywhere
+  `standardPrompt` is: normal completion, sudo, and nested SSH. Test:
+  `test/unit/prompt-regex.test.js`.
+- **`commandResponse: 'handled'`.** Changes only the second `commandComplete`
+  argument. The echoed command and the trailing prompt are removed and the
+  result is trimmed; `details.rawResponse` still carries the raw buffer, and
+  `sessionText` stays raw. Without `standardPromptRegex`, only the final prompt
+  character (plus optional whitespace) can be removed. Test:
+  `test/unit/command-response.test.js`.
+- **`commandTimeoutRetries`.** A non-negative integer, default `0`. The library
+  owns the attempt count and re-arms the idle timer for each non-final attempt;
+  the handler only reacts to `details = { attempt, maxRetries, final }`. The
+  default handler closes only on the final attempt, so `0` preserves the
+  single-timeout behavior. A handler can set
+  `this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+  command. The attempt count resets when the same command is written and when a
+  command completes, not for internal password/exit writes. Test:
+  `test/unit/timeout-retries.test.js`; live check: `test/live/timeout.js`.
 
 ## README vs code discrepancies
 

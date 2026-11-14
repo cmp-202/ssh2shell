@@ -5,17 +5,20 @@ logFile('timeout.js');
 const SSH2Shell = require('../../src/ssh2shell');
 const { readPrivateKey } = require('../utils/private_key.js');
 
-// Every data response from the server resets the command timeout timer. If
-// onCommandTimeout writes to the stream and the server responds, the timer is
-// reset and normal processing resumes. If the server never responds, the script
-// hangs because there is no way to reset the timer from the host handler. An
-// instance-level commandTimeout listener can re-arm it instead:
+// Every data response from the server resets the command timeout timer. A
+// command that never returns to a prompt keeps the timer armed; when it fires,
+// `commandTimeout` means "no defined prompt was detected in time".
 //
-// self.sshObj.idleTimer = setTimeout(function () {
-//   self.emit('commandTimeout', command, response, stream, connection);
-// }, self._idleTime);
+// `commandTimeoutRetries` makes the library re-arm the timer for each non-final
+// attempt, so the handler only has to react to `details`:
 //
-// commandTimeout means "no defined prompt was detected in time".
+//   onCommandTimeout(command, response, stream, connection, details) {
+//     if (details.final) return this.close();
+//     if (response.includes('(Y,n)')) stream.write('y' + this.sshObj.enter);
+//   }
+//
+// This test answers the first prompt on a non-final attempt, then lets the
+// final unhandled prompt reach the final attempt and close the session.
 
 const host = {
   server: {
@@ -33,16 +36,19 @@ const host = {
   // Avoid `#` and `>` because prompt detection can trigger in the wrong place.
   standardPrompt: '$',
   idleTimeOut: 5000,
-  FirstPass: false,
+  commandTimeoutRetries: 1,
   debug: (process.env.DEBUG === 'true'),
   verbose: (process.env.VERBOSE === 'true'),
-  onCommandTimeout: function (command, response, stream, connection) {
+  onCommandTimeout: function (command, response, stream, connection, details) {
     if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: host.onCommandTimeout`);
+      this.emit(
+        'msg',
+        `${this.sshObj.server.host}: host.onCommandTimeout attempt ${details.attempt}/${details.maxRetries} final=${details.final}`
+      );
     }
 
-    // Answer the first prompt so the run reaches the final unhandled timeout.
-    if (response.indexOf('(Y,n)') !== -1 && this.sshObj.FirstPass !== true) {
+    // Answer the first prompt while the library still has retries left.
+    if (details.final === false && response.indexOf('(Y,n)') !== -1) {
       if (this.sshObj.debug) {
         this.emit(
           'msg',
@@ -51,8 +57,18 @@ const host = {
       }
       this.sshObj.sessionText += response + this.sshObj.enter;
       this._buffer = '';
-      this.sshObj.FirstPass = true;
       stream.write('y' + this.sshObj.enter);
+      return;
+    }
+
+    // The library re-arms non-final attempts; wait for the final one.
+    if (details.final === false) {
+      if (this.sshObj.debug) {
+        this.emit(
+          'msg',
+          `${this.sshObj.server.host}: Non-final timeout, waiting for the retry`
+        );
+      }
       return;
     }
 

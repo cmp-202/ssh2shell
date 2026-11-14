@@ -29,6 +29,42 @@ function toPositiveNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+// Retry counts are whole numbers; anything else is treated as zero.
+function toNonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : 0;
+}
+
+// Removes the echoed command from the start of a response. A PTY can wrap a
+// long command across lines, so CR/LF are skipped while matching. Returns the
+// original buffer when the echo is not present.
+function stripEchoedCommand(buffer, command) {
+  if (!command) {
+    return buffer;
+  }
+
+  let index = 0;
+  for (let position = 0; position < command.length; position += 1) {
+    while (buffer[index] === '\r' || buffer[index] === '\n') {
+      index += 1;
+    }
+    if (buffer[index] !== command[position]) {
+      return buffer;
+    }
+    index += 1;
+  }
+
+  // Remove the line break that follows the echoed command.
+  if (buffer[index] === '\r') {
+    index += 1;
+  }
+  if (buffer[index] === '\n') {
+    index += 1;
+  }
+
+  return buffer.slice(index);
+}
+
 class SSH2Shell extends Stream {
   constructor(hosts) {
     super(hosts);
@@ -392,7 +428,9 @@ class SSH2Shell extends Stream {
   }
 
   // Arms the command idle timer. The response is passed through unchanged so
-  // callers can keep their existing commandTimeout payloads.
+  // callers can keep their existing commandTimeout payloads. With
+  // `commandTimeoutRetries` set, the library owns the attempt count and re-arms
+  // the timer for each non-final attempt; a handler only reacts.
   _scheduleIdleTimeout(response) {
     // During shutdown the stop/close timer is the only bound that matters.
     if (this._stopping || this._closing || this._runComplete) {
@@ -400,14 +438,35 @@ class SSH2Shell extends Stream {
     }
 
     this.idleTimer = setTimeout(() => {
+      // This timer has fired. Clearing the reference lets the re-arm check
+      // below detect whether _onData already scheduled the next one.
+      this.idleTimer = null;
       this._progressEnd();
+
+      const attempt = (this.sshObj.commandTimeoutAttempt || 0) + 1;
+      this.sshObj.commandTimeoutAttempt = attempt;
+      const maxRetries = toNonNegativeInteger(this.sshObj.commandTimeoutRetries);
+      const final = attempt > maxRetries;
+
       this.emit(
         'commandTimeout',
         this.command,
         response,
         this._stream,
-        this.connection
+        this.connection,
+        { attempt, maxRetries, final }
       );
+
+      // Re-arm for the next attempt unless this was the last one, the handler
+      // opted out, or a data event already scheduled the next timer. The guard
+      // in _scheduleIdleTimeout covers the stop/close checks again.
+      if (
+        !final &&
+        this.sshObj.retryCommandTimeout !== false &&
+        !this.idleTimer
+      ) {
+        this._scheduleIdleTimeout(response);
+      }
     }, this.idleTime);
 
     return this.idleTimer;
@@ -514,6 +573,19 @@ class SSH2Shell extends Stream {
       this.command.slice(0, this._buffer.length),
       ''
     );
+  }
+
+  // Opt-in `commandResponse: 'handled'` payload: the echoed command and the
+  // trailing prompt are removed and the result is trimmed. The raw buffer is
+  // still available to handlers as `details.rawResponse`, and `sessionText`
+  // stays raw. Without a `standardPromptRegex`, only the final prompt
+  // character (plus optional whitespace) can be removed.
+  _handleCommandResponse(rawResponse) {
+    const withoutEcho = stripEchoedCommand(rawResponse, this.command);
+    // Trim trailing whitespace first so an end-anchored prompt regex can match
+    // even when the PTY ends the prompt with CR/LF.
+    const trimmed = withoutEcho.replace(/[ \t\r\n]+$/, '');
+    return trimmed.replace(this.standardPrompt, '').trim();
   }
 
   _processSudoPrompt() {
@@ -813,7 +885,8 @@ class SSH2Shell extends Stream {
   _commandComplete() {
     this._progressEnd();
     this._commandInFlight = false;
-    const response = this._buffer.trim();
+    const rawResponse = this._buffer;
+    const response = rawResponse.trim();
     // Check sudo su has been authenticated and add an extra exit command.
     if (
       this.command !== '' &&
@@ -828,17 +901,29 @@ class SSH2Shell extends Stream {
       );
       this.sshObj.sessionText += response;
 
+      // `commandResponse: 'handled'` opts into a response without the echoed
+      // command or trailing prompt. The raw buffer stays available to handlers
+      // as `details.rawResponse`; `sessionText` remains raw in this release.
+      const handled = this.sshObj.commandResponse === 'handled';
+      const payload = handled
+        ? this._handleCommandResponse(rawResponse)
+        : rawResponse;
+      const details = { rawResponse };
+
       // Handlers may set `sshObj` flags (abort/skip*) or call stop()/close().
       // Apply the flags after the event so a handler always sees the completed
       // response, then let the guarded command loop decide what runs next.
       this._inCommandComplete = true;
       try {
-        this.emit('commandComplete', this.command, this._buffer, this.sshObj);
+        this.emit('commandComplete', this.command, payload, this.sshObj, details);
       } finally {
         this._inCommandComplete = false;
       }
       this._applyHandlerFlags();
     }
+    // The next command starts a fresh timeout budget.
+    this.sshObj.commandTimeoutAttempt = 0;
+    this.sshObj.retryCommandTimeout = undefined;
     return this._nextCommand();
   }
 
@@ -947,6 +1032,14 @@ class SSH2Shell extends Stream {
     // session notes and debug output.
     if (this._closing || this._runComplete || !this._hasLiveStream()) {
       return false;
+    }
+
+    // A new command starts a fresh timeout budget. Internal writes (the sudo
+    // password or a queued exit command) pass a different string, so they do
+    // not reset the count for the command that is still in flight.
+    if (command === this.command) {
+      this.sshObj.commandTimeoutAttempt = 0;
+      this.sshObj.retryCommandTimeout = undefined;
     }
 
     this._systemMsg('debug',`runCommand:`);
@@ -1628,6 +1721,12 @@ class SSH2Shell extends Stream {
     this.passwordPrompt = prompts.passwordPrompt;
     this.passphrasePrompt = prompts.passphrasePrompt;
     this.standardPrompt = prompts.standardPrompt;
+    if (prompts.standardPromptFallback) {
+      this._systemMsg(
+        'debug',
+        `loadDefaults: StandardPromptRegex: incorrect regular expression reverting to standardPrompt: ${this.sshObj.standardPromptRegex}`
+      );
+    }
 
     // Listener defaults for command processing.
     this.sshObj.onCommandProcessing =
@@ -1642,7 +1741,17 @@ class SSH2Shell extends Stream {
 
     this.sshObj.onCommandTimeout =
       this.sshObj.onCommandTimeout ??
-      ((command, response, stream, connection) => {
+      ((command, response, stream, connection, details) => {
+        // With `commandTimeoutRetries` configured, only the final attempt
+        // closes the run. The library re-arms the timer for earlier attempts.
+        if (details && details.final === false) {
+          this._systemMsg(
+            'debug',
+            `loadDefaults: Class.commandTimeout retry ${details.attempt}/${details.maxRetries}`
+          );
+          return;
+        }
+
         response = response.replace(this.command, '');
         this._systemMsg('debug', `loadDefaults: Class.commandTimeout`);
         

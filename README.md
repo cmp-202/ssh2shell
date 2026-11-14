@@ -213,9 +213,11 @@ before it is matched and stored.
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
 | `standardPrompt` | string | `">$%#"` | Characters that identify a command prompt. Compiled to a regex matching one of these at the end of a line. |
+| `standardPromptRegex` | string \| RegExp | — | Opt-in full prompt regex. Replaces `standardPrompt` for prompt detection. Anchored to the end; `g`, `y`, and `m` flags are ignored. |
 | `passwordPrompt` | string | `":"` | Text that identifies a password prompt. |
 | `passphrasePrompt` | string | `":"` | Text that identifies a passphrase prompt. |
 | `passPromptText` | string | `"Password"` | Text that must appear before the password/passphrase prompt. Shared by both prompt types. |
+| `commandResponse` | `"raw"` \| `"handled"` | `"raw"` | Shape of the `commandComplete` response. `handled` removes the echoed command and trailing prompt and trims; `details.rawResponse` keeps the raw buffer. `sessionText` stays raw. |
 | `asciiFilter` | string | `"[^\r\n\x20-\x7e]"` | Regex that removes non-standard ASCII. Complete terminal escape sequences are removed first. Tabs are preserved by the compiled default. |
 | `disableASCIIFilter` | boolean | `false` | Set to `true` to keep non-standard ASCII. |
 | `textColorFilter` | string | `"\\x1b\\[[0-9;]*m"` | Regex that removes ANSI colour codes. |
@@ -224,6 +226,18 @@ before it is matched and stored.
 If your host uses a prompt that does not end in `>$%#`, set `standardPrompt` to
 the characters it does use. For example, a prompt ending in `>` and a space
 still works, but a prompt ending in `:` will not.
+
+If the trailing-character match is too loose, set `standardPromptRegex` to the
+full prompt, for example `'tester@host:~\\$\\s?$'`. It is anchored to the end
+automatically and used everywhere `standardPrompt` is: normal command
+completion, `sudo`, and nested `ssh` prompts. An invalid pattern falls back to
+`standardPrompt` and logs a debug message. Treat it as trusted configuration; a
+pathological pattern can be expensive to evaluate.
+
+`commandResponse: 'handled'` changes only the second `commandComplete`
+argument. Without `standardPromptRegex`, only the final prompt character (plus
+optional whitespace) is removed. Set the full prompt regex to remove the whole
+prompt.
 
 `passPromptText` is shared by password and passphrase detection. If your host
 uses different wording, set it to text common to both prompts.
@@ -243,12 +257,34 @@ payload would remain in the response. Set `disableASCIIFilter` to keep them.
 | --- | --- | --- | --- |
 | `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. Every `onData` event resets the timer. |
 | `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. |
+| `commandTimeoutRetries` | number | `0` | Number of times to re-arm `commandTimeout` after a non-final attempt. `0` preserves the single-timeout behavior. |
 
 `idleTimeOut` is an inactivity timeout, not a limit on how long a command may
 run. Every `onData` event resets the timer, so a command that keeps producing
 output stays alive. When no data has arrived for `idleTimeOut` milliseconds, the
-`commandTimeout` event fires. The default handler emits an `error` of type
-`Command Timeout` and closes the connection.
+`commandTimeout` event fires with a fifth `details` argument:
+`{ attempt, maxRetries, final }`.
+
+The library owns the attempt count. With `commandTimeoutRetries` set, it
+re-arms the timer after each non-final attempt; the handler only reacts. The
+default handler emits an `error` of type `Command Timeout` and closes the
+connection on the final attempt. With the default `0`, the first timeout is
+final and behavior is unchanged.
+
+```javascript
+onCommandTimeout(command, response, stream, connection, details) {
+  if (details.final) {
+    this.stop('command-timeout');
+    return;
+  }
+  // Answer the prompt; the library re-arms the timer for the next attempt.
+  if (response.includes('(Y,n)')) stream.write('y\n');
+}
+```
+
+The idle timer is armed by incoming data. A command that produces no output at
+all is not covered by `commandTimeout`; use a server keepalive or an external
+timeout for that case.
 
 `dataIdleTimeOut` is the response-settling delay. It groups stream chunks into
 one response before prompt matching. It is not the command timeout.
@@ -289,8 +325,8 @@ with `SSH.on(...)` run for every host, in parallel with any host handler.
 | `onData` | `data` | Raw data arrives from the stream. |
 | `onStderrData` | `data` | Data arrives on stderr. |
 | `onCommandProcessing` | `command, response, sshObj, stream` | Output arrives before the prompt is detected. |
-| `onCommandComplete` | `command, response, sshObj` | A command returns to the prompt. Use it to inspect the response, queue follow-up commands, or stop the current host. |
-| `onCommandTimeout` | `command, response, stream, connection` | No data arrives for `idleTimeOut` milliseconds. |
+| `onCommandComplete` | `command, response, sshObj, details` | A command returns to the prompt. Use it to inspect the response, queue follow-up commands, or stop the current host. |
+| `onCommandTimeout` | `command, response, stream, connection, details` | No data arrives for `idleTimeOut` milliseconds. |
 | `onEnd` | `sessionText, sshObj` | The host session finishes. |
 | `onError` | `err, type, close, callback` | An error is raised. |
 | `onKeyboardInteractive` | `name, instructions, instructionsLang, prompts, finish` | Keyboard-interactive authentication is requested. |
@@ -302,6 +338,12 @@ progress.
 `onCommandProcessing` and `onCommandTimeout` receive the live `stream`, so you
 can answer a prompt with `stream.write('y\n')`. See
 [Respond to a prompt mid-command](#respond-to-a-prompt-mid-command).
+
+`onCommandTimeout` receives `details` as `{ attempt, maxRetries, final }`. With
+`commandTimeoutRetries` set, the library re-arms the timer for non-final
+attempts; the handler does not need to count. Set
+`this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+command.
 
 To stop a host early, answer a prompt, or close a session from a handler, see
 [Stopping and closing](#stopping-and-closing).
@@ -864,8 +906,8 @@ SSH.on('data', (data) => { /* ... */ });
 SSH.on('stderrData', (data) => { /* ... */ });
 
 SSH.on('commandProcessing', (command, response, sshObj, stream) => { /* ... */ });
-SSH.on('commandComplete', (command, response, sshObj) => { /* ... */ });
-SSH.on('commandTimeout', (command, response, stream, connection) => { /* ... */ });
+SSH.on('commandComplete', (command, response, sshObj, details) => { /* ... */ });
+SSH.on('commandTimeout', (command, response, stream, connection, details) => { /* ... */ });
 SSH.on('end', (sessionText, sshObj) => { /* ... */ });
 SSH.on('error', (err, type, close = false, callback) => { /* ... */ });
 SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => { /* ... */ });
@@ -877,15 +919,18 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `data` | `data` | Raw data from the shell stream. |
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
-| `commandComplete` | `command, response, sshObj` | A command returned to the prompt. The handler can modify `sshObj.commands` to queue follow-up work. |
-| `commandTimeout` | `command, response, stream, connection` | No data arrived for `idleTimeOut` milliseconds. |
+| `commandComplete` | `command, response, sshObj, details` | A command returned to the prompt. `response` is raw by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer. The handler can modify `sshObj.commands` to queue follow-up work. |
+| `commandTimeout` | `command, response, stream, connection, details` | No data arrived for `idleTimeOut` milliseconds. `details` is `{ attempt, maxRetries, final }`. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
 | `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
 
-`commandComplete` receives the raw response after the command has been removed
-from `sshObj.commands`. `connect`, `ready`, and `close` are not instance events;
-use the `msg` event with `connectedMessage`, `readyMessage`, and
+`commandComplete` receives the response after the command has been removed from
+`sshObj.commands`. The default is the raw buffer. Set
+`commandResponse: 'handled'` to receive a response without the echoed command
+or trailing prompt; the raw buffer is still available as `details.rawResponse`,
+and `sessionText` stays raw. `connect`, `ready`, and `close` are not instance
+events; use the `msg` event with `connectedMessage`, `readyMessage`, and
 `closedMessage`, or listen for `end`.
 
 `newPrimaryHost` is used internally to move between primary hosts and is not

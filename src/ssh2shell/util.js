@@ -53,10 +53,35 @@ function compileTextColorFilter(configured) {
   return { filter: /\x1b\[[0-9;]*m/g, usedFallback: true };
 }
 
+// A caller-supplied standard prompt regex is trusted config. It is anchored to
+// the end so it cannot match mid-output. The stateful `g`/`y` flags are
+// stripped so repeated `.test()` calls stay stable, and `m` is stripped because
+// it would let the end anchor match a line end before the final prompt.
+function compilePromptRegex(configured) {
+  if (configured == null || configured === '') {
+    return { regex: null, usedFallback: false };
+  }
+
+  const isRegExp = configured instanceof RegExp;
+  if (!isRegExp && typeof configured !== 'string') {
+    return { regex: null, usedFallback: true };
+  }
+
+  const source = isRegExp ? configured.source : configured;
+  const flags = isRegExp ? configured.flags.replace(/[gym]/g, '') : '';
+
+  try {
+    return { regex: new RegExp(`(?:${source})$`, flags), usedFallback: false };
+  } catch (error) {
+    return { regex: null, usedFallback: true };
+  }
+}
+
 function compilePrompts(sshObj) {
   // Prompts are fully sanitized at runtime via escapeRegex (they are cast as
   // pure literals, so no fallback is required).
   const cleanText = escapeRegex(sshObj.passPromptText || 'Password');
+  const custom = compilePromptRegex(sshObj.standardPromptRegex);
 
   return {
     passwordPrompt: new RegExp(
@@ -67,9 +92,10 @@ function compilePrompts(sshObj) {
       `${cleanText}[^\\n]*${escapeRegex(sshObj.passphrasePrompt || ':')}\\s?$`,
       'i'
     ),
-    standardPrompt: new RegExp(
-      `[${escapeRegex(sshObj.standardPrompt || '>$%#')}]\\s?$`
-    ),
+    standardPrompt:
+      custom.regex ||
+      new RegExp(`[${escapeRegex(sshObj.standardPrompt || '>$%#')}]\\s?$`),
+    standardPromptFallback: custom.usedFallback,
   };
 }
 
@@ -136,6 +162,7 @@ function redactCredentials(value, seen = new WeakSet()) {
 
 module.exports = {
   compileAsciiFilter,
+  compilePromptRegex,
   compilePrompts,
   compileTextColorFilter,
   credentialSecrets,
