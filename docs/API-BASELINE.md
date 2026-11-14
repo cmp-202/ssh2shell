@@ -290,7 +290,8 @@ run against both the current build and the frozen baseline, guarded by
   `this.sshObj.retryCommandTimeout = false` to stop retrying for the current
   command. The attempt count resets when the same command is written and when a
   command completes, not for internal password/exit writes. Test:
-  `test/unit/timeout-retries.test.js`; live check: `test/live/timeout.js`.
+  `test/unit/timeout-retries.test.js`; live checks: `test/live/timeout.js`
+  (handler-managed) and `test/live/timeout_retries.js` (opt-in retries).
 
 ## README vs code discrepancies
 

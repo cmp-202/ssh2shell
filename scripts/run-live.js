@@ -172,6 +172,13 @@ const checks = {
     contains: ['First prompt to put valid input', 'Final unhandled time out'],
     logContains: ['Command timed out after'],
   },
+  timeout_retries: {
+    contains: ['First prompt to put valid input', 'Final unhandled time out'],
+    logContains: [
+      'Non-final timeout; waiting for retry',
+      'Command timed out after',
+    ],
+  },
   pipe: {
     files: [
       { name: 'pipe-first.log', contains: ['host pipe'] },

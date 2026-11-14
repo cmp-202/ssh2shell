@@ -987,14 +987,16 @@ Signed-off-by: user request for library-owned retry re-arming.
   default, re-arm to the configured count, handler answer mid-command, no
   re-arm after `stop()`, `retryCommandTimeout` opt-out, final-only default
   close, and the three reset points.
-- `test/live/timeout.js` — migrated from the `FirstPass` flag to
-  `commandTimeoutRetries` and `details.final`.
+- `test/live/timeout_retries.js` — new live coverage for
+  `commandTimeoutRetries` and `details.final`; the original
+  `test/live/timeout.js` is kept unchanged as the handler-managed comparison.
 
 #### Verification
 
 - `npm test` — 169/169 unit and 169/169 baseline.
-- `node scripts/run-live.js timeout` — the live prompt/timeout test answers the
-  first prompt on a non-final attempt and closes on the final one.
+- `node scripts/run-live.js timeout timeout_retries` — both live prompt/timeout
+  tests pass. The original keeps the handler-managed `FirstPass` approach; the
+  new one answers on a non-final attempt and closes on the final one.
 
 ## Backlog and future work
 

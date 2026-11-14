@@ -75,6 +75,10 @@ node scripts/run-live.js simple tunnel chaining
 node scripts/run-live.js --all --timeout 300
 ```
 
+`timeout.js` keeps the handler-managed `FirstPass` approach.
+`timeout_retries.js` uses `commandTimeoutRetries` and `details.final`, so the
+library owns the attempt count and re-arms the timer.
+
 Each test runs in its own process with a 180-second default timeout. The runner
 does not trust the exit code: a failed connection still reaches the connect
 callback with empty session text and exits zero. It checks the callback, the
