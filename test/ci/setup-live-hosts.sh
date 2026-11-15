@@ -53,6 +53,19 @@ if ! command -v sshd >/dev/null 2>&1; then
   apt-get install -y -qq openssh-server >/dev/null
 fi
 
+# OpenSSH 9.8+ splits the listener from the per-connection `sshd-session` and
+# derives the session binary from argv[0]. Calling `sshd` through PATH leaves
+# argv[0] relative, which fails with "sshd requires execution with an absolute
+# path". Resolve the binary once and use that everywhere.
+sshd_bin=$(command -v sshd)
+case "$sshd_bin" in
+  /*) ;;
+  *)
+    echo "sshd must resolve to an absolute path, got: $sshd_bin" >&2
+    exit 1
+    ;;
+esac
+
 # Stop the image's own sshd if it holds port 22. The test instances bind
 # specific loopback addresses, but a wildcard listener would conflict.
 if ss -ltnH | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):22$'; then
@@ -147,8 +160,8 @@ EOF
   fi
 
   chmod 600 "$config"
-  sshd -t -f "$config"
-  sshd -f "$config" -E "$log"
+  "$sshd_bin" -t -f "$config"
+  "$sshd_bin" -f "$config" -E "$log"
 
   for _ in $(seq 1 50); do
     if ss -ltnH | grep -q "$address:22"; then
