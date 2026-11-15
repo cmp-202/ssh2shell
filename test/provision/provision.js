@@ -296,7 +296,7 @@ function printConfig() {
   console.log(`  ip          ${role.ip}/${role.prefix} (${role.netmask})`);
   console.log(`  hostname    ${role.hostname}`);
   console.log(`  interface   ${role.interfaceName}`);
-  console.log(`  user        ${loginUser}`);
+  console.log(`  user        ${loginUser ? '[set]' : '[not set]'}`);
   console.log(`  password    ${loginPassword ? '[set]' : '[not set]'}`);
   console.log(`  sudo        ${sudoPassword ? '[set]' : '[not set]'}`);
   console.log(`  key         ${bootstrapKeyPath || 'none'}`);
