@@ -16,6 +16,11 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - Corrected stale hop and timeout comments in `tunnel`, `graceful_close`, and
   `timeout` so they describe the `forwardOut` transport and the always-on idle
   timer.
+- Added importable repository rulesets in `.github/rulesets/` for `master`
+  (pull request, CI matrix, live suite, no force pushes or deletion) and `v*`
+  release tags (owner-only creation, updates, and deletion).
+- Pointed the `package.json` `homepage` at the repository README instead of the
+  outdated wiki.
 
 ## [4.0.0] - 2026-11-15
 

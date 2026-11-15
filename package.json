@@ -64,7 +64,7 @@
   "bugs": {
     "url": "https://github.com/cmp-202/ssh2shell/issues"
   },
-  "homepage": "https://github.com/cmp-202/ssh2shell/wiki",
+  "homepage": "https://github.com/cmp-202/ssh2shell#readme",
   "directories": {
     "test": "test"
   },
