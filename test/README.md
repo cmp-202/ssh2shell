@@ -1,8 +1,9 @@
 # Testing ssh2shell
 
-This folder holds the offline test suites and the local environment used for
-live tests against real VMs. The main [README](../README.md) covers the library
-API; start here when you need to run, rebuild, or extend the tests.
+This folder holds the offline test suites and the environment used for live
+tests. Locally they run against the provisioning VMs; CI starts throwaway `sshd`
+hosts on the runner. The main [README](../README.md) covers the library API;
+start here when you need to run, rebuild, or extend the tests.
 
 ## Layout
 

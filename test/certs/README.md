@@ -4,6 +4,10 @@ These keys are only for the local live-test VMs. The private keys are
 gitignored; the matching `.pub` files are committed so the expected identities
 are visible in review.
 
+CI does not use these files: the live workflow generates a throwaway key pair
+per run and [`test/ci/setup-live-hosts.sh`](../ci/setup-live-hosts.sh) installs
+its public half.
+
 ## Key pairs
 
 | Key | Purpose | Installed for |
