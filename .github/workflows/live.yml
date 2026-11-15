@@ -1,0 +1,99 @@
+name: Live tests
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test
+        required: false
+        type: string
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: Live suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The private key is gitignored, so each run gets a throwaway pair. The
+      # setup script installs the public half for the test users.
+      - name: Generate throwaway SSH key
+        run: ssh-keygen -q -t ed25519 -N "" -C ssh2shell-ci -f "$RUNNER_TEMP/test_ed25519"
+
+      - name: Start test hosts
+        run: sudo bash test/ci/setup-live-hosts.sh "$RUNNER_TEMP/test_ed25519.pub"
+
+      - name: Run live suite
+        env:
+          SSH2SHELL_MODULE: src
+          HOST: 127.0.0.10
+          PORT: '22'
+          USER_NAME: tester
+          PASSWORD: password
+          PRIVATE_KEY_PATH: ${{ runner.temp }}/test_ed25519
+          KEY_PASSPHRASE: ''
+          EXPECTED_HOST_HASH: ''
+          SECOND_USER: suuser
+          SECOND_USER_PASSWORD: secondpassword
+          NOPASSWD_USER: nopasswd
+          NOPASSWD_PASSWORD: nopasswdpassword
+          KBD_USER: kbduser
+          KBD_PASSWORD: kbdpassword
+          KBD_HOST: 127.0.0.10
+          KBD_PORT: '22'
+          SERVER1_HOST: 127.0.0.10
+          SERVER1_PORT: '22'
+          SERVER1_USER_NAME: tester
+          SERVER1_PASSWORD: password
+          SERVER2_HOST: 127.0.0.11
+          SERVER2_PORT: '22'
+          SERVER2_USER_NAME: tester
+          SERVER2_PASSWORD: password
+          SERVER3_HOST: 127.0.0.12
+          SERVER3_PORT: '22'
+          SERVER3_USER_NAME: tester
+          SERVER3_PASSWORD: password
+        run: npm run test:live:all
+
+      - name: Upload live logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-logs
+          path: |
+            test/logs
+            /var/log/ssh2shell
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop test hosts
+        if: always()
+        run: sudo bash test/ci/stop-live-hosts.sh

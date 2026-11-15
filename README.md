@@ -1299,9 +1299,11 @@ npm test
 ```
 
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
-runs the level-aware baseline tests. The live tests need real hosts. See
-[`test/README.md`](./test/README.md) for the test layout, live runner,
-environment variables, keys, and VM provisioning.
+runs the level-aware baseline tests. The live tests need SSH hosts; CI starts
+three throwaway `sshd` instances on the runner, and the same suite can run
+against the provisioning VMs locally. See [`test/README.md`](./test/README.md)
+for the test layout, live runner, environment variables, keys, CI hosts, and VM
+provisioning.
 
 ## Changelog
 

@@ -19,8 +19,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  live:
+    name: Live suite
+    uses: ./.github/workflows/live.yml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+
   publish:
     name: Publish ${{ inputs.ref || github.ref_name }}
+    needs: live
     runs-on: ubuntu-latest
     steps:
       - name: Check out

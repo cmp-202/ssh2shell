@@ -217,6 +217,47 @@ The main environment variables are:
 
 [`.env-example`](../.env-example) lists every variable with its default.
 
+## CI live tests
+
+`.github/workflows/live.yml` runs the full live suite on `ubuntu-latest` without
+VMs. It runs on pushes to `master`, pull requests, a nightly schedule, and on
+demand. The job fails when any live test fails, so it can be added to branch
+protection as a required check. `publish.yml` calls the same workflow and does
+not publish unless it passes.
+
+[`ci/setup-live-hosts.sh`](./ci/setup-live-hosts.sh) creates the same four
+accounts as the provisioning script and starts three sshd instances on the
+runner's loopback interface, one per role:
+
+| Role | CI address | Notes |
+| --- | --- | --- |
+| `server1` | `127.0.0.10` | `tester`, `nopasswd`, `suuser`, `kbduser` (password auth disabled for `kbduser`) |
+| `server2` | `127.0.0.11` | `tester`, `nopasswd` (`NOPASSWD` sudo), `suuser` |
+| `server3` | `127.0.0.12` | `tester`, `nopasswd`, `suuser` |
+
+The workflow generates a throwaway key pair, installs the public half, and runs
+`npm run test:live:all` against `src`. It uploads `test/logs` and the sshd logs
+as an artifact. [`ci/stop-live-hosts.sh`](./ci/stop-live-hosts.sh) stops the
+instances.
+
+These are sshd processes on the runner, not VMs: they exercise the SSH
+transport, sudo, `su`, keyboard-interactive, and `forwardOut` hops, but not the
+provisioning script or the VM network setup. Run `provision.js` and the suite
+against real VMs when a change touches provisioning or networking.
+
+To reproduce on a Linux host, generate a key, run the setup script with its
+public half, copy the environment block from the workflow's **Run live suite**
+step, and run the suite. Stop the instances when you are done:
+
+```bash
+ssh-keygen -q -t ed25519 -N "" -C ssh2shell-ci -f /tmp/test_ed25519
+sudo bash test/ci/setup-live-hosts.sh /tmp/test_ed25519.pub
+# export the variables from .github/workflows/live.yml, with
+# PRIVATE_KEY_PATH=/tmp/test_ed25519
+npm run test:live:all
+sudo bash test/ci/stop-live-hosts.sh
+```
+
 ## Provisioning
 
 To rebuild a VM from a fresh Ubuntu install, put its current address and

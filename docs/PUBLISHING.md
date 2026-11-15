@@ -55,8 +55,9 @@ git push origin master
 git push origin vX.Y.Z
 ```
 
-The tag push triggers `.github/workflows/publish.yml`, which runs the full suite
-and publishes with provenance.
+The tag push triggers `.github/workflows/publish.yml`, which runs the live suite
+(`live.yml`), the offline suite, and publishes with provenance. The publish job
+does not start unless the live suite passes.
 
 To publish an existing tag manually, open **Actions → Publish to npm → Run
 workflow**, choose `master`, and enter the tag (for example `v3.0.0`).
@@ -83,19 +84,19 @@ left to memory.
 
 - [ ] Decide the semver level from the commits since the last tag.
 - [ ] `npm version <major|minor|patch> --no-git-tag-version`.
-- [ ] Update `REFACTORING.md` and any docs affected by the release.
+- [ ] Update `REFACTORING.md`, `CHANGELOG.md`, and any docs affected by the
+      release.
 - [ ] `npm test` passes (`check:build`, unit, baseline).
+- [ ] Run the live suite locally when the change touches connection or command
+      flow: `npm run test:live:all`.
 - [ ] Commit `chore: release X.Y.Z`, tag `vX.Y.Z`, push `master` and the tag.
+- [ ] The **Live tests** workflow passes.
 - [ ] The **Publish to npm** workflow succeeds.
 - [ ] `npm view ssh2shell version` and the `gitHead` check above pass.
 - [ ] Create a GitHub Release for `vX.Y.Z` with notes for the new features and
       fixes.
-- [ ] Add or update `CHANGELOG.md` with the breaking changes, features, and
-      fixes for this version.
 - [ ] Check the workflow actions for deprecated runtimes (for example
       `actions/checkout` and `actions/setup-node` on Node 20) and bump them.
-- [ ] Run the live suite when the change touches connection or command flow:
-      `npm run test:live:all`.
 
 ## Stopgap: granular access token with bypass 2FA
 
