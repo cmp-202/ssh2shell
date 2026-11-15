@@ -48,16 +48,28 @@ For a new version:
 ```bash
 npm version <major|minor|patch> --no-git-tag-version
 # update REFACTORING.md, CHANGELOG.md, and docs as needed
+git switch -c release/X.Y.Z
 git add package.json package-lock.json REFACTORING.md CHANGELOG.md docs
 git commit -m "chore: release X.Y.Z"
+git push -u origin release/X.Y.Z
+```
+
+Open a pull request and merge it once CI and the live suite pass. `master` is
+protected by `.github/rulesets/branch-master.json`, so the release commit cannot
+be pushed directly. Then tag the merge commit:
+
+```bash
+git switch master
+git pull --ff-only
 git tag -a vX.Y.Z -m "X.Y.Z"
-git push origin master
 git push origin vX.Y.Z
 ```
 
 The tag push triggers `.github/workflows/publish.yml`, which runs the live suite
 (`live.yml`), the offline suite, and publishes with provenance. The publish job
-does not start unless the live suite passes.
+does not start unless the live suite passes. Tags are protected by
+`.github/rulesets/tag-release.json`; the owner bypass in that ruleset is what
+allows the tag to be pushed.
 
 To publish an existing tag manually, open **Actions → Publish to npm → Run
 workflow**, choose `master`, and enter the tag (for example `v3.0.0`).
@@ -89,8 +101,11 @@ left to memory.
 - [ ] `npm test` passes (`check:build`, unit, baseline).
 - [ ] Run the live suite locally when the change touches connection or command
       flow: `npm run test:live:all`.
-- [ ] Commit `chore: release X.Y.Z`, tag `vX.Y.Z`, push `master` and the tag.
-- [ ] The **Live tests** workflow passes.
+- [ ] Commit `chore: release X.Y.Z` on a `release/X.Y.Z` branch and open a pull
+      request.
+- [ ] The **CI** and **Live tests** workflows pass on the pull request.
+- [ ] Merge the pull request, then tag the merge commit `vX.Y.Z` and push the
+      tag.
 - [ ] The **Publish to npm** workflow succeeds.
 - [ ] `npm view ssh2shell version` and the `gitHead` check above pass.
 - [ ] Create a GitHub Release for `vX.Y.Z` with notes for the new features and

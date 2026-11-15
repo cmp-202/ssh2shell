@@ -18,7 +18,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   timer.
 - Added importable repository rulesets in `.github/rulesets/` for `master`
   (pull request, CI matrix, live suite, no force pushes or deletion) and `v*`
-  release tags (owner-only creation, updates, and deletion).
+  release tags (owner-only creation, updates, and deletion). The release steps
+  in `docs/PUBLISHING.md` now go through a pull request.
 - Pointed the `package.json` `homepage` at the repository README instead of the
   outdated wiki.
 
