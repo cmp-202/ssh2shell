@@ -8,6 +8,7 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
+  injectSsh2Client,
 } = require('./helpers/harness');
 const { FakeClient, FakeStream } = require('./helpers/fake-ssh2');
 
@@ -256,18 +257,55 @@ describe('L5 restored baseline payloads', () => {
     assert.equal(events[0][1], 'echo one\none\n$ ');
   });
 
-  it('maps the legacy msg.send handler to msg', () => {
+  it('uses onMsg as the host message handler', () => {
     const messages = [];
-    const send = (message) => messages.push(String(message));
-    const { ssh, host } = make({ msg: { send } });
+    const { ssh, host } = make({
+      onMsg: (message) => messages.push(String(message)),
+    });
 
-    assert.equal(host.msg, send);
-
+    assert.equal(typeof host.onMsg, 'function');
     ssh.emit('msg', 'hello');
     assert.deepEqual(messages, ['hello']);
   });
 
-  it('stores hashMethod on server.hostHash for the ssh2 connection', () => {
+  it('ignores the legacy msg.send shape', () => {
+    if (isBaseline()) {
+      // The baseline still accepts the Hubot-era shape.
+      return;
+    }
+
+    const messages = [];
+    const send = (message) => messages.push(String(message));
+    const { ssh } = make({ msg: { send } });
+    ssh.msg = () => {};
+
+    ssh.emit('msg', 'hello');
+    assert.deepEqual(messages, []);
+  });
+
+  it('passes hostHash to the ssh2 connection', () => {
+    const { ssh } = make();
+    ssh.sshObj.server.hostHash = 'sha256';
+
+    class NoReadyClient extends FakeClient {
+      constructor() {
+        super();
+        this.autoReady = false;
+      }
+    }
+    injectSsh2Client(ssh, NoReadyClient);
+
+    ssh._connect();
+
+    assert.equal(ssh.connection.config.hostHash, 'sha256');
+  });
+
+  it('no longer maps hashMethod to hostHash', () => {
+    if (isBaseline()) {
+      // The baseline keeps the legacy alias.
+      return;
+    }
+
     const { ssh } = make();
     ssh.sshObj.server.hashMethod = 'sha256';
 
@@ -277,12 +315,11 @@ describe('L5 restored baseline payloads', () => {
         this.autoReady = false;
       }
     }
-    ssh.ssh2Client = NoReadyClient;
+    injectSsh2Client(ssh, NoReadyClient);
 
     ssh._connect();
 
-    // Both the baseline and L5 pass hashMethod through as server.hostHash.
-    assert.equal(ssh.connection.config.hostHash, 'sha256');
+    assert.equal(ssh.connection.config.hostHash, undefined);
   });
 });
 

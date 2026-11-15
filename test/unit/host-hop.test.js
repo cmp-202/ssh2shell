@@ -8,6 +8,7 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
+  injectSsh2Client,
   waitFor,
   waitForStream,
 } = require('./helpers/harness');
@@ -212,7 +213,7 @@ describe('primary failure navigation', () => {
     });
 
     const ssh = new SSH2Shell([first, second]);
-    ssh.ssh2Client = ThrowFirst;
+    injectSsh2Client(ssh, ThrowFirst);
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
     ssh.connect();

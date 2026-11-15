@@ -7,6 +7,7 @@ const {
   installFakeSsh2,
   loadSSH2Shell,
   createHost,
+  injectSsh2Client,
   isBaseline,
   processSudo,
   waitFor,
@@ -108,7 +109,7 @@ describe('error handling and connection termination', () => {
     }
 
     const ssh = new SSH2Shell(createHost());
-    ssh.ssh2Client = NoReady;
+    injectSsh2Client(ssh, NoReady);
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
     ssh.connect();
@@ -137,7 +138,7 @@ describe('error handling and connection termination', () => {
     }
 
     const ssh = new SSH2Shell(createHost());
-    ssh.ssh2Client = ThrowConnect;
+    injectSsh2Client(ssh, ThrowConnect);
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
 
@@ -213,7 +214,8 @@ describe('error handling and connection termination', () => {
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
 
-    ssh.sshObj.onCommandTimeout(
+    ssh.emit(
+      'commandTimeout',
       'echo one',
       'echo onepartial output',
       ssh._stream,
@@ -392,7 +394,7 @@ describe('error handling and connection termination', () => {
     }
 
     const ssh = new SSH2Shell(createHost());
-    ssh.ssh2Client = ShellError;
+    injectSsh2Client(ssh, ShellError);
     const errors = [];
     ssh.on('error', (...args) => errors.push(args));
     ssh.connect();

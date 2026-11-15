@@ -1,13 +1,24 @@
 # API baseline and README reconciliation
 
 - **Baseline:** `refactor/L0-baseline` (`v2.0.14`)
-- **Source of truth:** `src/ssh2shell.js`, a 1:1 port of the baseline
-  `src/ssh2shell.coffee`; `lib/ssh2shell.js` is its published copy.
+- **Characterized build:** the frozen baseline in
+  `test/fixtures/baseline-ssh2shell.js`, a 1:1 port of the baseline
+  `src/ssh2shell.coffee`.
 - **Method:** read the implementation, exercise it with the offline harness in
   `test/unit/`, and compare every documented claim in `README.md` against the
   actual code.
 - **Status:** L1 baseline characterization, preserved through L4; L5, L6, and
   L6.1 record the signed-off behavior changes separately.
+
+> **Superseded in the next major.** The current `src/ssh2shell.js` replaced the
+> nested `ssh` command with `ssh2` `forwardOut` hops. `server.ssh`, the
+> jump-host credential model, `exitCommands`, `passphrasePrompt`,
+> `commandStartTimeout`, and `details.noOutput` no longer exist. The host
+> message handler is now `onMsg`; `server.hashMethod`, `sshObj.stop`, the host
+> `idleTime` / `dataIdleTime` aliases, and the `msg: { send }` shape are also
+> removed. The sections below describe the frozen baseline and remain useful
+> for comparison only. See [NEXT-HOST-CONNECTION.md](NEXT-HOST-CONNECTION.md)
+> and the README for current behavior.
 
 The README is treated as *documented intent*. Where it disagrees with the code,
 the code is recorded as the current behavior and the mismatch is listed below.
@@ -75,22 +86,27 @@ until `_connections` is empty and `close()` runs.
 | `pipe(destination)` | Inherited | Legacy `Stream.prototype.pipe`; works by listening to `data`/`end`. |
 | `unpipe(destination)` | **Missing** | `Stream.prototype.unpipe` is undefined. The README no longer documents it; `pipe`/`unpipe` are stream-level operations on the instance, not host config. |
 
-### Public properties
+### Instance properties observed at baseline
 
-| Property | Meaning |
-| --- | --- |
-| `sshObj` | Current host object plus runtime state. |
-| `command` | Command currently being run (`""` between commands). |
-| `connection` | Current `ssh2.Client` instance. |
-| `_hosts` | Remaining **primary** hosts (each connected with `ssh2`). |
-| `_connections` | Stack of previous hosts used to back out through secondary/nested connections. |
-| `_stream` | Current shell stream. |
-| `_buffer` | Raw response buffer for the current command. |
-| `_stderrBuffer` | Internal: captured stderr for the current command when `captureStderr` is enabled. |
-| `idleTime` | Command timeout in ms (`idleTimeOut`, default 5000). |
-| `dataIdleTime` | Internal data-settle timer in ms; intended public key is `dataIdleTimeOut`, default 500. |
-| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Compiled `RegExp` prompt detectors. `standardPrompt` is compiled from `standardPromptRegex` when that opt-in is set, otherwise from the `standardPrompt` character set. |
-| `asciiFilter`, `textColorFilter` | Compiled `RegExp` response filters. |
+This table records the instance properties the baseline exposed, not a
+supported API. In the current major, members beginning with `_` are internal.
+`sshObj`, `command`, `idleTime`, and `dataIdleTime` are documented in the
+README; the rest are diagnostics or implementation state.
+
+| Property | Status | Meaning |
+| --- | --- | --- |
+| `sshObj` | Public | Current host object plus runtime state. |
+| `command` | Public | Command currently being run (`""` between commands). |
+| `connection` | Diagnostic | Active host's `ssh2.Client` instance. |
+| `_hosts` | Internal | Remaining **primary** hosts (each connected with `ssh2`). |
+| `_connections` | Internal | Stack of previous hosts used to back out through secondary/nested connections. |
+| `_stream` | Diagnostic | Active shell stream. |
+| `_buffer` | Internal | Raw response buffer for the current command. |
+| `_stderrBuffer` | Internal | Captured stderr for the current command when `captureStderr` is enabled. |
+| `idleTime` | Public | Command timeout in ms (`idleTimeOut`, default 5000). |
+| `dataIdleTime` | Public | Response-settling delay in ms (`dataIdleTimeOut`, default 500). |
+| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Diagnostic | Compiled `RegExp` prompt detectors. `standardPrompt` is compiled from `standardPromptRegex` when that opt-in is set, otherwise from the `standardPrompt` character set. |
+| `asciiFilter`, `textColorFilter` | Diagnostic | Compiled `RegExp` response filters. |
 
 ### Events emitted by the code
 
@@ -128,14 +144,20 @@ undocumented `dataIdleTime`), `commandResponse`,
 `onCommandTimeout`, `onKeyboardInteractive`, `onData`, `onStderrData`,
 `onError`, `onEnd`.
 
-**Nested SSH command options (`server.ssh`):** `forceProtocolVersion`,
+**Nested SSH command options (`server.ssh`, baseline only):** `forceProtocolVersion`,
 `forceAddressType`, `disablePseudoTTY`, `forcePseudoTTY`, `verbose`,
 `cipherSpec`, `escape`, `logFile`, `configFile`, `identityFile`, `loginName`,
 `macSpec`, `options`.
 
 **Removed legacy aliases:** the misspelled `passwordPromt` and
-`passphrasePromt` fallbacks were removed post-L7. Only `passwordPrompt` and
-`passphrasePrompt` are read. The frozen baseline still honours the aliases.
+`passphrasePromt` fallbacks were removed post-L7. The baseline reads
+`passwordPrompt` and `passphrasePrompt`; the current build reads only
+`passwordPrompt` (for `sudo`). The frozen baseline still honours the aliases.
+
+The current major also removed the host `msg` handler (replaced by `onMsg`),
+the `msg: { send }` shape, `server.hashMethod` (use `hostHash`), `sshObj.stop`
+(use `abort`), and the host `idleTime` / `dataIdleTime` keys (use
+`idleTimeOut` / `dataIdleTimeOut`). The frozen baseline still accepts them.
 
 ## README claims that are confirmed by the code
 
@@ -148,9 +170,10 @@ undocumented `dataIdleTime`), `commandResponse`,
 - `onCommandProcessing`, `onCommandComplete`, `onCommandTimeout`,
   `onKeyboardInteractive`, `onData`, `onStderrData`, `onError`, and `onEnd`
   are registered per host.
-- Multiple primary hosts, nested `hosts` arrays, notifications, sudo/su prompt
-  handling, and `server.ssh` option construction are implemented.
-- Fingerprint validation is delegated to `ssh2` through `server.hashMethod` and
+- Multiple primary hosts, nested `hosts` arrays, notifications, and sudo/su prompt
+  handling are implemented. The baseline also implements `server.ssh` option
+  construction; the current build does not.
+- Fingerprint validation is delegated to `ssh2` through `server.hostHash` and
   `server.hostVerifier`.
 
 ## L1 README corrections

@@ -53,15 +53,15 @@ call to `close()`.
 | # | Source | Trigger | Emitted payload `(err, type, close, callback)` | Close | Flow immediately after emit | Effect on session |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `_processSudoPrompt` | Sudo password rejected (`pwSent` true) or no password configured | **No `error` event** (current). Baseline emitted `("<host>: Sudo password was incorrect...", "Sudo authentication")` when `debug` was on. | n/a | Set `sshObj.sudoFailed = true`, emit a normal `msg`, then `_resetFromSudoError()`: append buffer to `sessionText`, clear buffer/command, write `Ctrl-C`. With `abortOnSudoFailure: true`, `stop('sudo-failed')`. | Notification only by default. Connection stays open; the sudo command is cancelled and the session continues. |
-| 2 | `_sshConnect` | `buildSshCommand` returns an error (security alert) | `(result.error, "Security Alert", true)` | `true` | `return` | Closes the current shell stream, which ends the connection. Remaining secondary hosts are not resumed. |
-| 3 | `_processSSHPrompt` | Nested SSH authentication fails after the password/passphrase was sent | `("<host>: SSH authentication failed for <user>@<host>", "SSH multi host authentication failure")` | `false` | `_previousHost()` if `_connections` is non-empty, otherwise `_runExit()` | No direct close. The back-out/exit path eventually closes or resumes the previous host. |
+| 2 | `_connect` hop `forwardOut` | The parent connection's `forwardOut` callback returns an `Error` | `(err, "Hop", false, null, context)` | `false` | `_hopFailed()` -> `_failContext()`: close descendants deepest-first, close the hop, restore the parent, then `_runExit()` on it | Contained. The hop and its unstarted subtree are skipped; the parent continues with its remaining hosts. |
+| 3 | `_bindConnection` hop `error` | The hop's `ssh2.Client` emits `error` (login or transport failure) | `(err, "Hop", false, null, context)` | `false` | `_hopFailed()` -> `_failContext()` | Contained. The hop and its subtree are skipped; the parent continues. No retry. |
 | 4 | `_loadDefaults` default `onCommandTimeout` | Command idle timer fires on the final attempt | `("<host>: Command timed out after <n> seconds", "Command Timeout", true, callback)` | `true` | None | With `commandTimeoutRetries` set, non-final attempts return without closing and the library re-arms; only the final attempt closes. The default listener now runs the callback (saving `_buffer` to `sessionText` and clearing it) before closing the stream. The timer is armed when the command is written, so a silent command also reaches this path; a prompt cancels the timer before it fires. |
-| 5 | `_connect` shell callback | `connection.shell` returns an `Error` | `(err, "Shell", <live>)` | `true` only when a stream was supplied | `return` | Closes the supplied stream. With no stream the error is reported without a close, and the guarded default listener cannot throw. |
-| 6 | `_connect` stream `error` | The shell stream emits `error` | `(err, "Stream", true)` | `true` (baseline: no close) | None | Current: closes the stream, ends the connection. Baseline: leaves the stream/connection open. |
-| 7 | `_connect` stream `data` handler | A `data` listener throws | `(err, "Stream.read error", true)` with `err.level = "Data handling"` | `true` | None | Closes the stream, ends the connection. |
-| 8 | `_connect` connection `error` | The `ssh2.Client` emits `error` | `(err, "Connection", <live>)` | `true` only once a shell stream exists | None | Before the shell opens this is a notification (`close=false`) and the guarded listener does not throw. Once a stream exists it closes and ends the connection. Baseline: always reports without closing. |
-| 9 | `_connect` connection `close` | `ssh2` reports `had_error` truthy | `(Error("Connection closed with error"), "Connection close")` with `err.level = "Connection close"` and `err.hadError = had_error` | `false` | Clear timers, `_finalizeRun()`, then call `_callback(_allSessions)` or start the next primary host | Non-fatal. The readable error is reported, every visited host is finalized, and the session still finishes or advances. |
-| 10 | `_connect` connect `try` | `connection.connect` throws synchronously | `(e + " " + e.stack, "Connection.connect", <live>)` | `true` only once a shell stream exists | None | Before the shell opens this is a notification and the guarded listener does not throw. `_stream` is reset per primary host, so a stale stream is never closed. |
+| 5 | `_openShell` shell callback | `connection.shell` returns an `Error` | `(err, "Shell", <live>)` | `true` only when a stream was supplied | `return` | Closes the supplied stream. With no stream the error is reported without a close, and the guarded default listener cannot throw. |
+| 6 | `_bindStream` stream `error` | The shell stream emits `error` | `(err, "Stream", true)` | `true` (baseline: no close) | None | Current: closes the stream, ends the connection. Baseline: leaves the stream/connection open. |
+| 7 | `_bindStream` stream `data` handler | A `data` listener throws | `(err, "Stream.read error", true)` with `err.level = "Data handling"` | `true` | None | Closes the stream, ends the connection. |
+| 8 | `_bindConnection` connection `error` | The `ssh2.Client` emits `error` | `(err, "Connection", <live>)` for a primary; `(err, "Hop", false, null, context)` for a hop | `true` only once a shell stream exists | None | Before the shell opens a primary error is a notification (`close=false`) and the guarded listener does not throw. Once a stream exists it closes and ends the connection. A hop error is contained by `_hopFailed()`. Baseline: always reports without closing. |
+| 9 | `_bindConnection` connection `close` | `ssh2` reports `had_error` truthy | `(Error("Connection closed with error"), "Connection close")` with `err.level = "Connection close"` and `err.hadError = had_error` | `false` | `_appendPartial()`, then emit the close message or error, then `_failContext()` -> `_endPrimary()` | Non-fatal. The readable error is reported, every visited host is finalized, and the run advances to the next primary or calls the callback. |
+| 10 | `_openClient` connect `try` | `connection.connect` throws synchronously | `(e + " " + e.stack, "Connection.connect", <live>)` for a primary; `(err, "Hop", false, null, context)` for a hop | `true` only once a shell stream exists | None | Before the shell opens a primary throw is a notification and the guarded listener does not throw. A hop throw is contained by `_hopFailed()`. `_stream` is reset per primary host, so a stale stream is never closed. |
 | 11 | `_connect` missing parameters | No `sshObj.server` or no `sshObj.commands` | `("Missing connection parameters", "Parameters", false, callback)` | `false` | None | No close. The default listener now runs the diagnostic callback, which prints `server` and `commands`; the session still neither starts nor ends. |
 
 ## Notification vs terminator
@@ -70,9 +70,9 @@ Not every failure should be an `error` event. The current classification is:
 
 | Class | Emit sites | Meaning |
 | --- | --- | --- |
-| **Terminator** (`close=true`) | Security Alert, Command Timeout, Stream, Stream.read error, and Shell/Connection/Connection.connect **once a live shell stream exists** | The current connection cannot continue; closing the stream is the intended way to end it. |
+| **Terminator** (`close=true`) | Command Timeout, Stream, Stream.read error, and Shell/Connection/Connection.connect **once a live shell stream exists** | The current connection cannot continue; closing the stream is the intended way to end it. |
 | **Notification** (`close=false`) | Pre-shell Shell/Connection/Connection.connect errors, missing connection parameters, sudo password rejection | The error is reported but nothing is closed. Sudo rejection emits a normal `msg` (and sets `sudoFailed`) instead of an `error`. |
-| **Flow control** (`close=false`) | Nested SSH authentication failure, Connection close (`had_error`) | The error is reported, but the existing back-out/advance logic decides what happens next. Connection close finalizes the visited hosts first. |
+| **Flow control** (`close=false`) | Hop failure (`forwardOut` or hop connection error), Connection close (`had_error`) | The error is reported, but the existing back-out/advance logic decides what happens next. A hop failure is contained to its subtree; Connection close finalizes the visited hosts first. |
 
 The rule: only emit a closing `error` when a live connection must end. Before a
 shell stream exists there is nothing to close, so Shell, Connection, and
@@ -137,7 +137,7 @@ Consequences:
 ```js
 // NoReady fake client: connect() never emits ready, so no shell stream exists.
 const ssh = new SSH2Shell(host);
-ssh.ssh2Client = NoReady;
+ssh._ssh2Client = NoReady;
 ssh.on('error', () => { /* never runs on current L5 */ });
 ssh.connect();
 ssh.connection.emit('error', new Error('boom'));
@@ -210,6 +210,10 @@ ssh._loadDefaults();       // baseline: 1; fixed current: 1 (no duplicate)
     `test/unit/stderr-capture.test.js`.
 
 ### L6.1 follow-ups (signed off)
+
+> **Superseded in the next major:** the nested-`ssh` transport was removed, so
+> `_processSSHPrompt` and the post-auth nested-shell timeout no longer exist.
+> Hop failures are contained by `_hopFailed()`.
 
 - **Post-auth nested-SSH timeout.** `_processSSHPrompt` re-arms the idle timer
   when authenticated output matches no prompt, instead of returning with no

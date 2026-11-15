@@ -70,17 +70,34 @@ function createHost(overrides = {}) {
     overrides.server || {}
   );
 
-  return Object.assign(
+  const host = Object.assign(
     {
       server,
       commands: ['echo one'],
+      // The current major reads dataIdleTimeOut; the frozen baseline reads
+      // dataIdleTime. Keep both so the same fixture works for either target.
       dataIdleTime: 5,
+      dataIdleTimeOut: 5,
       idleTimeOut: 50,
       msg: function noop() {},
+      onMsg: function noop() {},
     },
     overrides,
     { server }
   );
+
+  // The current major renamed the host message sink from msg to onMsg. Mirror
+  // an explicit override so tests can be written against either target.
+  const hasMsg = Object.prototype.hasOwnProperty.call(overrides, 'msg');
+  const hasOnMsg = Object.prototype.hasOwnProperty.call(overrides, 'onMsg');
+  if (hasMsg && !hasOnMsg) {
+    host.onMsg = overrides.msg;
+  }
+  if (hasOnMsg && !hasMsg) {
+    host.msg = overrides.onMsg;
+  }
+
+  return host;
 }
 
 function delay(ms) {
@@ -157,12 +174,23 @@ function once(emitter, event, timeout = 2000) {
   });
 }
 
+/**
+ * Replaces the ssh2 client constructor used by the module under test. The
+ * frozen baseline exposes the seam as `ssh2Client`; the current source marks it
+ * internal as `_ssh2Client`.
+ */
+function injectSsh2Client(ssh, Client) {
+  ssh._ssh2Client = Client;
+  ssh.ssh2Client = Client;
+}
+
 module.exports = {
   baselineModulePath,
   createHost,
   currentModulePath,
   delay,
   fakeSsh2,
+  injectSsh2Client,
   installFakeSsh2,
   isBaseline,
   loadSSH2Shell,

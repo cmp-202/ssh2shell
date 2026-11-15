@@ -165,7 +165,7 @@ _connectHop() {
 
 ```js
 _openClient(context, options) {
-  context.connection = new this.ssh2Client();
+  context.connection = new this._ssh2Client();
   this._bindConnection(context);
   try {
     context.connection.connect(options);
@@ -236,7 +236,7 @@ a late event from a parent connection cannot act on the active child.
 
 | Helper | Responsibility |
 | --- | --- |
-| `_normalizeServer(server)` | Copy the server object, apply `username` / `hostHash` / `passphrase` aliases, strip `ssh`, and leave the host object untouched. |
+| `_normalizeServer(server)` | Copy the server object, map `userName` / `passPhrase` to ssh2's `username` / `passphrase`, strip `ssh`, and leave the host object untouched. |
 | `_pushContext(host, parent)` | When `parent` is set, push that parent record onto `_connections`; then create `{ host, parent, connection: null, stream: null, isPrimary: parent === null, closed: false, failing: false, listeners: {}, idleTimer: null, dataReceivedTimer: null, expectedClose: false, idleTime, dataIdleTime, pendingHosts }`, make it `_active`, set `this.sshObj` / `this.host` / `this.connection = null` / `this._stream = {}`, and return it. A primary starts with `_connections = []`. |
 | `_activeContext()` | Return `this._active`, or `null`. |
 | `_bindConnection(context)` | Attach `keyboard-interactive`, `connect`, `ready`, `error`, and `close` handlers. Each handler closes over `context`. |
@@ -404,7 +404,7 @@ record shape changes from a host config to `record.host`:
 | Client | `new ssh2.Client()` | `new ssh2.Client()` | Same client type. |
 | Transport | `client.connect(server)` | `parent.connection.forwardOut(...)` then `client.connect({ ...server, sock: channel })` | `_normalizeServer` and `_openClient`. |
 | Credentials | Local process: `password`, `privateKey`, `passPhrase`, `agent` | Local process, same fields | Same `ssh2` authentication. |
-| Host key | `hostHash` / `hostVerifier` on `server` | Same fields passed to the child client | `_normalizeServer` applies `hostHash`/`hashMethod`. |
+| Host key | `hostHash` / `hostVerifier` on `server` | Same fields passed to the child client | `_normalizeServer` applies `hostHash`. |
 | Auth prompts | `ssh2` handles them; `keyboard-interactive` is re-emitted | Same | `_bindConnection` installs the same handler. |
 | Shell | `context.connection.shell(window, { pty })` | Same | `_openShell`. |
 | Stream encoding | `streamEncoding`, default `utf8` | Same | `_openShell`. |
@@ -455,7 +455,7 @@ for a primary host:
 `streamEncoding`, `standardPrompt`, `standardPromptRegex`, `passwordPrompt`,
 `passPromptText`, `textColorFilter`, `asciiFilter`,
 `disableColorFilter`, `disableASCIIFilter`, `enter`, `idleTimeOut`,
-`dataIdleTimeOut`, and the `on*` / `msg` handlers.
+`dataIdleTimeOut`, and the `on*` handlers.
 
 `passwordPrompt` and `passPromptText` stay because `sudo` still detects
 password prompts. `passphrasePrompt` and `exitCommands` are removed with the
@@ -480,7 +480,7 @@ whole subtree, and a three-level run reads
 | `passPhrase` | `ssh2` connect | `ssh2` connect | `passphrase` alias applied. |
 | `agent` | `ssh2` connect | `ssh2` connect | Local agent, not the jump host's agent. |
 | `tryKeyboard` | `ssh2` connect | `ssh2` connect | Same event path. |
-| `hostHash` / `hashMethod` | `ssh2` connect | `ssh2` connect | Same verifier contract. |
+| `hostHash` | `ssh2` connect | `ssh2` connect | Same verifier contract. |
 | `hostVerifier` | `ssh2` connect | `ssh2` connect | Recommended for hops. |
 | `algorithms` | `ssh2` connect | `ssh2` connect | Replaces `server.ssh.cipherSpec` / `macSpec`. |
 | `readyTimeout` | `ssh2` connect | `ssh2` connect | Applies to the child login. |
@@ -1465,7 +1465,7 @@ after backing out of a hop.
 
 ## Reuse of standard handlers
 
-The handlers are reused as they are. `debug`, `verbose`, `msg`, `progress`,
+The handlers are reused as they are. `debug`, `verbose`, `onMsg`, `progress`,
 sudo prompts, command responses, stderr capture, and the default error listener
 all read the active host and active aliases, which is still the child while the
 child is active. No handler needs to know whether the host is primary or nested.
@@ -1479,7 +1479,7 @@ child is active. No handler needs to know whether the host is primary or nested.
 | `onStderrData` | Fires for the active child stream. `captureStderr` still merges into the child response. |
 | `onEnd` | Fires once per visited host, child before parent. |
 | `onError` | Host handler runs for the event's record; the default listener keeps its existing close semantics for the active record. |
-| `msg` | Same `_systemMsg` path and `[host]` prefix rules. |
+| `onMsg` | Same `_systemMsg` path and `[host]` prefix rules. |
 | `onKeyboardInteractive` | Bound per connection; the instance event fires with that connection's `finish`. |
 | `reconnect` | Follow-up only. Fires with the record's `sshObj` and `{ phase, attempt, maxRetries, delay, expected, reason }`; a reboot reports `expected: true`, a real failure is an `error` with `level: 'Reconnect'`. |
 | `progress` | One heartbeat for the active command; `_progressEnd()` runs before a host switch. |

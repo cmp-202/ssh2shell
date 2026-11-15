@@ -113,16 +113,25 @@ describe('_loadDefaults baseline', () => {
       assert.equal(host.sshAuth, undefined);
     }
     assert.equal(host.pwSent, false);
-    assert.equal(host.server.hashKey, '');
+    if (isBaseline()) {
+      assert.equal(host.server.hashKey, '');
+      assert.equal(typeof host.onCommandProcessing, 'function');
+      assert.equal(typeof host.onCommandComplete, 'function');
+      assert.equal(typeof host.onCommandTimeout, 'function');
+    } else {
+      // Handler defaults and the unused hashKey are no longer written into the
+      // host config; the defaults live on the instance.
+      assert.equal(host.server.hashKey, undefined);
+      assert.equal(host.onCommandProcessing, undefined);
+      assert.equal(host.onCommandComplete, undefined);
+      assert.equal(host.onCommandTimeout, undefined);
+    }
     assert.equal(host.sessionText, '');
     assert.equal(host.streamEncoding, 'utf8');
     assert.equal(host.window, true);
     assert.equal(host.pty, true);
     assert.equal(ssh.idleTime, 50);
     assert.equal(ssh.dataIdleTime, 5);
-    assert.equal(typeof host.onCommandProcessing, 'function');
-    assert.equal(typeof host.onCommandComplete, 'function');
-    assert.equal(typeof host.onCommandTimeout, 'function');
   });
 
   it('preserves explicit custom values', () => {
@@ -152,6 +161,7 @@ describe('_loadDefaults baseline', () => {
       pty: false,
       idleTimeOut: 123,
       dataIdleTime: 45,
+      dataIdleTimeOut: 45,
     });
 
     assert.equal(ssh.sshObj.connectedMessage, 'C');
@@ -215,7 +225,7 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.dataIdleTime, isBaseline() ? 500 : 999);
   });
 
-  it('prefers dataIdleTimeOut over the legacy dataIdleTime fallback', () => {
+  it('ignores the removed dataIdleTime alias when dataIdleTimeOut is set', () => {
     const { ssh } = makeLoaded({ dataIdleTime: 45, dataIdleTimeOut: 999 });
 
     assert.equal(ssh.dataIdleTime, isBaseline() ? 45 : 999);

@@ -23,7 +23,7 @@ function makeSSH(host, instance = {}) {
 
 describe('instance timer values', () => {
   it('keeps an instance-level idleTime when the host has no timer config', () => {
-    const host = createHost({ idleTimeOut: undefined, dataIdleTime: undefined });
+    const host = createHost({ idleTimeOut: undefined });
     const ssh = makeSSH(host, { idleTime: 1500 });
 
     // Baseline always overwrites the instance value with the 5000 default.
@@ -37,12 +37,12 @@ describe('instance timer values', () => {
     assert.equal(ssh.idleTime, 123);
   });
 
-  it('supports the legacy host idleTime alias', () => {
+  it('ignores the removed host idleTime alias', () => {
     const host = createHost({ idleTimeOut: undefined, idleTime: 222 });
     const ssh = makeSSH(host, { idleTime: 1500 });
 
-    // Baseline only reads idleTimeOut.
-    assert.equal(ssh.idleTime, isBaseline() ? 5000 : 222);
+    // Only idleTimeOut is read; the legacy key is ignored by both targets.
+    assert.equal(ssh.idleTime, isBaseline() ? 5000 : 1500);
   });
 
   it('keeps the host timer values after removing listeners', () => {
@@ -67,7 +67,7 @@ describe('instance timer values', () => {
     assert.equal(ssh.dataIdleTime, isBaseline() ? 500 : 750);
   });
 
-  it('still prefers dataIdleTimeOut over the legacy dataIdleTime', () => {
+  it('ignores the removed host dataIdleTime alias', () => {
     const host = createHost({ dataIdleTime: 45, dataIdleTimeOut: 999 });
     const ssh = makeSSH(host);
 
@@ -75,7 +75,11 @@ describe('instance timer values', () => {
   });
 
   it('does not carry a host override into the next host', () => {
-    const first = createHost({ idleTimeOut: 123, dataIdleTime: 45 });
+    const first = createHost({
+      idleTimeOut: 123,
+      dataIdleTime: 45,
+      dataIdleTimeOut: 45,
+    });
     const ssh = makeSSH(first, { idleTime: 1500, dataIdleTime: 750 });
 
     assert.equal(ssh.idleTime, 123);
@@ -84,6 +88,7 @@ describe('instance timer values', () => {
     const second = createHost({
       idleTimeOut: undefined,
       dataIdleTime: undefined,
+      dataIdleTimeOut: undefined,
     });
     ssh.sshObj = second;
     ssh._loadDefaults();
@@ -96,8 +101,16 @@ describe('instance timer values', () => {
   it('reapplies the previous host timer values after backing out', () => {
     if (isBaseline()) return;
 
-    const previous = createHost({ idleTimeOut: 250, dataIdleTime: 25 });
-    const current = createHost({ idleTimeOut: 123, dataIdleTime: 45 });
+    const previous = createHost({
+      idleTimeOut: 250,
+      dataIdleTime: 25,
+      dataIdleTimeOut: 25,
+    });
+    const current = createHost({
+      idleTimeOut: 123,
+      dataIdleTime: 45,
+      dataIdleTimeOut: 45,
+    });
     const ssh = makeSSH(previous, { idleTime: 1500, dataIdleTime: 750 });
     const previousRecord = ssh._activeContext();
 

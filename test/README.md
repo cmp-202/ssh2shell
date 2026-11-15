@@ -42,6 +42,24 @@ Feature-specific suites include `test/unit/prompt-regex.test.js`
 `test/unit/stderr-capture.test.js` (`captureStderr` and `details.stderr`).
 Opt-in cases are guarded by `isBaseline()` so the frozen artifact still passes.
 
+## Test workflow
+
+Use the fastest suite that covers the change, and save the slow checks for
+boundaries:
+
+1. **Every small block:** run the full offline suite (`npm run test:src`). It is
+   fast and catches regressions in unrelated areas.
+2. **End of a change:** run only the live tests that exercise the changed path,
+   for example `node scripts/run-live.js timeout timeout_retries command_timeout`
+   for timeout work.
+3. **Commit, release, or moving to another development area:** run the full live
+   suite (`node scripts/run-live.js --all`), plus provisioning when the change
+   affects connection setup or the provisioned environment.
+
+The live suite grows over time, so a full run at the end of every block is mostly
+waiting. Targeted runs keep the feedback loop short; the full run at boundaries
+keeps the release honest.
+
 ## Live tests
 
 The live suite logs in to the three test VMs and exercises real prompts, sudo,
@@ -111,7 +129,6 @@ curated batch because they are the acceptance tests for the
   `traversal-order` and `end-order`, and exits nonzero unless the walk is the
   expected depth-first order:
   `host1,hosta,hostaa,hostaaa,host2,hostb,hostbb,hostc,hostcc,host3,hostd,hoste,hostf`.
-  It passes on both transports because both walk the tree depth-first.
 
 - `host_faults.js` puts a connection failure at three positions in the same
   shape: a nested leaf (`bad-deep`), its never-started child
@@ -130,15 +147,19 @@ curated batch because they are the acceptance tests for the
   failed primary is skipped and the next primary runs. `bad-deep-child` never
   starts, so it never ends.
 
-  The current nested-`ssh` transport fails this test on purpose. It does not
-  detect the failed hop, runs `bad-deep`'s command on the parent shell, skips
-  `good-sibling`, and emits only the primary error:
+  The frozen baseline fixture, which still uses the nested-`ssh` transport, fails
+  this test on purpose. It does not detect the failed hop, runs `bad-deep`'s
+  command on the parent shell, skips `good-sibling`, and emits only the primary
+  error:
 
   ```text
   fault-order:primary1,good-hop,bad-deep,primary2
   error-count:1
   end-order:bad-deep,good-hop,primary1,bad-primary,primary2
   ```
+
+  Run it against the baseline with `SSH2SHELL_MODULE=baseline` to see the
+  contrast; `src` and `lib` pass.
 
 Run both directly with:
 
@@ -211,9 +232,9 @@ role matrix, environment variables, adapter setup, and recovery behavior.
 
 ## Adding a live test
 
-1. Create `test/live/<name>.js`. Require `../../src/ssh2shell`, use
-   `logFile()` / `log()` from `../utils/logging.js`, and load the key with
-   `readPrivateKey()` from `../utils/private_key.js`.
+1. Create `test/live/<name>.js`. Require `../utils/module.js` (it resolves
+   `SSH2SHELL_MODULE`), use `logFile()` / `log()` from `../utils/logging.js`, and
+   load the key with `readPrivateKey()` from `../utils/private_key.js`.
 2. Add an entry to the `checks` map in `../scripts/run-live.js`. Use
    `contains` / `excludes` for session text, `logContains` for log output, and
    `files` for tests that write separate output files. A fault test can allow an

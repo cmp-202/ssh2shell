@@ -34,17 +34,16 @@ command completes
   -> commandComplete event
   -> _applyHandlerFlags(): consume abort/stop/skip* flags set by the handler
   -> _nextCommand(): shift the next command, or _runExit()
-       -> _runExit(): queued exitCommands
-                   -> sshObj.hosts (nested hosts)
+       -> _runExit(): sshObj.hosts (nested hosts)
                    -> _connections (back out to the previous host)
                    -> literal 'exit'
                    -> close()
-  -> close(): _finalizeHost() then _stream.close()
-       -> stream 'finish': _finalizeHost()
-       -> stream 'close': connection.end()
-            -> connection 'close': clear timers; _finalizeRun();
-                                   closedMessage or error;
-                                   final callback or the next primary host
+  -> close(): _closeContext() removes that record's listeners, finalizes the host,
+              closes the stream, then ends the connection
+       -> connection 'close': _appendPartial(); _failContext() -> _endPrimary()
+                              finalize the visited hosts;
+                              closedMessage or error;
+                              final callback or the next primary host
 ```
 
 `_commandComplete()` appends the response **before** it emits
@@ -56,16 +55,15 @@ The shutdown paths are:
 ```text
 stop(reason)
   -> clear every command queue, every nested hosts queue, and _hosts
-  -> keep sshObj.exitCommands
   -> if a command is in flight: Ctrl-C, wait for prompt or idleTimeOut
-  -> run queued exit commands (bounded by idleTimeOut)
+  -> close the active record and every ancestor
   -> _finalizeRun(): one `end` per visited host, nested text merged
   -> close once; callback once; `Stop requested: <reason>`
 
 close() / close({ graceful: true })
   -> finalize the current host and ancestors
   -> continue with remaining primary hosts (compatibility)
-  -> graceful: clear queues, run exit commands, back out of nested shells
+  -> graceful: back out of nested shells before closing
 ```
 
 ## Current outcomes (implemented)
@@ -76,10 +74,10 @@ close() / close({ graceful: true })
 | `sshObj.commands.length = 0` or `sshObj.skipCommands = true` in `onCommandComplete` | current host stops | that host's nested hosts still run; remaining primary hosts still run | response already added; `end` once per visited host | normal close | progress ends; normal close message |
 | also `sshObj.hosts.length = 0` or `sshObj.skipHosts = true` | current host stops | that host's own nested hosts are skipped; sibling nested hosts queued on a parent still run; remaining primary hosts still run | response already added; `end` once per visited host | normal close | progress ends; normal close message |
 | `sshObj.skipPrimaryHosts = true` | current host stops | no further primary hosts | response already added; `end` once per visited host | normal close | progress ends; normal close message |
-| `sshObj.abort = true` / `sshObj.stop = true` / `this.stop(reason)` | all queues cleared | no nested or primary hosts run | current response and nested text merged; `end` once per visited host; callback once | one close; queued exit commands run first | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
+| `sshObj.abort = true` / `this.stop(reason)` | all queues cleared | no nested or primary hosts run | current response and nested text merged; `end` once per visited host; callback once | one close of the active record and its ancestors | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
 | `this.close()` in a handler | no further writes | current connection ends; remaining primary hosts still connect; current host's nested children are skipped | current host finalized; `end` once per visited host | stream closes, then `connection.end()` | progress ends; `closedMessage` |
-| `this.close({ graceful: true })` | no further commands | runs queued exit commands and backs out of nested shells; remaining primary hosts still run | complete for every visited host | one close | progress ends; normal close message |
-| `this.connection.end()` | same as `close()` | same as `close()`, but bypasses exit commands and host back-out | text may be missing because finalization is skipped | connection ends directly | progress ends |
+| `this.close({ graceful: true })` | no further commands | backs out of nested shells; remaining primary hosts still run | complete for every visited host | one close | progress ends; normal close message |
+| `this.connection.end()` | same as `close()` | same as `close()`, but bypasses host back-out | text may be missing because finalization is skipped | connection ends directly | progress ends |
 | `stream.write('\x03')` (Ctrl-C) | unchanged | unchanged | partial output stays in the buffer | stays open | unchanged |
 | Default `onCommandTimeout` | current command ends | remaining primary hosts still connect | the default handler adds the partial buffer to `sessionText` | emits a closing error; stream closes, then the connection | progress ends; error `msg` |
 
@@ -107,7 +105,7 @@ Notes:
 | ID | Gap | Status |
 | --- | --- | --- |
 | G1 | `close()` cannot stop a whole run: the next primary host still connects. | **Resolved by `stop()`.** `close()` keeps the compatibility behavior. |
-| G2 | `close()` bypasses `_runExit()`, so queued exit commands and the nested-host text merge do not run. | **Resolved.** `close({ graceful: true })` runs exit commands and backs out; plain `close()` finalizes the current host. |
+| G2 | `close()` bypasses `_runExit()`, so the nested-host back-out does not run. | **Resolved.** `close({ graceful: true })` backs out of nested shells; plain `close()` finalizes the current host. |
 | G3 | `close()` from `onCommandComplete` does not stop `_nextCommand()`, so the queue is still walked. | **Resolved.** The command loop checks `_closing`/`_runComplete`. |
 | G4 | Clearing `sshObj.commands` stops only the current host; nested and primary hosts continue. | **By design.** `stop()` aborts the whole run; `skipPrimaryHosts` skips primaries only. |
 | G5 | There is no public way to skip the remaining primary hosts (`_hosts` is private). | **Resolved** by `sshObj.skipPrimaryHosts = true`. |
@@ -147,9 +145,9 @@ With the implemented changes:
 | `sshObj.commands.length = 0` / `sshObj.skipCommands = true` | Stop the current host after this command. Let the normal back-out run. |
 | `sshObj.hosts.length = 0` / `sshObj.skipHosts = true` | Skip the current host's own nested hosts. The current host continues its commands unless `skipCommands` is also set; sibling nested hosts queued on a parent still run; primary hosts continue. |
 | `sshObj.skipPrimaryHosts = true` | Do not connect the remaining primary hosts. The current host finishes its commands unless `skipCommands` is also set. |
-| `SSH.stop(reason)` / `sshObj.abort = true` / `sshObj.stop = true` | Stop the whole run: no more commands, no more nested or primary hosts. |
+| `SSH.stop(reason)` / `sshObj.abort = true` | Stop the whole run: no more commands, no more nested or primary hosts. |
 | `SSH.close()` | Immediate close of the current shell connection. Remaining primary hosts still run. |
-| `SSH.close({ graceful: true })` | Run queued exit commands and back out of nested shells before closing. |
+| `SSH.close({ graceful: true })` | Back out of nested shells before closing. |
 
 Implemented matrix:
 
@@ -158,9 +156,9 @@ Implemented matrix:
 | Clear `commands` / `skipCommands` | current host stops | children and primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
 | Clear `hosts` / `skipHosts` | current host continues unless `skipCommands` is also set | current host's children skipped; sibling nested hosts queued on a parent continue; primary hosts continue | complete; `end` once per host | normal close | progress ends; normal close |
 | `skipPrimaryHosts` | current host continues unless `skipCommands` is also set | no further primary hosts | complete; `end` once per host | normal close | progress ends; normal close |
-| `stop(reason)` | all queues cleared | all remaining hosts skipped | current response and nested text merged; `end` once per visited host; callback once | one close; exit commands run first | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
+| `stop(reason)` | all queues cleared | all remaining hosts skipped | current response and nested text merged; `end` once per visited host; callback once | one close of the active record and its ancestors | progress ends; `Stop requested: <reason>`; `closedMessage` on clean close |
 | `close()` | no further writes | current connection ends; primary hosts continue (compat) | current host finalized; `end` once per visited host | one close | progress ends; `closedMessage` |
-| `close({ graceful: true })` | no further commands | exit commands and back-out run; primary hosts continue | complete; `end` once per visited host | one close | progress ends; normal close |
+| `close({ graceful: true })` | no further commands | back-out runs; primary hosts continue | complete; `end` once per visited host | one close | progress ends; normal close |
 | `stream.write('\x03')` | unchanged | unchanged | partial buffer retained | stays open | unchanged |
 | Timeout | current command ends | policy from `onCommandTimeout` | partial buffer saved before close | close by default | progress ends; error `msg` |
 
@@ -193,10 +191,10 @@ R1–R8 were signed off and implemented.
   private primary-host queue.
 - If a command is in flight, writes Ctrl-C and waits for the prompt or the idle
   timeout before closing.
-- Runs the library's queued `exitCommands` (the `exit` it adds when a nested
-  `ssh` shell opens) when the shell is still healthy. Explicit `exit` entries in
-  `commands` are cleared with the rest of the queue; closing the connection still
-  ends any `sudo -i` or `su` shell.
+- Closes the active record and every ancestor. Leaving a nested shell is a
+  connection close, not an `exit` command; closing the connection still ends any
+  `sudo -i` or `su` shell. Explicit `exit` entries in `commands` are cleared with
+  the rest of the queue.
 - Closes once and calls the final callback with the complete `sessionText`.
 - Records the reason as `sshObj.stopReason` and emits `Stop requested: <reason>`.
 - Is a no-op before `connect()` and after the run has finished.
@@ -208,8 +206,8 @@ R1–R8 were signed off and implemented.
   snapshotted and its `end` is emitted exactly once.
 - Keeps the existing "continue with the next primary host" behavior for
   compatibility; `stop()` is the whole-run abort.
-- `close({ graceful: true })` runs queued exit commands and backs out of nested
-  shells before the stream closes.
+- `close({ graceful: true })` backs out of nested shells before the stream
+  closes.
 
 ### R3. The command loop is guarded
 
@@ -220,7 +218,7 @@ R1–R8 were signed off and implemented.
 
 ### R4. Handler stop flags
 
-- `sshObj.abort` or `sshObj.stop` calls `stop()` after the handler returns.
+- `sshObj.abort` calls `stop()` after the handler returns.
 - `sshObj.skipCommands` clears the current host's `commands` array.
 - `sshObj.skipHosts` clears the current host's `hosts` array. It does **not**
   clear a parent's queue: sibling nested hosts queued on a parent still run, by
@@ -230,8 +228,8 @@ R1–R8 were signed off and implemented.
 
 ### R5. Centralized host finalization
 
-- `_finalizeHost()` is used by `_runExit()`, `_previousHost()`,
-  `_nextPrimaryHost()`, `close()`, `stop()`, and the connection `close` handler.
+- `_finalizeHost()` is used by `_closeContext()`, `_previousHost()`,
+  `_nextPrimaryHost()`, `_finalizeRun()`, and the stream `finish` handler.
 - `_finalizeRun()` finalizes the current host and every ancestor, deepest first.
 - Nested text is merged into the parent exactly once via `_mergedHosts`;
   `_primaryhostSessionText` and `_allSessions` are appended exactly once via
@@ -316,7 +314,9 @@ onError(err, type, close) {
 1. ~~Should `close()` continue with remaining primary hosts (compatibility) or
    abort the run?~~ **Signed off:** continue; use `stop()` to abort.
 2. ~~Should `stop()` run queued exit commands by default?~~ **Signed off:** yes,
-   bounded by the idle timeout; `close()` remains the immediate path.
+   bounded by the idle timeout; `close()` remains the immediate path. **Superseded:**
+   the `ssh2` hop transport removed the `exitCommands` queue. `stop()` closes the
+   active record and its ancestors instead.
 3. ~~Should a rejected sudo password abort by default?~~ **Signed off:** no, emit
    a visible message and offer `abortOnSudoFailure`.
 4. ~~Should handlers use `sshObj` flags or return values?~~ **Signed off:** flags,

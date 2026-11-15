@@ -101,6 +101,42 @@ describe('whole-run stop', () => {
     );
   });
 
+  it('sshObj.stop is no longer an abort alias', async () => {
+    if (isBaseline()) return;
+
+    const completed = [];
+    const messages = [];
+    const host = createHost({
+      commands: ['echo one', 'echo two'],
+      onCommandComplete: (command, response, sshObj) => {
+        completed.push(command);
+        if (command === 'echo one') {
+          sshObj.stop = 'legacy-stop';
+        }
+      },
+    });
+
+    const ssh = new SSH2Shell(host);
+    ssh.on('msg', (message) => messages.push(String(message)));
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitForStream(ssh);
+    const stream = ssh._stream;
+
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
+
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    assert.deepEqual(completed, ['echo one', 'echo two']);
+    assert.equal(
+      messages.some((message) => message.includes('Stop requested')),
+      false
+    );
+  });
+
   it('stop() is a no-op before connect()', () => {
     if (isBaseline()) return;
 

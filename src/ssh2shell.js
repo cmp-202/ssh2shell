@@ -69,74 +69,20 @@ class SSH2Shell extends Stream {
   constructor(hosts) {
     super(hosts);
 
-    // Methods that were CoffeeScript fat-arrows are bound in the constructor.
-    // Keep the same list and order so callbacks and event listeners keep
-    // their `this`.
-    this._connect = this._connect.bind(this);
+    // Public entry points keep own bound copies so they can be detached and
+    // passed around. `_connect` and `_connectHop` are passed as bare callbacks
+    // to the host queue. Default event handlers are bound so the emitter can
+    // invoke them with this instance.
     this.connect = this.connect.bind(this);
-    this._connectHop = this._connectHop.bind(this);
-    this._loadDefaults = this._loadDefaults.bind(this);
-    this._initiate = this._initiate.bind(this);
-    this._removeListeners = this._removeListeners.bind(this);
     this.close = this.close.bind(this);
     this.stop = this.stop.bind(this);
-    this._runExit = this._runExit.bind(this);
-    this._nextPrimaryHost = this._nextPrimaryHost.bind(this);
-    this._nextHost = this._nextHost.bind(this);
-    this._previousHost = this._previousHost.bind(this);
-    this._runCommand = this._runCommand.bind(this);
-    this._checkCommand = this._checkCommand.bind(this);
-    this._nextCommand = this._nextCommand.bind(this);
-    this._commandComplete = this._commandComplete.bind(this);
-    this._finalizeHost = this._finalizeHost.bind(this);
-    this._finalizeRun = this._finalizeRun.bind(this);
-    this._mergeNestedText = this._mergeNestedText.bind(this);
-    this._applyHandlerFlags = this._applyHandlerFlags.bind(this);
-    this._resetRunState = this._resetRunState.bind(this);
-    this._callFinalCallback = this._callFinalCallback.bind(this);
-    this._beginStopExit = this._beginStopExit.bind(this);
-    this._finishStop = this._finishStop.bind(this);
-    this._forceStop = this._forceStop.bind(this);
-    this._clearStopTimer = this._clearStopTimer.bind(this);
-    this._armStopTimer = this._armStopTimer.bind(this);
-    this._prepareGracefulClose = this._prepareGracefulClose.bind(this);
-    this._clearCloseTimer = this._clearCloseTimer.bind(this);
-    this._armCloseTimer = this._armCloseTimer.bind(this);
-    this._forceClose = this._forceClose.bind(this);
-    this._closeStreamNow = this._closeStreamNow.bind(this);
-    this._processNotifications = this._processNotifications.bind(this);
-    this._resetFromSudoError = this._resetFromSudoError.bind(this);
-    this._processSudoPrompt = this._processSudoPrompt.bind(this);
-    this._sanitizeResponse = this._sanitizeResponse.bind(this);
-    this._onData = this._onData.bind(this);
-    this._callback = this._callback.bind(this);
-    this._systemMsg = this._systemMsg.bind(this);
-    this._detachListener = this._detachListener.bind(this);
-    this._boundListener = this._boundListener.bind(this);
-    this._loadDefaultListeners = this._loadDefaultListeners.bind(this);
-    this._normalizeServer = this._normalizeServer.bind(this);
-    this._bindConnection = this._bindConnection.bind(this);
-    this._openShell = this._openShell.bind(this);
-    this._openClient = this._openClient.bind(this);
-    this._pushContext = this._pushContext.bind(this);
-    this._activeContext = this._activeContext.bind(this);
-    this._popContext = this._popContext.bind(this);
-    this._popTo = this._popTo.bind(this);
-    this._restoreContext = this._restoreContext.bind(this);
-    this._attachContextListeners = this._attachContextListeners.bind(this);
-    this._descendantsOf = this._descendantsOf.bind(this);
-    this._closeContext = this._closeContext.bind(this);
-    this._closeAllContexts = this._closeAllContexts.bind(this);
-    this._failContext = this._failContext.bind(this);
-    this._hopFailed = this._hopFailed.bind(this);
-    this._endPrimary = this._endPrimary.bind(this);
-    this._pendingHosts = this._pendingHosts.bind(this);
-    this._appendPartial = this._appendPartial.bind(this);
-    this._reportMissingParameters = this._reportMissingParameters.bind(this);
-    this._bindHostListener = this._bindHostListener.bind(this);
-    this._streamFor = this._streamFor.bind(this);
-    this._hasLiveStreamFor = this._hasLiveStreamFor.bind(this);
-    this.ssh2Client = require('ssh2').Client;
+    this._connect = this._connect.bind(this);
+    this._connectHop = this._connectHop.bind(this);
+    this._defaultOnCommandProcessing = this._defaultOnCommandProcessing.bind(this);
+    this._defaultOnCommandComplete = this._defaultOnCommandComplete.bind(this);
+    this._defaultOnCommandTimeout = this._defaultOnCommandTimeout.bind(this);
+    // Internal test seam. Not part of the public API.
+    this._ssh2Client = require('ssh2').Client;
 
     // A single host config or a non-empty array of host configs. The caller's
     // array is copied so shift() cannot drain a config reused by another run.
@@ -152,7 +98,6 @@ class SSH2Shell extends Stream {
     this._hosts = list.slice();
     this._primaryHostCount = this._hosts.length;
     this._multipleHosts = this._primaryHostCount > 1;
-    this._boundListeners = {};
     this.sshObj = {};
     // `_connections` holds the ancestors of the active record; `_active` is the
     // active record itself. A primary host has an empty stack.
@@ -194,6 +139,22 @@ class SSH2Shell extends Stream {
     // merging are idempotent across the normal path and an abrupt close.
     this._finalizedHosts = new Set();
     this._mergedHosts = new Set();
+    // Instance defaults are own properties from construction. CoffeeScript
+    // class-body values used to be shared through the prototype until the first
+    // host load, which aliased `_stream` between instances.
+    this._callback = null;
+    this.command = '';
+    this._primaryhostSessionText = '';
+    this._stream = {};
+    this._buffer = '';
+    this.idleTime = 5000;
+    this.dataIdleTime = 500;
+    this.idleTimer = null;
+    this.dataReceivedTimer = null;
+    this.asciiFilter = '';
+    this.textColorFilter = '';
+    this.passwordPrompt = '';
+    this.standardPrompt = '';
     this._loadDefaultListeners();
   }
   
@@ -278,23 +239,6 @@ class SSH2Shell extends Stream {
     return;
   }
   
-  _boundListener ( eventName, listener, prepend = false ) {
-    if ( typeof listener === `function` ){
-      // Avoid attaching the same handler twice when _loadDefaults runs again.
-      if (this._boundListeners[eventName] === listener) {
-        return;
-      }
-      this._boundListeners[eventName] = listener;
-      if (prepend) {
-        this.prependListener(eventName, listener);
-      } else {
-        this.on(eventName, listener);
-      }
-    }
-    
-    return;
-  }
-
   // A real shell stream exists only after `connection.shell` succeeds. Before
   // that, the active stream is the `{}` placeholder.
   _hasLiveStream() {
@@ -372,15 +316,12 @@ class SSH2Shell extends Stream {
   }
 
   // Copy the server options so the host config is not mutated. `ssh2` uses
-  // `username` / `passphrase`; the public API keeps the legacy aliases.
+  // `username` / `passphrase`; `userName` / `passPhrase` are the public names.
   _normalizeServer(server) {
     const options = Object.assign({}, server || {});
     delete options.ssh;
     if (!options.username) {
       options.username = options.userName;
-    }
-    if (!options.hostHash) {
-      options.hostHash = options.hashMethod;
     }
     if (!options.passphrase) {
       options.passphrase = options.passPhrase;
@@ -392,6 +333,11 @@ class SSH2Shell extends Stream {
   // otherwise the parent record is pushed onto the ancestor stack first.
   _pushContext(host, parent) {
     if (parent) {
+      // `command` and `_buffer` are instance aliases for the active host. Save
+      // the ancestor's values before the child replaces them so restoring the
+      // parent after a hop resumes its own command state.
+      parent.command = this.command;
+      parent.buffer = this._buffer;
       this._connections.push(parent);
     }
 
@@ -409,6 +355,8 @@ class SSH2Shell extends Stream {
       expectedClose: false,
       idleTime: this.idleTime,
       dataIdleTime: this.dataIdleTime,
+      command: '',
+      buffer: '',
       pendingHosts: null,
       reportedError: false,
     };
@@ -444,6 +392,8 @@ class SSH2Shell extends Stream {
     this.dataIdleTime = context.dataIdleTime;
     this.idleTimer = context.idleTimer || null;
     this.dataReceivedTimer = context.dataReceivedTimer || null;
+    this.command = typeof context.command === 'string' ? context.command : '';
+    this._buffer = typeof context.buffer === 'string' ? context.buffer : '';
 
     // Compiled prompts/filters and logging flags belong to the active record.
     // Parents are restored after a child closes, so put theirs back too.
@@ -672,25 +622,6 @@ class SSH2Shell extends Stream {
     return this._stream;
   }
 
-  // Helper to safely detach listeners using cached references
-  _detachListener(eventName, currentKey) {
-    const cachedHandler = this._boundListeners[eventName];
-    const hostHandler = this.sshObj ? this.sshObj[currentKey] : undefined;
-    let removed = false;
-
-    if (typeof cachedHandler === 'function') {
-      this.removeListener(eventName, cachedHandler);
-      delete this._boundListeners[eventName]; // clear cache item
-      removed = true;
-    }
-    if (typeof hostHandler === 'function' && hostHandler !== cachedHandler) {
-      this.removeListener(eventName, hostHandler);
-      removed = true;
-    }
-       
-    return removed;
-  };
-  
   // Host prefixes disambiguate messages when the session can span more than
   // one host. A single host reads better without repeating its address on
   // every line. Nested hosts keep the prefix, including after their queue has
@@ -1290,15 +1221,9 @@ class SSH2Shell extends Stream {
       sshObj.skipPrimaryHosts = false;
     }
 
-    if (sshObj.abort || sshObj.stop) {
-      const reason =
-        typeof sshObj.abort === 'string'
-          ? sshObj.abort
-          : typeof sshObj.stop === 'string'
-            ? sshObj.stop
-            : 'command-failed';
+    if (sshObj.abort) {
+      const reason = typeof sshObj.abort === 'string' ? sshObj.abort : 'command-failed';
       sshObj.abort = false;
-      sshObj.stop = false;
       this.stop(reason);
     }
   }
@@ -1605,6 +1530,7 @@ class SSH2Shell extends Stream {
     this._connections = [];
     this._active = null;
     this._primaryEnded = false;
+    this.command = '';
     this._buffer = '';
     this._stderrBuffer = '';
     this.sshObj = this._hosts.shift();
@@ -1944,6 +1870,7 @@ class SSH2Shell extends Stream {
     this.connection = null;
     this.sshObj = {};
     this.host = 'No host';
+    this.command = '';
     this._buffer = '';
     this._allSessions = '';
     this._primaryhostSessionText = '';
@@ -2022,22 +1949,54 @@ class SSH2Shell extends Stream {
   // Applies a host's timer config only when it supplies a valid value, so an
   // instance value is not overwritten by the defaults.
   _applyHostTimerValues(host = this.sshObj) {
-    // `idleTimeOut` is the documented key; `idleTime` is a legacy alias.
-    const idleTimeOut =
-      toPositiveNumber(host.idleTimeOut) ||
-      toPositiveNumber(host.idleTime);
+    const idleTimeOut = toPositiveNumber(host.idleTimeOut);
     if (idleTimeOut > 0) {
       this.idleTime = idleTimeOut;
     }
 
-    // Public key is `dataIdleTimeOut` (README). Keep the undocumented
-    // `dataIdleTime` as a fallback for existing callers.
-    const dataIdleTimeOut =
-      toPositiveNumber(host.dataIdleTimeOut) ||
-      toPositiveNumber(host.dataIdleTime);
+    const dataIdleTimeOut = toPositiveNumber(host.dataIdleTimeOut);
     if (dataIdleTimeOut > 0) {
       this.dataIdleTime = dataIdleTimeOut;
     }
+  }
+
+  // Default command handlers. They live on the prototype and are bound in the
+  // constructor; a host overrides them per record without mutating the config.
+  _defaultOnCommandProcessing() {}
+
+  _defaultOnCommandComplete() {
+    this._systemMsg('debug', `onCommandComplete:`);
+  }
+
+  _defaultOnCommandTimeout(command, response, stream, connection, details) {
+    // With `commandTimeoutRetries` configured, only the final attempt closes
+    // the run. The library re-arms the timer for earlier attempts.
+    if (details && details.final === false) {
+      this._systemMsg(
+        'debug',
+        `loadDefaults: Class.commandTimeout retry ${details.attempt}/${details.maxRetries}`
+      );
+      return;
+    }
+
+    response = response.replace(this.command, '');
+    this._systemMsg('debug', `loadDefaults: Class.commandTimeout`);
+
+    this._systemMsg(
+      'verbose',
+      `loadDefaults: Timeout command: ${command} response: ${response}`
+    );
+
+    this.emit(
+      'error',
+      `${this.host}: Command timed out after ${this.idleTime / 1000} seconds`,
+      'Command Timeout',
+      true,
+      (err, type) => {
+        this.sshObj.sessionText += this._buffer;
+        this._buffer = '';
+      }
+    );
   }
 
   // Loads a host's defaults and binds its handlers to the record that owns
@@ -2071,23 +2030,19 @@ class SSH2Shell extends Stream {
       this._multipleHosts = true;
     }
 
-    // Support the legacy { send: fn } message handler shape.
-    if (host.msg && host.msg.send && typeof host.msg.send === 'function') {
-      host.msg = host.msg.send;
-    }
-
-    // A host `msg` handler replaces the instance fallback while the record is
+    // A host `onMsg` handler replaces the instance fallback while the record is
     // active. `_removeListeners` restores the fallback when the record leaves.
+    const onMsg = typeof host.onMsg === 'function' ? host.onMsg : null;
     const previousMsg = record.listeners.msg;
-    if (previousMsg && previousMsg !== host.msg) {
+    if (previousMsg && previousMsg !== onMsg) {
       this.removeListener('msg', previousMsg);
       delete record.listeners.msg;
     }
-    if (typeof host.msg === 'function') {
+    if (onMsg) {
       if (this.listeners('msg').includes(this.msg)) {
         this.removeListener('msg', this.msg);
       }
-      this._bindHostListener(record, 'msg', host.msg);
+      this._bindHostListener(record, 'msg', onMsg);
     } else if (!this.listeners('msg').includes(this.msg)) {
       this.on('msg', this.msg);
     }
@@ -2149,46 +2104,21 @@ class SSH2Shell extends Stream {
     record.progress = this.progress;
     record.exposeCredentials = this.exposeCredentials;
 
-    // Listener defaults for command processing.
-    host.onCommandProcessing =
-      host.onCommandProcessing ??
-      ((command, response, sshObj, stream) => {});
-
-    host.onCommandComplete =
-      host.onCommandComplete ??
-      ((command, response, sshObj) => {
-        this._systemMsg('debug', `onCommandComplete:`);
-      });
-
-    host.onCommandTimeout =
-      host.onCommandTimeout ??
-      ((command, response, stream, connection, details) => {
-        // With `commandTimeoutRetries` configured, only the final attempt
-        // closes the run. The library re-arms the timer for earlier attempts.
-        if (details && details.final === false) {
-          this._systemMsg(
-            'debug',
-            `loadDefaults: Class.commandTimeout retry ${details.attempt}/${details.maxRetries}`
-          );
-          return;
-        }
-
-        response = response.replace(this.command, '');
-        this._systemMsg('debug', `loadDefaults: Class.commandTimeout`);
-
-        this._systemMsg('verbose',`loadDefaults: Timeout command: ${command} response: ${response}`);
-
-        this.emit(
-          'error',
-          `${this.host}: Command timed out after ${this.idleTime / 1000} seconds`,
-          'Command Timeout',
-          true,
-          (err, type) => {
-            this.sshObj.sessionText += this._buffer;
-            this._buffer = '';
-          }
-        );
-      });
+    // Resolve the command handlers for this record. Defaults are not written
+    // back to the host config, so reusing a host object with another instance
+    // does not retain the first instance's closures.
+    const onCommandProcessing =
+      typeof host.onCommandProcessing === 'function'
+        ? host.onCommandProcessing
+        : this._defaultOnCommandProcessing;
+    const onCommandComplete =
+      typeof host.onCommandComplete === 'function'
+        ? host.onCommandComplete
+        : this._defaultOnCommandComplete;
+    const onCommandTimeout =
+      typeof host.onCommandTimeout === 'function'
+        ? host.onCommandTimeout
+        : this._defaultOnCommandTimeout;
 
     // Bind the host handlers into the record. They are removed with the same
     // record on a host switch, failure, or teardown.
@@ -2210,9 +2140,9 @@ class SSH2Shell extends Stream {
       this._bindHostListener(record, 'end', host.onEnd);
     }
 
-    this._bindHostListener(record, 'commandProcessing', host.onCommandProcessing);
-    this._bindHostListener(record, 'commandComplete', host.onCommandComplete);
-    this._bindHostListener(record, 'commandTimeout', host.onCommandTimeout);
+    this._bindHostListener(record, 'commandProcessing', onCommandProcessing);
+    this._bindHostListener(record, 'commandComplete', onCommandComplete);
+    this._bindHostListener(record, 'commandTimeout', onCommandTimeout);
 
     // The tryKeyboard fallback belongs to the record that set it. It is only
     // installed when no host or instance handler exists, because two handlers
@@ -2362,7 +2292,7 @@ class SSH2Shell extends Stream {
   // Shared tail for primary connections and hops. The only difference is the
   // `sock` option a hop supplies.
   _openClient(context, options) {
-    context.connection = new this.ssh2Client();
+    context.connection = new this._ssh2Client();
     this.connection = context.connection;
     this._bindConnection(context);
 
@@ -2632,31 +2562,5 @@ class SSH2Shell extends Stream {
     });
   }
 }
-
-// Class-body properties in the CoffeeScript source become prototype
-// properties. They are intentionally shared until an instance assigns an own
-// value, matching the baseline (and its known prototype-state quirk).
-SSH2Shell.prototype.sshObj = {};
-SSH2Shell.prototype.command = '';
-SSH2Shell.prototype._hosts = [];
-SSH2Shell.prototype._primaryHostCount = 1;
-SSH2Shell.prototype._multipleHosts = false;
-SSH2Shell.prototype._primaryhostSessionText = '';
-SSH2Shell.prototype._allSessions = '';
-SSH2Shell.prototype._connections = [];
-SSH2Shell.prototype._stream = {};
-SSH2Shell.prototype._buffer = '';
-SSH2Shell.prototype._stderrBuffer = '';
-SSH2Shell.prototype._boundListeners = {};
-SSH2Shell.prototype.idleTime = 5000;
-SSH2Shell.prototype.asciiFilter = '';
-SSH2Shell.prototype.textColorFilter = '';
-SSH2Shell.prototype.passwordPrompt = '';
-SSH2Shell.prototype.standardPrompt = '';
-SSH2Shell.prototype._callback = function () {};
-SSH2Shell.prototype.onCommandProcessing = function () {};
-SSH2Shell.prototype.onCommandComplete = function () {};
-SSH2Shell.prototype.onCommandTimeout = function () {};
-SSH2Shell.prototype.onEnd = function () {};
 
 module.exports = SSH2Shell;
