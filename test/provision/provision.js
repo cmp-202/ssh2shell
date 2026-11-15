@@ -32,7 +32,8 @@ if (fs.existsSync(provisionEnvPath)) {
 }
 require('dotenv').config({ path: path.join(repoRoot, '.env') });
 
-const SSH2Shell = require(path.join(repoRoot, 'src', 'ssh2shell'));
+const SSH2Shell = require(path.join(repoRoot, 'test', 'utils', 'module.js'));
+
 const { logFile, log } = require(path.join(repoRoot, 'test', 'utils', 'logging.js'));
 
 const ROLE_NAME = (process.argv[2] || process.env.PROVISION_ROLE || 'server1').toLowerCase();
@@ -44,7 +45,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser', 'kbduser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: true,
     challengeResponse: 'yes',
@@ -55,7 +55,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: true,
     hasKbdUser: false,
     challengeResponse: 'no',
@@ -66,7 +65,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: false,
     challengeResponse: 'no',
@@ -111,8 +109,10 @@ function readRequiredFile(label, filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-// The test key is always needed: it is installed for the test users and copied
-// to the hop users so nested `ssh -i` connections work.
+// The test key is always needed: its public half is installed for the test
+// users, and its private half is the default bootstrap login key. Hops use the
+// runner's local key through `forwardOut`, so no private key is copied to the
+// VMs.
 const testPrivateKeyPath = resolvePath(
   process.env.TEST_PRIVATE_KEY_PATH ||
     process.env.PRIVATE_KEY_PATH ||
@@ -298,25 +298,6 @@ function buildCommands() {
       ...installFile(`/home/${user}/.ssh/authorized_keys`, key.trim(), 600, user)
     );
   }
-  for (const user of role.hopKeyUsers) {
-    commands.push(
-      ...installFile(
-        `/home/${user}/.ssh/id_ed25519`,
-        testPrivateKey.trim(),
-        600,
-        user
-      )
-    );
-    commands.push(
-      ...installFile(
-        `/home/${user}/.ssh/id_ed25519.pub`,
-        testPublicKey.trim(),
-        644,
-        user
-      )
-    );
-  }
-
   // sshd: password auth stays available for the test users; keyboard-interactive
   // is enabled only where kbduser exists, and the Match block is kept last.
   //

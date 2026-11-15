@@ -18,7 +18,12 @@ const repoRoot = path.join(__dirname, '..');
 const testDir = path.join(repoRoot, 'test', 'live');
 const logDir = path.join(repoRoot, 'test', 'logs');
 const instrumentPath = path.join(__dirname, 'live-instrument.js');
-const modulePath = path.join(repoRoot, 'src', 'ssh2shell.js');
+const { resolveTarget } = require(path.join(
+  repoRoot,
+  'test',
+  'utils',
+  'module-target.js'
+));
 const resultPath = path.join(logDir, '.live-result.json');
 
 // Load .env so the runner can build the same expectations the tests see.
@@ -27,6 +32,12 @@ try {
 } catch (error) {
   // .env is optional; tests that need it report their own missing values.
 }
+
+// `SSH2SHELL_MODULE` selects src (default), lib, baseline, or a path. The
+// absolute path is passed to both the instrumentation preload and the tests.
+const modulePath = resolveTarget(
+  process.env.SSH2SHELL_MODULE || process.env.SSH2SHELL_LIVE_MODULE
+);
 
 const env = process.env;
 const user = env.USER_NAME || 'tester';
@@ -80,7 +91,9 @@ const fatalLogMarkers = [
 
 // Per-test success checks. `contains`/`excludes` inspect the callback session
 // text; `logContains`/`logExcludes` inspect the test log; `files` inspect the
-// extra output files some tests write.
+// extra output files some tests write. `allowErrors` lists expected error event
+// types and `allowFatalMarkers` lists expected connection markers for fault
+// tests.
 const checks = {
   simple: {
     contains: ['Filesystem', 'Mem:'],
@@ -142,6 +155,45 @@ const checks = {
     contains: [server1, server2].filter(Boolean),
     excludes: ['SSH failed'],
   },
+  // Full host-array walk: three primaries, nested hosts at three depths, and
+  // siblings. The order is depth-first and is asserted inside the test too.
+  host_traversal: {
+    contains: [
+      'traversal:host1',
+      'traversal:hosta',
+      'traversal:hostaa',
+      'traversal:hostaaa',
+      'traversal:host2',
+      'traversal:hostb',
+      'traversal:hostbb',
+      'traversal:hostc',
+      'traversal:hostcc',
+      'traversal:host3',
+      'traversal:hostd',
+      'traversal:hoste',
+      'traversal:hostf',
+    ],
+    logContains: [
+      'traversal-order:host1,hosta,hostaa,hostaaa,host2,hostb,hostbb,hostc,hostcc,host3,hostd,hoste,hostf',
+    ],
+    excludes: ['SSH failed'],
+  },
+  // Fault containment: a failed hop must not skip its sibling, and a failed
+  // primary must not stop the next primary. The failed hosts and the
+  // never-started descendant must not run. This is the acceptance test for the
+  // next-host-connection transport; the nested-ssh path fails it because the
+  // failed hop's command runs on the parent shell and the sibling is skipped.
+  host_faults: {
+    contains: ['fault:primary1', 'fault:good-hop', 'fault:good-sibling', 'fault:primary2'],
+    excludes: ['fault:bad-deep', 'fault:bad-deep-child', 'fault:bad-primary'],
+    logContains: [
+      'fault-order:primary1,good-hop,good-sibling,primary2',
+      'error-count:2',
+      'end-order:bad-deep,good-hop,good-sibling,primary1,bad-primary,primary2',
+    ],
+    allowErrors: ['Connection', 'Hop'],
+    allowFatalMarkers: ['ECONNREFUSED'],
+  },
   progress: {
     contains: ['progress-demo-', server1, server2].filter(Boolean),
   },
@@ -154,7 +206,7 @@ const checks = {
     logContains: ['Note: Starting deployment'],
   },
   bash_script: {
-    contains: ['./myscript.sh', 'rm myscript.sh'],
+    contains: [':     printf'],
     excludes: ['No such file or directory', 'command not found', 'syntax error'],
   },
   lots_of_commands: {
@@ -292,7 +344,11 @@ function evaluate(name, result, logText) {
     }
   }
 
+  const allowedMarkers = new Set(check.allowFatalMarkers || []);
   for (const marker of fatalLogMarkers) {
+    if (allowedMarkers.has(marker)) {
+      continue;
+    }
     if (normalizedLog.includes(marker)) {
       failures.push(`fatal log marker: ${marker}`);
     }
@@ -510,6 +566,7 @@ async function main() {
   console.log(
     `Running ${selected.length} live test(s), timeout ${options.timeoutMs / 1000}s`
   );
+  console.log(`Module: ${path.relative(repoRoot, modulePath)}`);
   console.log('');
 
   const results = [];

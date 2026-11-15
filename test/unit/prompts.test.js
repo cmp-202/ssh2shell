@@ -8,7 +8,6 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
-  delay,
   processSudo,
 } = require('./helpers/harness');
 const { FakeStream } = require('./helpers/fake-ssh2');
@@ -96,113 +95,6 @@ describe('sudo prompt handling', () => {
 
     assert.equal(completed, true);
     assert.equal(ssh.sshObj.pwSent, false);
-  });
-});
-
-describe('nested SSH prompt handling', () => {
-  it('sends the nested-host password on the first SSH password prompt', () => {
-    const { ssh } = make({ server: { password: 'secret' } });
-    const writes = [];
-    ssh._runCommand = (command) => writes.push(command);
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'Password: ';
-    ssh.sshObj.sshAuth = false;
-
-    ssh._processSSHPrompt();
-
-    assert.deepEqual(writes, ['secret']);
-    assert.equal(ssh.sshObj.sshAuth, true);
-    assert.equal(ssh._buffer, '');
-  });
-
-  it('sends the nested-host passphrase when a passphrase is configured', () => {
-    const { ssh } = make({ server: { passPhrase: 'phrase' } });
-    const writes = [];
-    ssh._runCommand = (command) => writes.push(command);
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'Password: ';
-    ssh.sshObj.sshAuth = false;
-
-    ssh._processSSHPrompt();
-
-    assert.deepEqual(writes, ['phrase']);
-    assert.equal(ssh.sshObj.sshAuth, true);
-  });
-
-  it('queues an exit and continues when the nested SSH prompt appears', () => {
-    const { ssh } = make();
-    let next = false;
-    ssh._nextCommand = () => {
-      next = true;
-    };
-    ssh.command = 'ssh user@host';
-    ssh._buffer = '$ ';
-    ssh.sshObj.sshAuth = true;
-
-    ssh._processSSHPrompt();
-
-    assert.ok(ssh.sshObj.exitCommands.includes('exit'));
-    assert.equal(ssh.sshObj.sshToNextHost, false);
-    assert.equal(next, true);
-  });
-
-  it('reports nested SSH auth failure and exits when no previous host exists', () => {
-    const { ssh } = make();
-    let exited = false;
-    ssh._runExit = () => {
-      exited = true;
-    };
-    const errors = [];
-    ssh.on('error', (...args) => errors.push(args));
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'Password: ';
-    ssh.sshObj.sshAuth = true;
-
-    ssh._processSSHPrompt();
-
-    assert.equal(ssh.sshObj.sshAuth, false);
-    assert.equal(exited, true);
-    assert.ok(errors.length >= 1);
-  });
-
-  it('drops back to the previous host when nested SSH auth fails', () => {
-    const { ssh } = make();
-    let previous = false;
-    ssh._previousHost = () => {
-      previous = true;
-    };
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'Password: ';
-    ssh.sshObj.sshAuth = true;
-    ssh._connections = [createHost({ server: { host: 'primary.test' } })];
-
-    ssh._processSSHPrompt();
-
-    assert.equal(previous, true);
-  });
-
-  it('re-arms the idle timeout when post-auth output has no prompt', async () => {
-    const { ssh } = make();
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'banner text';
-    ssh.sshObj.sshAuth = true;
-    ssh.idleTime = 0;
-
-    const timeouts = [];
-    ssh.on('commandTimeout', (...args) => timeouts.push(args));
-    ssh.removeAllListeners('msg');
-
-    ssh._processSSHPrompt();
-
-    if (isBaseline()) {
-      // Baseline returns without scheduling a timer, so a silent nested shell
-      // hangs until more data arrives.
-      assert.equal(ssh.idleTimer, undefined);
-    } else {
-      await delay(10);
-      assert.equal(timeouts.length, 1);
-      assert.equal(timeouts[0][1], 'banner text');
-    }
   });
 });
 

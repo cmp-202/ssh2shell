@@ -113,6 +113,46 @@ describe('handled command responses', () => {
     ssh.close();
   });
 
+  it('ignores a prompt that a PTY redraw places before the echoed command', () => {
+    if (isBaseline()) return;
+
+    const host = createHost({
+      commandResponse: 'handled',
+      standardPromptRegex: FULL_PROMPT,
+    });
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+    ssh._loadDefaults();
+    ssh.command = 'echo one';
+
+    // A long command makes the terminal redraw: the previous prompt is sent
+    // before the echoed command. That prompt must not complete the new command.
+    ssh._buffer = `tester@host:~$ \r\n${ssh.command}`;
+
+    assert.equal(ssh._sanitizeResponse(), '');
+    assert.equal(ssh.standardPrompt.test(ssh._sanitizeResponse()), false);
+  });
+
+  it('still finds the prompt that follows the echoed command', () => {
+    if (isBaseline()) return;
+
+    const host = createHost({
+      commandResponse: 'handled',
+      standardPromptRegex: FULL_PROMPT,
+    });
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+    ssh._loadDefaults();
+    ssh.command = 'echo one';
+
+    // If the command text also appears in the output, the final echo is still
+    // the boundary and the prompt after it remains visible.
+    ssh._buffer = `${ssh.command}\r\n${ssh.command}\r\ntester@host:~$ `;
+
+    assert.equal(ssh._sanitizeResponse(), '\r\ntester@host:~$ ');
+    assert.equal(ssh.standardPrompt.test(ssh._sanitizeResponse()), true);
+  });
+
   it('removes the prompt when the echoed command is absent', () => {
     if (isBaseline()) return;
 

@@ -108,9 +108,10 @@ default bootstrap login). `tester` is the primary test login.
 `/etc/sudoers.d/90-ssh2shell-nopasswd` grants passwordless sudo. `suuser` has no
 sudo and exists for the `su` test.
 
-The test key is installed in every test user's `authorized_keys`. It is also
-copied to `~/.ssh/id_ed25519` for `tester`, `nopasswd`, and `suuser` so nested
-`ssh -i` hops work. `ssh2shell` gets the admin key instead.
+The test public key is installed in every test user's `authorized_keys`.
+`ssh2shell` gets the admin public key instead. Hops use `forwardOut` from the
+parent connection, so the private test key stays on the runner and is never
+copied to a VM.
 
 ## Building the three VMs
 

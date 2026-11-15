@@ -86,7 +86,6 @@ until `_connections` is empty and `close()` runs.
 | `_connections` | Stack of previous hosts used to back out through secondary/nested connections. |
 | `_stream` | Current shell stream. |
 | `_buffer` | Raw response buffer for the current command. |
-| `_commandSawData` | Internal: whether the current command has produced data (drives `details.noOutput`). |
 | `_stderrBuffer` | Internal: captured stderr for the current command when `captureStderr` is enabled. |
 | `idleTime` | Command timeout in ms (`idleTimeOut`, default 5000). |
 | `dataIdleTime` | Internal data-settle timer in ms; intended public key is `dataIdleTimeOut`, default 500. |
@@ -104,7 +103,7 @@ until `_connections` is empty and `close()` runs.
 | `end` | `(sessionText, sshObj)` | Stream `finish`, `_previousHost`, `_nextPrimaryHost`. |
 | `commandProcessing` | `(command, response, sshObj, stream)` | `_onData` while a command is still producing output. |
 | `commandComplete` | `(command, response, sshObj, details)` | `_commandComplete` after a prompt is detected. `response` is the raw buffer by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer; `details.stderr` carries captured stderr when `captureStderr` is enabled. |
-| `commandTimeout` | `(command, response, stream, connection, details)` | `_scheduleIdleTimeout`, armed by `_onData` or by `_runCommand` when `commandStartTimeout` is set. `details` is `{ attempt, maxRetries, final, noOutput }`. |
+| `commandTimeout` | `(command, response, stream, connection, details)` | `_scheduleIdleTimeout`, armed when `_runCommand` writes a command and reset by `_onData`. A detected prompt cancels the timer. `details` is `{ attempt, maxRetries, final }`. |
 | `keyboard-interactive` | `(name, instructions, lang, prompts, finish)` | Re-emitted from the `ssh2.Client`. |
 | `newPrimaryHost` | value returned by `_nextPrimaryHost`, which is `_initiate`'s return value: at `connect()` time this is `_stream` (the prototype placeholder `{}` until the shell opens) | `connect` and connection `close`. |
 | `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README no longer lists them. |
@@ -115,7 +114,7 @@ until `_connections` is empty and `close()` runs.
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
 `debug`, `progress`, `exposeCredentials`, `enter`, `streamEncoding`, `window`,
 `pty`, `idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
-undocumented `dataIdleTime`), `commandResponse`, `commandStartTimeout`,
+undocumented `dataIdleTime`), `commandResponse`,
 `captureStderr`, `commandTimeoutRetries`, `sessionText`, `exitCommands`.
 
 **Prompts and filters:** `standardPrompt`, `standardPromptRegex`,
@@ -286,21 +285,19 @@ run against both the current build and the frozen baseline, guarded by
   `test/unit/command-response.test.js`.
 - **`commandTimeoutRetries`.** A non-negative integer, default `0`. The library
   owns the attempt count and re-arms the idle timer for each non-final attempt;
-  the handler only reacts to
-  `details = { attempt, maxRetries, final, noOutput }`. The default handler
-  closes only on the final attempt, so `0` preserves the single-timeout
-  behavior. A handler can set `this.sshObj.retryCommandTimeout = false` to stop
-  retrying for the current command. The attempt count resets when the same
-  command is written and when a command completes, not for internal
-  password/exit writes. Test: `test/unit/timeout-retries.test.js`; live checks:
-  `test/live/timeout.js` (handler-managed) and `test/live/timeout_retries.js`
-  (opt-in retries).
-- **`commandStartTimeout`.** A boolean, default `false`. When `true`, the idle
-  timer is armed as soon as the command is written, so a command that never
-  produces output still reaches `commandTimeout`. The library tracks
-  `_commandSawData` per command and reports `details.noOutput`: `true` means no
-  data has arrived for the command, `false` means output arrived but no prompt
-  was detected. Incoming data still clears and re-arms the timer normally. Test:
+  the handler only reacts to `details = { attempt, maxRetries, final }`. The
+  default handler closes only on the final attempt, so `0` preserves the
+  single-timeout behavior. A handler can set
+  `this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+  command. The attempt count resets when the same command is written and when a
+  command completes, not for internal password/exit writes. Test:
+  `test/unit/timeout-retries.test.js`; live checks: `test/live/timeout.js`
+  (handler-managed) and `test/live/timeout_retries.js` (opt-in retries).
+- **Command idle timeout.** The idle timer is armed when a command is written, so
+  a command that never produces output still reaches `commandTimeout`. Incoming
+  data resets the timer, and a detected prompt cancels it. A silent command that
+  returns to the prompt completes normally. The literal `exit` command and
+  internal password writes do not arm the timer. Test:
   `test/unit/command-start-timeout.test.js`.
 - **`captureStderr`.** A boolean, default `false`. When `true`, stderr chunks
   are filtered with the same colour and ASCII filters as stdout, buffered in

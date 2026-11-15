@@ -1017,6 +1017,12 @@ Signed-off-by: user request for the silent-command and "no output yet" distincti
 
 Released in `v3.3.0`.
 
+> **Superseded in the next major.** The idle timer is now always armed when a
+> command is written, so a silent command times out without an opt-in. The
+> `commandStartTimeout` option and `details.noOutput` were removed. A detected
+> prompt cancels the timer, so a silent command that returns to the prompt still
+> completes normally. See `test/unit/command-start-timeout.test.js`.
+
 - `src/ssh2shell.js` — `_runCommand` arms the idle timer when
   `commandStartTimeout` is `true` and resets `_commandSawData` for the new
   command. `_onData` marks data as seen once a command is in flight.
@@ -1240,7 +1246,9 @@ behavior.
 - **Implemented:** handle silent long-running commands. `commandStartTimeout`
   arms the idle timer when the command is written, and `details.noOutput`
   distinguishes "no output yet" from "prompt missed". See
-  [L7.22 deliverables](#l722-deliverables-silent-command-timeout).
+  [L7.22 deliverables](#l722-deliverables-silent-command-timeout). This was
+  superseded in the next major: the timer is always armed at command start and
+  both `commandStartTimeout` and `details.noOutput` are removed.
 - **Implemented:** opt-in stderr capture in the command response with
   `captureStderr` and `details.stderr`; `onStderrData` remains the always-on
   event. See [L7.23 deliverables](#l723-deliverables-stderr-capture).

@@ -29,8 +29,14 @@ async function start(host) {
   });
 
   await waitForStream(ssh);
+  // Teardown clears the `_stream`/`connection` aliases, so keep the transport
+  // the run used.
+  const stream = ssh._stream;
+  const connection = ssh.connection;
   return {
     ssh,
+    stream,
+    connection,
     get callbackText() {
       return callbackText;
     },
@@ -53,20 +59,20 @@ describe('single-host command flow', () => {
     });
 
     const session = await start(host);
-    session.ssh._stream.onWrite = echoPrompt;
-    session.ssh._stream.receive('$ ');
+    session.stream.onWrite = echoPrompt;
+    session.stream.receive('$ ');
 
     await waitFor(() => session.callbackText !== undefined, {
       label: 'callback',
     });
 
-    assert.deepEqual(session.ssh._stream.writes, ['echo one\n', 'echo two\n']);
+    assert.deepEqual(session.stream.writes, ['echo one\n', 'echo two\n']);
     assert.deepEqual(completed, ['echo one', 'echo two']);
     assert.equal((host.sessionText.match(/output/g) || []).length, 2);
     assert.equal(session.callbackText, session.endText);
     assert.ok(session.callbackText.includes('example.test:'));
-    assert.equal(session.ssh._stream.closed, true);
-    assert.equal(session.ssh.connection.ended, true);
+    assert.equal(session.stream.closed, true);
+    assert.equal(session.connection.ended, true);
     assert.equal(session.ssh._hosts.length, 0);
   });
 
@@ -78,14 +84,14 @@ describe('single-host command flow', () => {
     });
 
     const session = await start(host);
-    session.ssh._stream.onWrite = echoPrompt;
-    session.ssh._stream.receive('$ ');
+    session.stream.onWrite = echoPrompt;
+    session.stream.receive('$ ');
 
     await waitFor(() => session.callbackText !== undefined, {
       label: 'callback',
     });
 
-    assert.deepEqual(session.ssh._stream.writes, ['echo three\n']);
+    assert.deepEqual(session.stream.writes, ['echo three\n']);
     assert.ok(host.sessionText.includes('Note: Note one'));
     assert.ok(messages.some((message) => message.includes('hello')));
   });
@@ -97,8 +103,8 @@ describe('single-host command flow', () => {
     });
 
     const session = await start(host);
-    session.ssh._stream.onWrite = echoPrompt;
-    session.ssh._stream.receive('BANNER\n$ ');
+    session.stream.onWrite = echoPrompt;
+    session.stream.receive('BANNER\n$ ');
 
     await waitFor(() => session.callbackText !== undefined, {
       label: 'callback',
@@ -122,7 +128,7 @@ describe('single-host command flow', () => {
     const shellIntegration =
       '\x1b]3008;start=abc;type=command;cwd=/home/tester\x1b\\';
 
-    session.ssh._stream.onWrite = (data, stream) => {
+    session.stream.onWrite = (data, stream) => {
       setTimeout(
         () =>
           stream.receive(
@@ -132,7 +138,7 @@ describe('single-host command flow', () => {
         1
       );
     };
-    session.ssh._stream.receive('$ ');
+    session.stream.receive('$ ');
 
     await waitFor(() => completed.length === 1, { label: 'commandComplete' });
 

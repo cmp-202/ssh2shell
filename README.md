@@ -264,18 +264,17 @@ payload would remain in the response. Set `disableASCIIFilter` to keep them.
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. Every `onData` event resets the timer. |
-| `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. |
-| `commandStartTimeout` | boolean | `false` | Arm `idleTimeOut` as soon as a command is written, so a command that never produces output still times out. |
+| `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. The timer starts when a command is written, resets on every `onData` event, and is cancelled by prompt detection. |
+| `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. Keep it below `idleTimeOut`. |
 | `commandTimeoutRetries` | number | `0` | Number of times to re-arm `commandTimeout` after a non-final attempt. `0` preserves the single-timeout behavior. |
 
 `idleTimeOut` is an inactivity timeout, not a limit on how long a command may
-run. Every `onData` event resets the timer, so a command that keeps producing
-output stays alive. When no data has arrived for `idleTimeOut` milliseconds, the
-`commandTimeout` event fires with a fifth `details` argument:
-`{ attempt, maxRetries, final, noOutput }`. `noOutput` is `true` when the command
-has not produced any data yet, which distinguishes a silent command from a
-missed prompt.
+run. The timer starts when the command is written, so a command that never
+produces output still times out. Every `onData` event resets the timer, so a
+command that keeps producing output stays alive. A detected prompt cancels the
+timer, and the command completes normally. When no prompt has been detected for
+`idleTimeOut` milliseconds, the `commandTimeout` event fires with a fifth
+`details` argument: `{ attempt, maxRetries, final }`.
 
 The library owns the attempt count. With `commandTimeoutRetries` set, it
 re-arms the timer after each non-final attempt; the handler only reacts. The
@@ -294,14 +293,16 @@ onCommandTimeout(command, response, stream, connection, details) {
 }
 ```
 
-The idle timer is armed by incoming data. A command that produces no output at
-all is not covered by `commandTimeout` unless you opt in with
-`commandStartTimeout: true`, which arms the timer when the command is written.
-The timeout details then report `noOutput: true`. Without the option, use a
-server keepalive or an external timeout for completely silent commands.
+The idle timer is armed when the command is written, so a command that produces
+no output still times out like any other command that never returns to the
+prompt. A command that returns to the prompt without output is a normal
+completion, not a timeout. The timeout does not distinguish the two cases in its
+payload; inspect `response` if a handler needs to.
 
 `dataIdleTimeOut` is the response-settling delay. It groups stream chunks into
-one response before prompt matching. It is not the command timeout.
+one response before prompt matching. It is not the command timeout. Keep it
+below `idleTimeOut`; prompt detection cancels the idle timer, but the settle
+delay must run first.
 
 `idleTime` is accepted as a legacy alias for `idleTimeOut`. You can also set
 `SSH.idleTime` or `SSH.dataIdleTime` on the instance before `connect()`; a host
@@ -339,8 +340,8 @@ with `SSH.on(...)` run for every host, in parallel with any host handler.
 | `onData` | `data` | Raw data arrives from the stream. |
 | `onStderrData` | `data` | Data arrives on stderr. |
 | `onCommandProcessing` | `command, response, sshObj, stream` | Output arrives before the prompt is detected. |
-| `onCommandComplete` | `command, response, sshObj, details` | A command returns to the prompt. Use it to inspect the response, queue follow-up commands, or stop the current host. |
-| `onCommandTimeout` | `command, response, stream, connection, details` | No data arrives for `idleTimeOut` milliseconds. |
+| `onCommandComplete` | `command, response, sshObj, details` | When the prompt is detected after a command is run. |
+| `onCommandTimeout` | `command, response, stream, connection, details` | Catches when a command hangs or is waiting for input. |
 | `onEnd` | `sessionText, sshObj` | The host session finishes. |
 | `onError` | `err, type, close, callback` | An error is raised. |
 | `onKeyboardInteractive` | `name, instructions, instructionsLang, prompts, finish` | Keyboard-interactive authentication is requested. |
@@ -353,11 +354,11 @@ progress.
 can answer a prompt with `stream.write('y\n')`. See
 [Respond to a prompt mid-command](#respond-to-a-prompt-mid-command).
 
-`onCommandTimeout` receives `details` as
-`{ attempt, maxRetries, final, noOutput }`. With `commandTimeoutRetries` set, the
-library re-arms the timer for non-final attempts; the handler does not need to
-count. Set `this.sshObj.retryCommandTimeout = false` to stop retrying for the
-current command.
+`onCommandTimeout` receives `details` as `{ attempt, maxRetries, final }`. With
+`commandTimeoutRetries` set, the library re-arms the timer for non-final
+attempts; the handler does not need to count. Set
+`this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+command.
 
 `onCommandComplete` receives `details.rawResponse` and, when `captureStderr` is
 enabled, `details.stderr` with the captured stderr text.
@@ -684,7 +685,7 @@ SSH.on('commandProcessing', function (command, response, sshObj, stream) {
 Do not define the same handler in both places. It will run twice.
 
 If no prompt is detected and no answer is sent, `commandTimeout` fires after
-`idleTimeOut` milliseconds with no data.
+`idleTimeOut` milliseconds without a prompt.
 
 See [`test/live/prompt_response.js`](./test/live/prompt_response.js) for a
 runnable example.
@@ -937,7 +938,7 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
 | `commandComplete` | `command, response, sshObj, details` | A command returned to the prompt. `response` is raw by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer; `details.stderr` carries captured stderr when `captureStderr` is enabled. The handler can modify `sshObj.commands` to queue follow-up work. |
-| `commandTimeout` | `command, response, stream, connection, details` | No data arrived for `idleTimeOut` milliseconds, or `commandStartTimeout` armed the timer at command start. `details` is `{ attempt, maxRetries, final, noOutput }`. |
+| `commandTimeout` | `command, response, stream, connection, details` | No prompt was detected for `idleTimeOut` milliseconds after the command was written or the last data event. `details` is `{ attempt, maxRetries, final }`. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
 | `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
@@ -961,11 +962,11 @@ part of the public API.
 | Member | Description |
 | --- | --- |
 | `connect(callback)` | Start the session. `callback(sessionText)` is optional and receives the combined text when all hosts finish. |
-| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, runs the library's queued `exitCommands` (bounded by `idleTimeOut`), closes once, and calls the callback once. A no-op before `connect()` or after the run finishes. |
+| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, closes the active connection and its ancestors, and calls the callback once. A no-op before `connect()` or after the run finishes. |
 | `close()` | Close the current shell stream. A no-op if the shell has not opened yet. Remaining primary hosts still run; use `stop()` to abandon them. |
-| `close({ graceful: true })` | Run queued exit commands and back out of nested shells before closing. Remaining primary hosts still run. |
+| `close({ graceful: true })` | Back out of nested shells before closing. Remaining primary hosts still run. |
 | `emit(name, ...args)` | Raise an event. Inherited from `EventEmitter`. |
-| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, `hosts`, `exitCommands`, `pwSent`, `sudoFailed`, `stopReason`, and the `skipCommands` / `skipHosts` / `skipPrimaryHosts` / `abort` flags. |
+| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, `hosts`, `pwSent`, `sudoFailed`, `stopReason`, and the `skipCommands` / `skipHosts` / `skipPrimaryHosts` / `abort` flags. |
 | `command` | The command currently being processed. |
 | `idleTime` | The active command timeout in milliseconds. |
 | `dataIdleTime` | The active response-settling delay in milliseconds. |
@@ -1058,13 +1059,12 @@ onCommandProcessing(command, response, sshObj, stream) {
   `skipCommands` if the current host should stop now; otherwise its remaining
   commands still run.
 - `stop(reason)` clears every queue. If a command is still running it sends
-  Ctrl-C first, then runs the library's queued `exitCommands` (bounded by
-  `idleTimeOut`), closes once, and calls the callback once. The reason appears
-  as `Stop requested: <reason>` and in `sshObj.stopReason`.
+  Ctrl-C first, then closes the active connection and its ancestors, and calls
+  the callback once. The reason appears as `Stop requested: <reason>` and in
+  `sshObj.stopReason`.
 - `close()` closes the current connection but still runs the remaining primary
   hosts, matching earlier releases. Use `stop()` to abandon them.
-- `close({ graceful: true })` runs the queued exit commands and backs out of
-  nested shells before closing.
+- `close({ graceful: true })` backs out of nested shells before closing.
 
 **Notes**
 
@@ -1213,24 +1213,25 @@ silent commands; it produces nothing when stderr is redirected to a file.
 
 ### Silent commands
 
-A command that never writes anything does not arm the data-driven idle timer.
-Opt in with `commandStartTimeout: true` to arm it when the command is written:
+The idle timer starts when a command is written, so a command that writes
+nothing still times out if it never returns to the prompt. A silent command that
+does return to the prompt completes normally.
+
+Give a legitimately long silent command a larger `idleTimeOut`:
 
 ```javascript
 const host = {
   // ...
-  commandStartTimeout: true,
   idleTimeOut: 30000,
   onCommandTimeout(command, response, stream, connection, details) {
-    if (details.noOutput) {
-      this.emit('msg', `${command} produced no output`);
-    }
+    this.emit('msg', `${command} did not return to a prompt`);
   },
 };
 ```
 
-The timeout details still report `{ attempt, maxRetries, final, noOutput }`, so
-the same handler works with `commandTimeoutRetries`.
+The timeout details report `{ attempt, maxRetries, final }`, so the same handler
+works with `commandTimeoutRetries`. To distinguish a silent command from one that
+wrote output but missed the prompt, inspect `response`.
 
 ### Capturing stderr
 

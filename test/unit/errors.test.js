@@ -102,10 +102,12 @@ describe('error and stream lifecycle', () => {
 
   it('close() closes the shell stream', async () => {
     const { ssh } = await connected();
+    // Teardown clears the `_stream` alias, so keep the stream the run used.
+    const stream = ssh._stream;
 
     ssh.close();
 
-    assert.equal(ssh._stream.closed, true);
+    assert.equal(stream.closed, true);
   });
 
   it('close() is safe before the shell opens', () => {
@@ -121,10 +123,10 @@ describe('error and stream lifecycle', () => {
   });
 
   it('_removeListeners removes host listeners and clears timers', async () => {
-    const { ssh, host } = await connected();
+    // The handler must be part of the host config so `_loadDefaults` binds it
+    // into the record; `_removeListeners` only removes record-owned handlers.
     const onData = () => {};
-    host.onData = onData;
-    ssh.on('data', onData);
+    const { ssh } = await connected({ onData });
 
     assert.equal(ssh.listeners('data').includes(onData), true);
 

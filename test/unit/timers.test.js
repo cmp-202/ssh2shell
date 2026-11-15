@@ -45,15 +45,16 @@ describe('instance timer values', () => {
     assert.equal(ssh.idleTime, isBaseline() ? 5000 : 222);
   });
 
-  it('restores the instance idleTime after leaving a host', () => {
+  it('keeps the host timer values after removing listeners', () => {
     const host = createHost({ idleTimeOut: 123 });
     const ssh = makeSSH(host, { idleTime: 1500 });
 
     assert.equal(ssh.idleTime, 123);
     ssh._removeListeners();
 
-    // Baseline has no base value to restore.
-    assert.equal(ssh.idleTime, isBaseline() ? 123 : 1500);
+    // Listener removal is pure cleanup; timers are restored when the previous
+    // record becomes active again, not when a record's listeners are detached.
+    assert.equal(ssh.idleTime, 123);
   });
 
   it('keeps an instance-level dataIdleTime when the host has no timer config', () => {
@@ -93,17 +94,24 @@ describe('instance timer values', () => {
   });
 
   it('reapplies the previous host timer values after backing out', () => {
+    if (isBaseline()) return;
+
     const previous = createHost({ idleTimeOut: 250, dataIdleTime: 25 });
     const current = createHost({ idleTimeOut: 123, dataIdleTime: 45 });
-    const ssh = makeSSH(current, { idleTime: 1500, dataIdleTime: 750 });
+    const ssh = makeSSH(previous, { idleTime: 1500, dataIdleTime: 750 });
+    const previousRecord = ssh._activeContext();
 
-    ssh._connections = [previous];
+    // Hop to the current host, then back out to the primary record.
+    ssh._pushContext(current, previousRecord);
+    ssh._loadDefaults();
+    assert.equal(ssh.idleTime, 123);
+    assert.equal(ssh.dataIdleTime, 45);
+
     ssh._runExit = () => {};
     ssh._previousHost();
 
-    // Baseline leaves the outgoing host's values in place.
-    assert.equal(ssh.idleTime, isBaseline() ? 123 : 250);
-    assert.equal(ssh.dataIdleTime, isBaseline() ? 45 : 25);
+    assert.equal(ssh.idleTime, 250);
+    assert.equal(ssh.dataIdleTime, 25);
   });
 
   it('ignores non-positive host timer values', () => {

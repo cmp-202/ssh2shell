@@ -195,8 +195,14 @@ describe('error handling and connection termination', () => {
       );
     }
     assert.equal(ssh._stream.closed, undefined);
-
-    ssh.connection.removeAllListeners();
+    if (isBaseline()) {
+      // Baseline creates the client before it validates the parameters.
+      assert.ok(ssh.connection);
+      ssh.connection.removeAllListeners();
+    } else {
+      // The record stack validates before creating a client.
+      assert.equal(ssh.connection, null);
+    }
   });
 
   it('command timeout runs its callback before closing the stream', async () => {
@@ -235,7 +241,9 @@ describe('error handling and connection termination', () => {
     assert.equal(ssh._stream.closed, true);
   });
 
-  it('characterizes a nested host command timeout as fatal', async () => {
+  it('reports a nested host command timeout without resuming the parent', async () => {
+    if (isBaseline()) return;
+
     const primary = createHost({
       server: { host: 'primary.test' },
       commands: [],
@@ -250,8 +258,12 @@ describe('error handling and connection termination', () => {
 
     const ssh = new SSH2Shell(primary);
     ssh.removeAllListeners('msg');
-    ssh.sshObj = nested;
-    ssh._connections = [primary];
+    ssh.sshObj = primary;
+    ssh._loadDefaults();
+    const primaryRecord = ssh._activeContext();
+
+    // A hop makes the nested host active and puts the primary on the stack.
+    ssh._pushContext(nested, primaryRecord);
     ssh._stream = new FakeStream();
     ssh._loadDefaults();
     ssh.command = 'sleep 1';
@@ -278,20 +290,12 @@ describe('error handling and connection termination', () => {
     assert.equal(timeoutError[2], true);
     assert.equal(ssh._stream.closed, true);
 
-    // Fatal by default: the failed nested host stays current and the previous
-    // host is not resumed automatically.
-    assert.equal(ssh.sshObj, nested);
-    assert.deepEqual(ssh._connections, [primary]);
-
-    if (isBaseline()) {
-      // Baseline ignores the timeout callback, so the partial buffer is not
-      // moved into sessionText before the stream closes.
-      assert.equal(ssh.sshObj.sessionText, '');
-      assert.equal(ssh._buffer, 'partial output');
-    } else {
-      assert.equal(ssh.sshObj.sessionText, 'partial output');
-      assert.equal(ssh._buffer, '');
-    }
+    // The timeout closes the nested shell but does not silently resume the
+    // parent. The hop failure is reported when the transport closes.
+    assert.equal(ssh._activeContext().host, nested);
+    assert.deepEqual(ssh._connections.map((record) => record.host), [primary]);
+    assert.equal(nested.sessionText, 'partial output');
+    assert.equal(ssh._buffer, '');
   });
 
   it('reports a connection close error but still finishes the session', async () => {
@@ -321,7 +325,8 @@ describe('error handling and connection termination', () => {
       assert.equal(args[0].message, 'Connection closed with error');
       assert.equal(args[0].level, 'Connection close');
       assert.equal(args[0].hadError, true);
-      assert.equal(args[2], undefined);
+      // The connection close path reports no live stream (`null`).
+      assert.equal(args[2], null);
       assert.equal(callbackValue, 'example.test: \n');
     }
   });

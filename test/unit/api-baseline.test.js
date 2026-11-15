@@ -92,16 +92,27 @@ describe('_loadDefaults baseline', () => {
     assert.deepEqual(host.commands, ['echo one']);
     assert.equal(host.standardPrompt, '>$%#');
     assert.equal(host.passwordPrompt, ':');
-    assert.equal(host.passphrasePrompt, ':');
+    if (isBaseline()) {
+      assert.equal(host.passphrasePrompt, ':');
+    } else {
+      // Nested ssh is gone, so there is no remote passphrase prompt.
+      assert.equal(host.passphrasePrompt, undefined);
+    }
     assert.equal(host.passPromptText, 'Password');
     assert.equal(host.enter, '\n');
     assert.equal(host.textColorFilter, '\\x1b\\[[0-9;]*m');
     assert.equal(host.disableColorFilter, false);
     assert.equal(host.asciiFilter, '[^\r\n\x20-\x7e]');
     assert.equal(host.disableASCIIFilter, false);
-    assert.deepEqual(host.exitCommands, []);
+    if (isBaseline()) {
+      assert.deepEqual(host.exitCommands, []);
+      assert.equal(host.sshAuth, false);
+    } else {
+      // The nested ssh command builder and its auth state are removed.
+      assert.equal(host.exitCommands, undefined);
+      assert.equal(host.sshAuth, undefined);
+    }
     assert.equal(host.pwSent, false);
-    assert.equal(host.sshAuth, false);
     assert.equal(host.server.hashKey, '');
     assert.equal(host.sessionText, '');
     assert.equal(host.streamEncoding, 'utf8');
@@ -151,10 +162,12 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.sshObj.commands, commands);
     assert.equal(ssh.sshObj.standardPrompt, '>');
     assert.equal(ssh.sshObj.passwordPrompt, 'pass:');
-    assert.equal(ssh.sshObj.passphrasePrompt, 'phrase:');
+    if (isBaseline()) {
+      assert.equal(ssh.sshObj.passphrasePrompt, 'phrase:');
+      assert.equal(ssh.sshObj.exitCommands, exitCommands);
+    }
     assert.equal(ssh.sshObj.passPromptText, 'Pass');
     assert.equal(ssh.sshObj.enter, '\r\n');
-    assert.equal(ssh.sshObj.exitCommands, exitCommands);
     assert.equal(ssh.sshObj.sessionText, 'existing');
     assert.equal(ssh.sshObj.streamEncoding, 'ascii');
     assert.deepEqual(ssh.sshObj.window, {});
@@ -167,7 +180,11 @@ describe('_loadDefaults baseline', () => {
     assert.equal(ssh.standardPrompt.test('foo>'), true);
     assert.equal(ssh.standardPrompt.test('foo$'), false);
     assert.equal(ssh.passwordPrompt.test('Pass for x pass: '), true);
-    assert.equal(ssh.passphrasePrompt.test('Pass phrase: '), true);
+    if (isBaseline()) {
+      assert.equal(ssh.passphrasePrompt.test('Pass phrase: '), true);
+    } else {
+      assert.equal(ssh.passphrasePrompt, undefined);
+    }
 
     // pty is forced to true on baseline; current keeps an explicit false.
     assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
@@ -187,7 +204,7 @@ describe('_loadDefaults baseline', () => {
     );
     assert.equal(
       ssh.sshObj.passphrasePrompt,
-      isBaseline() ? 'legacyphrase:' : ':'
+      isBaseline() ? 'legacyphrase:' : undefined
     );
   });
 
@@ -216,14 +233,20 @@ describe('_loadDefaults baseline', () => {
 
     assert.ok(ssh.standardPrompt instanceof RegExp);
     assert.ok(ssh.passwordPrompt instanceof RegExp);
-    assert.ok(ssh.passphrasePrompt instanceof RegExp);
+    if (isBaseline()) {
+      assert.ok(ssh.passphrasePrompt instanceof RegExp);
+    } else {
+      assert.equal(ssh.passphrasePrompt, undefined);
+    }
     assert.equal(ssh.standardPrompt.test('$ '), true);
     assert.equal(ssh.standardPrompt.test('user@host:~$ '), true);
     assert.equal(ssh.standardPrompt.test('no prompt'), false);
     assert.equal(ssh.passwordPrompt.test('Password: '), true);
     assert.equal(ssh.passwordPrompt.test('Password for user: '), true);
     assert.equal(ssh.passwordPrompt.test('nope'), false);
-    assert.equal(ssh.passphrasePrompt.test('Password: '), true);
+    if (isBaseline()) {
+      assert.equal(ssh.passphrasePrompt.test('Password: '), true);
+    }
   });
 
   it('compiles safe custom filters and falls back on unsafe ones', () => {
@@ -300,7 +323,6 @@ describe('_loadDefaults baseline', () => {
       assert.equal(ssh.standardPrompt.test('foo]'), true);
       assert.equal(ssh.standardPrompt.test('foo>'), false);
       assert.equal(ssh.passwordPrompt.test('Password: secret: '), true);
-      assert.equal(ssh.passphrasePrompt.test('Password: key: '), true);
     }
   });
 

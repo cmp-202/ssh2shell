@@ -2,7 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('bash_script.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
 const host = {
@@ -19,20 +19,16 @@ const host = {
 };
 
 host.commands = [
-  "cat > myscript.sh <<'EOF'\n" +
-  '#!/bin/bash\n' +
-  'current=$(pwd)\n' +
-  'cd ..\n' +
-  'if [ -f myfile ]; then\n' +
-  '  sed \'/^[ \\t]*$/d\' "${current}/myfile" | while read -r line; do\n' +
-  '    printf \'Doing some stuff\\n\'\n' +
-  '    printf \'%s\\n\' "$line"\n' +
-  '  done\n' +
-  'fi\n' +
-  'EOF',
+  "cat << 'EOF' > myscript.sh\n" +
+  "if [ -f \"./myscript.sh\" ]; then\n" +
+  "  sed '/^[ \\t]*$/d' \"./myscript.sh\" | while IFS= read -r line; do\n" +
+  "    printf ': %s\\n' \"$line\"\n" +
+  "  done\n" +
+  "fi\n" +
+  "EOF",
   'chmod 700 myscript.sh',
   './myscript.sh',
-  'rm myscript.sh',
+  'rm myscript.sh'
 ];
 
 const SSH = new SSH2Shell(host);

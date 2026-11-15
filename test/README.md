@@ -38,7 +38,7 @@ Feature-specific suites include `test/unit/prompt-regex.test.js`
 (`standardPromptRegex`), `test/unit/command-response.test.js`
 (`commandResponse: 'handled'`), `test/unit/timeout-retries.test.js`
 (`commandTimeoutRetries`), `test/unit/command-start-timeout.test.js`
-(`commandStartTimeout` and `details.noOutput`), and
+(always-on command idle timeout), and
 `test/unit/stderr-capture.test.js` (`captureStderr` and `details.stderr`).
 Opt-in cases are guarded by `isBaseline()` so the frozen artifact still passes.
 
@@ -54,8 +54,9 @@ cp .env-example .env
 
 Most tests authenticate with the key at `PRIVATE_KEY_PATH`. Passwords are used
 only where the protocol requires them: `sudo`, `su`, and keyboard-interactive.
-Nested hops use `HOP_KEY_PATH` and `HOP2_KEY_PATH`, which are paths on the jump
-host rather than on your workstation.
+Nested hosts are reached with `forwardOut` from the parent connection, so hops
+authenticate with the same local `PRIVATE_KEY_PATH`; no key needs to be copied
+to the jump host.
 
 Run the curated batch after a change:
 
@@ -77,9 +78,76 @@ node scripts/run-live.js simple tunnel chaining
 node scripts/run-live.js --all --timeout 300
 ```
 
+Live tests and `provision.js` load the build selected by `SSH2SHELL_MODULE`:
+`src` (default for development), `lib` (the release build), `baseline` (the
+frozen regression fixture), or a path relative to the repository root. For
+example:
+
+```bash
+SSH2SHELL_MODULE=lib npm run test:live
+SSH2SHELL_MODULE=baseline npm run test:live
+```
+
 `timeout.js` keeps the handler-managed `FirstPass` approach.
 `timeout_retries.js` uses `commandTimeoutRetries` and `details.final`, so the
 library owns the attempt count and re-arms the timer.
+
+### Host traversal and fault tests
+
+Two live tests exercise the host-array shape directly. They are not in the
+curated batch because they are the acceptance tests for the
+[next-host-connection](../docs/NEXT-HOST-CONNECTION.md) transport change.
+
+- `host_traversal.js` builds three primaries and reuses the VMs at three depths:
+
+  ```text
+  host1.hosts = [hosta]        hosta.hosts = [hostaa]    hostaa.hosts = [hostaaa]
+  host2.hosts = [hostb,hostc]  hostb.hosts = [hostbb]    hostc.hosts = [hostcc]
+  host3.hosts = [hostd,hoste,hostf]
+  primary list = [host1, host2, host3]
+  ```
+
+  Each host writes a unique `traversal:<label>` marker. The test logs
+  `traversal-order` and `end-order`, and exits nonzero unless the walk is the
+  expected depth-first order:
+  `host1,hosta,hostaa,hostaaa,host2,hostb,hostbb,hostc,hostcc,host3,hostd,hoste,hostf`.
+  It passes on both transports because both walk the tree depth-first.
+
+- `host_faults.js` puts a connection failure at three positions in the same
+  shape: a nested leaf (`bad-deep`), its never-started child
+  (`bad-deep-child`), and a primary (`bad-primary`). It logs `fault-order`,
+  `error-count`, and `end-order` using host labels.
+
+  Expected result for the ssh2 hop transport:
+
+  ```text
+  fault-order:primary1,good-hop,good-sibling,primary2
+  error-count:2
+  end-order:bad-deep,good-hop,good-sibling,primary1,bad-primary,primary2
+  ```
+
+  A failed hop is contained: its sibling still runs and the run backs out. A
+  failed primary is skipped and the next primary runs. `bad-deep-child` never
+  starts, so it never ends.
+
+  The current nested-`ssh` transport fails this test on purpose. It does not
+  detect the failed hop, runs `bad-deep`'s command on the parent shell, skips
+  `good-sibling`, and emits only the primary error:
+
+  ```text
+  fault-order:primary1,good-hop,bad-deep,primary2
+  error-count:1
+  end-order:bad-deep,good-hop,primary1,bad-primary,primary2
+  ```
+
+Run both directly with:
+
+```bash
+node scripts/run-live.js host_traversal host_faults --timeout 180
+```
+
+The runner check for `host_faults` encodes the post-change contract and allows
+the expected `ECONNREFUSED` marker and `Connection` error type.
 
 Each test runs in its own process with a 180-second default timeout. The runner
 does not trust the exit code: a failed connection still reaches the connect
@@ -123,7 +191,6 @@ The main environment variables are:
 | `SECOND_USER`, `SECOND_USER_PASSWORD` | `su` test account. |
 | `NOPASSWD_USER`, `NOPASSWD_PASSWORD` | Passwordless sudo test account. |
 | `KBD_USER`, `KBD_PASSWORD` | Keyboard-interactive account. |
-| `HOP_KEY_PATH`, `HOP2_KEY_PATH` | Test key path on each jump host. |
 | `EXPECTED_HOST_HASH` | Pinned host fingerprint for the fingerprint test. |
 | `DEBUG`, `VERBOSE` | `ssh2shell` session output. |
 
@@ -149,7 +216,9 @@ role matrix, environment variables, adapter setup, and recovery behavior.
    `readPrivateKey()` from `../utils/private_key.js`.
 2. Add an entry to the `checks` map in `../scripts/run-live.js`. Use
    `contains` / `excludes` for session text, `logContains` for log output, and
-   `files` for tests that write separate output files.
+   `files` for tests that write separate output files. A fault test can allow an
+   expected error type with `allowErrors` and an expected connection marker with
+   `allowFatalMarkers`.
 3. Add the name to `defaultTests` if it belongs in the curated batch.
 4. Run it directly with `node scripts/run-live.js <name>` and check
    `test/logs/<name>.js.log`.
