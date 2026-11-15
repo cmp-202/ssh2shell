@@ -8,6 +8,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-11-15
+
 ### Development
 
 - Retired the redundant `tunnel_3_hop` and `ssh_user_command` live tests. The
@@ -89,5 +91,6 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.1...HEAD
+[4.0.1]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/cmp-202/ssh2shell/compare/v3.3.0...v4.0.0
