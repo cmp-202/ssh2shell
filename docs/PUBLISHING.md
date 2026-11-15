@@ -90,7 +90,8 @@ left to memory.
 - [ ] `npm view ssh2shell version` and the `gitHead` check above pass.
 - [ ] Create a GitHub Release for `vX.Y.Z` with notes for the new features and
       fixes.
-- [ ] Add or update `CHANGELOG.md` for the version.
+- [ ] Update the release notes kept outside the repository with the breaking
+      changes, features, and fixes for this version.
 - [ ] Check the workflow actions for deprecated runtimes (for example
       `actions/checkout` and `actions/setup-node` on Node 20) and bump them.
 - [ ] Run the live suite when the change touches connection or command flow:
