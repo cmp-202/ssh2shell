@@ -22,6 +22,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   in `docs/PUBLISHING.md` now go through a pull request.
 - Pointed the `package.json` `homepage` at the repository README instead of the
   outdated wiki.
+- Added `SECURITY.md`, `CONTRIBUTING.md`, Dependabot configuration, and issue
+  and pull request templates.
 
 ## [4.0.0] - 2026-11-15
 
