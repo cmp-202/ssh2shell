@@ -1050,7 +1050,7 @@ The full behavior matrix and internal details are in
 
 ### Log to a file
 
-Set `msg` on the host to send status messages to a file instead of the console,
+Set `onMsg` on the host to send status messages to a file instead of the console,
 and append the final transcript in the callback:
 
 ```javascript
@@ -1059,7 +1059,7 @@ const log = (text) => fs.appendFileSync('ssh2shell.log', `${text}\n`);
 
 const host = {
   // ...
-  msg: log,
+  onMsg: log,
 };
 
 const SSH = new SSH2Shell(host);
@@ -1069,7 +1069,7 @@ SSH.connect((sessionText) => {
 });
 ```
 
-`msg` receives every message emitted by `ssh2shell`, including the connection
+`onMsg` receives every message emitted by `ssh2shell`, including the connection
 messages and any `msg:` notifications. The callback's `sessionText` is the
 complete transcript. For live per-command output as the run progresses, enable
 `verbose`.
@@ -1225,8 +1225,8 @@ chunk, so existing stderr handlers keep working.
   configured password and passphrase replaced with `[REDACTED]`, and object
   dumps mask `password` and `passphrase` keys.
 - Credentials are only redacted from `ssh2shell`'s own debug and verbose output.
-  Your own `msg`, `data`, and `commandComplete` handlers receive raw text and
-  must redact it if you log it.
+  Your own `onMsg`, `onData`, and `onCommandComplete` handlers receive raw text
+  and must redact it if you log it.
 - Prefer environment variables or a secrets manager over hard-coded passwords
   in source files.
 
