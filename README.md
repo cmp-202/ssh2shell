@@ -58,6 +58,7 @@ one command to decide what to do next.
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 - [Development](#development)
+- [Changelog](#changelog)
 - [License](#license)
 
 ## Why ssh2shell
@@ -1301,6 +1302,11 @@ npm test
 runs the level-aware baseline tests. The live tests need real hosts. See
 [`test/README.md`](./test/README.md) for the test layout, live runner,
 environment variables, keys, and VM provisioning.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for user-facing changes by release,
+including the breaking changes in the current major version.
 
 ## License
 

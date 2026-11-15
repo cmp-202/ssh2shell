@@ -47,8 +47,8 @@ For a new version:
 
 ```bash
 npm version <major|minor|patch> --no-git-tag-version
-# update REFACTORING.md / docs as needed
-git add package.json package-lock.json REFACTORING.md docs
+# update REFACTORING.md, CHANGELOG.md, and docs as needed
+git add package.json package-lock.json REFACTORING.md CHANGELOG.md docs
 git commit -m "chore: release X.Y.Z"
 git tag -a vX.Y.Z -m "X.Y.Z"
 git push origin master
@@ -90,8 +90,8 @@ left to memory.
 - [ ] `npm view ssh2shell version` and the `gitHead` check above pass.
 - [ ] Create a GitHub Release for `vX.Y.Z` with notes for the new features and
       fixes.
-- [ ] Update the release notes kept outside the repository with the breaking
-      changes, features, and fixes for this version.
+- [ ] Add or update `CHANGELOG.md` with the breaking changes, features, and
+      fixes for this version.
 - [ ] Check the workflow actions for deprecated runtimes (for example
       `actions/checkout` and `actions/setup-node` on Node 20) and bump them.
 - [ ] Run the live suite when the change touches connection or command flow:
