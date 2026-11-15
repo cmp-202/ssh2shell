@@ -11,6 +11,9 @@
 #   server2  127.0.0.11  tester, nopasswd (NOPASSWD sudo), suuser
 #   server3  127.0.0.12  tester, nopasswd, suuser
 #
+# The instances listen on port 2222 by default, because the runner image already
+# runs its own sshd on 0.0.0.0:22. Set LIVE_SSH_PORT to change it.
+#
 # This script is meant for an ephemeral GitHub Actions runner. It creates OS
 # users, installs the test public key, writes sudoers and sshd configs, and
 # starts one sshd per address. It changes the runner's sudo/sshd state, so do
@@ -43,6 +46,9 @@ su_password=${SU_PASSWORD:-secondpassword}
 kbd_user=${KBD_USER:-kbduser}
 kbd_password=${KBD_PASSWORD:-kbdpassword}
 
+# The runner's own sshd owns 0.0.0.0:22, so the test instances use 2222.
+live_port=${LIVE_SSH_PORT:-2222}
+
 users=("$test_user" "$nopasswd_user" "$su_user" "$kbd_user")
 
 # The runner image ships openssh-server, but install it if a minimal image is
@@ -65,12 +71,6 @@ case "$sshd_bin" in
     exit 1
     ;;
 esac
-
-# Stop the image's own sshd if it holds port 22. The test instances bind
-# specific loopback addresses, but a wildcard listener would conflict.
-if ss -ltnH | awk '{print $4}' | grep -qE '^(0\.0\.0\.0|\*|\[::\]):22$'; then
-  systemctl stop ssh 2>/dev/null || service ssh stop 2>/dev/null || true
-fi
 
 # Stop any instances from a previous run so the script is idempotent.
 for pidfile in /run/ssh2shell/sshd_*.pid; do
@@ -132,7 +132,7 @@ start_host() {
   chmod 600 "$host_key"
 
   cat > "$config" <<EOF
-Port 22
+Port $live_port
 ListenAddress $address
 HostKey $host_key
 PidFile /run/ssh2shell/sshd_${octet}.pid
@@ -164,13 +164,13 @@ EOF
   "$sshd_bin" -f "$config" -E "$log"
 
   for _ in $(seq 1 50); do
-    if ss -ltnH | grep -q "$address:22"; then
+    if ss -ltnH | grep -q "$address:$live_port"; then
       return 0
     fi
     sleep 0.2
   done
 
-  echo "sshd did not listen on $address:22" >&2
+  echo "sshd did not listen on $address:$live_port" >&2
   cat "$log" >&2 || true
   return 1
 }
@@ -180,7 +180,7 @@ start_host 11
 start_host 12
 
 cat <<EOF
-Live test hosts are ready:
+Live test hosts are ready on port $live_port:
   server1  127.0.0.10  users: ${users[*]}
   server2  127.0.0.11  users: ${users[*]} (${nopasswd_user}: NOPASSWD sudo)
   server3  127.0.0.12  users: ${users[*]}

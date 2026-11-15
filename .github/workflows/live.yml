@@ -51,11 +51,14 @@ jobs:
       - name: Start test hosts
         run: sudo bash test/ci/setup-live-hosts.sh "$RUNNER_TEMP/test_ed25519.pub"
 
+      # The runner image runs its own sshd on 0.0.0.0:22, so the test hosts use
+      # 2222 (the setup script's default). Keep these in sync with
+      # test/ci/setup-live-hosts.sh if LIVE_SSH_PORT is changed.
       - name: Run live suite
         env:
           SSH2SHELL_MODULE: src
           HOST: 127.0.0.10
-          PORT: '22'
+          PORT: '2222'
           USER_NAME: tester
           PASSWORD: password
           PRIVATE_KEY_PATH: ${{ runner.temp }}/test_ed25519
@@ -68,29 +71,36 @@ jobs:
           KBD_USER: kbduser
           KBD_PASSWORD: kbdpassword
           KBD_HOST: 127.0.0.10
-          KBD_PORT: '22'
+          KBD_PORT: '2222'
           SERVER1_HOST: 127.0.0.10
-          SERVER1_PORT: '22'
+          SERVER1_PORT: '2222'
           SERVER1_USER_NAME: tester
           SERVER1_PASSWORD: password
           SERVER2_HOST: 127.0.0.11
-          SERVER2_PORT: '22'
+          SERVER2_PORT: '2222'
           SERVER2_USER_NAME: tester
           SERVER2_PASSWORD: password
           SERVER3_HOST: 127.0.0.12
-          SERVER3_PORT: '22'
+          SERVER3_PORT: '2222'
           SERVER3_USER_NAME: tester
           SERVER3_PASSWORD: password
         run: npm run test:live:all
+
+      # sshd logs are root-owned, and upload-artifact runs as the runner user.
+      # Copy them into the workspace so the artifact has one readable root.
+      - name: Collect live logs
+        if: always()
+        run: |
+          mkdir -p test/logs/sshd
+          sudo cp /var/log/ssh2shell/*.log test/logs/sshd/ 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" test/logs
 
       - name: Upload live logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-logs
-          path: |
-            test/logs
-            /var/log/ssh2shell
+          path: test/logs
           if-no-files-found: ignore
           retention-days: 7
 

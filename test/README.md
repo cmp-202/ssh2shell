@@ -236,10 +236,14 @@ runner's loopback interface, one per role:
 | `server2` | `127.0.0.11` | `tester`, `nopasswd` (`NOPASSWD` sudo), `suuser` |
 | `server3` | `127.0.0.12` | `tester`, `nopasswd`, `suuser` |
 
+The instances listen on **2222**, not 22: the runner image already runs its own
+sshd on `0.0.0.0:22`. Override with `LIVE_SSH_PORT`, and change the `PORT` values
+in the workflow to match.
+
 The workflow generates a throwaway key pair, installs the public half, and runs
-`npm run test:live:all` against `src`. It uploads `test/logs` and the sshd logs
-as an artifact. [`ci/stop-live-hosts.sh`](./ci/stop-live-hosts.sh) stops the
-instances.
+`npm run test:live:all` against `src`. It copies the root-owned sshd logs into
+`test/logs/sshd` and uploads `test/logs` as an artifact.
+[`ci/stop-live-hosts.sh`](./ci/stop-live-hosts.sh) stops the instances.
 
 These are sshd processes on the runner, not VMs: they exercise the SSH
 transport, sudo, `su`, keyboard-interactive, and `forwardOut` hops, but not the
