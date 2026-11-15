@@ -10,7 +10,7 @@
 - **Status:** L1 baseline characterization, preserved through L4; L5, L6, and
   L6.1 record the signed-off behavior changes separately.
 
-> **Superseded in the next major.** The current `src/ssh2shell.js` replaced the
+> **Superseded in 4.0.0.** The current `src/ssh2shell.js` replaced the
 > nested `ssh` command with `ssh2` `forwardOut` hops. `server.ssh`, the
 > jump-host credential model, `exitCommands`, `passphrasePrompt`,
 > `commandStartTimeout`, and `details.noOutput` no longer exist. The host

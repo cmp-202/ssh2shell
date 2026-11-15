@@ -211,7 +211,7 @@ ssh._loadDefaults();       // baseline: 1; fixed current: 1 (no duplicate)
 
 ### L6.1 follow-ups (signed off)
 
-> **Superseded in the next major:** the nested-`ssh` transport was removed, so
+> **Superseded in 4.0.0:** the nested-`ssh` transport was removed, so
 > `_processSSHPrompt` and the post-auth nested-shell timeout no longer exist.
 > Hop failures are contained by `_hopFailed()`.
 

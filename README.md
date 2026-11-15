@@ -83,6 +83,11 @@ npm install ssh2shell
 
 Requires Node.js 18 or newer.
 
+**Upgrading from 3.x:** 4.0.0 is a breaking release. Host hops now use `ssh2`
+`forwardOut` connections, `server.ssh` and `exitCommands` are removed, and
+several host options were renamed. Read the [4.0.0 changes](./CHANGELOG.md)
+before upgrading.
+
 ## Quick start
 
 ```javascript

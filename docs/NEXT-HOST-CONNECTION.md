@@ -1,13 +1,13 @@
 # Host-to-host connections: ssh2 hop design
 
-- **Status:** implemented on this branch. The record stack, `forwardOut` hop
+- **Status:** released in 4.0.0. The record stack, `forwardOut` hop
   transport, failure containment, and the `_sanitizeResponse` long-command fix
   are in `src/ssh2shell.js`; the nested `ssh` command path is removed. Both live
   acceptance tests (`test/live/host_traversal.js` and
   `test/live/host_faults.js`) pass against `src`, including on a freshly
   provisioned VM.
-- **Branch:** `next-host-connection`.
-- **Release:** next major. The `server.ssh` removal and the jump-host
+- **Branch:** `next-host-connection` (merged for 4.0.0).
+- **Release:** `4.0.0`. The `server.ssh` removal and the jump-host
   credential change are breaking, so this does not ship as a 3.x minor.
 - **Target:** replace the nested `ssh` command with a real `ssh2` connection
   hop, then remove the command-based path.
@@ -1755,7 +1755,7 @@ both use the same module instance. The runner prints the selected module.
 
 ## Rollback
 
-- The work is isolated on `next-host-connection`.
-- Until the branch merges, `v3.3.0` is the stable boundary.
-- If the change ships, tag the major release and record it in
-  [REFACTORING.md](../REFACTORING.md) as the rollback boundary.
+- The work landed on `next-host-connection` and shipped in `v4.0.0`.
+- `v4.0.0` is the stable boundary; `v3.3.0` is the last 3.x release.
+- The range is recorded in [REFACTORING.md](../REFACTORING.md) as the rollback
+  boundary.

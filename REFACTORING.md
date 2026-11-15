@@ -108,6 +108,7 @@ The release tags give a stable coarse boundary for the untagged levels:
 | `refactor/L7.6..v3.1.0` | `v3.1.0` | L7.7-L7.17 plus follow-up commits (16 commits) |
 | `v3.1.0..v3.2.0` | `v3.2.0` | L7.18 (post-3.1.0 shutdown work) |
 | `v3.2.0..v3.3.0` | `v3.3.0` | L7.19-L7.23 (opt-in prompt/response/timeout/silent-command/stderr features) |
+| `v3.3.0..v4.0.0` | `v4.0.0` | L7.24-L7.25 (`ssh2` `forwardOut` hops, always-on command idle timeout, surface cleanup) |
 
 ```bash
 # Inspect everything after the last tagged level
@@ -122,14 +123,18 @@ git diff v3.1.0..v3.2.0
 git log --oneline v3.2.0..v3.3.0
 git diff v3.2.0..v3.3.0
 
-# Revert the post-3.2.0 work as one commit (keeps history)
-git revert --no-commit v3.2.0..v3.3.0
-git commit -m "revert post-3.2.0 work"
+# Inspect the post-3.3.0 work
+git log --oneline v3.3.0..v4.0.0
+git diff v3.3.0..v4.0.0
+
+# Revert the post-3.3.0 work as one commit (keeps history)
+git revert --no-commit v3.3.0..v4.0.0
+git commit -m "revert post-3.3.0 work"
 ```
 
-`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, `v3.2.0`, and `v3.3.0` are the
-release boundaries. The release process, tag convention, and `gitHead` check
-are in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, `v3.2.0`, `v3.3.0`, and `v4.0.0`
+are the release boundaries. The release process, tag convention, and `gitHead`
+check are in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Level completion checklist
 
@@ -220,8 +225,8 @@ must be recorded here.
 | L7.21 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No level tag; released in `v3.3.0`; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
 | L7.22 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandStartTimeout` for silent commands and `details.noOutput` | New suite covers the default no-timer behavior, start-timer arming, `noOutput` true/false, and the per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.22 deliverables](#l722-deliverables-silent-command-timeout) |
 | L7.23 | — (ledger-only) | — | Done (v3.3.0) | Opt-in stderr capture in the command response (`captureStderr`) | New suite covers the default, raw merge, handled merge, escape filtering, and per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.23 deliverables](#l723-deliverables-stderr-capture) |
-| L7.24 | — (ledger-only) | — | Done (unreleased) | `ssh2` `forwardOut` host hops and an always-on command idle timeout | `npm run test:src` 163/163; `npm test` 155 pass with 8 baseline-skipped; full live suite 28/28 on `src` twice; clean-VM provisioning reports `sudoers: OK`, `sshd: OK`, `network: OK` | No tag; on `next-host-connection`, unreleased; see [L7.24 deliverables](#l724-deliverables-ssh2-forwardout-hops-and-always-on-command-idle-timeout) |
-| L7.25 | — (ledger-only) | — | Done (unreleased) | Pre-release instance and host-config surface cleanup; removes legacy aliases and renames `host.msg` to `host.onMsg` | `npm run test:src` 166/166; `npm run test:baseline` 158 pass with 8 baseline-skipped | No tag; on `next-host-connection`, unreleased; see [L7.25 deliverables](#l725-deliverables-pre-release-surface-cleanup) |
+| L7.24 | — (ledger-only) | — | Done (v4.0.0) | `ssh2` `forwardOut` host hops and an always-on command idle timeout | `npm run test:src` 163/163; `npm test` 155 pass with 8 baseline-skipped; full live suite 28/28 on `src` twice; clean-VM provisioning reports `sudoers: OK`, `sshd: OK`, `network: OK` | No level tag; released in `v4.0.0`; see [L7.24 deliverables](#l724-deliverables-ssh2-forwardout-hops-and-always-on-command-idle-timeout) |
+| L7.25 | — (ledger-only) | — | Done (v4.0.0) | Pre-release instance and host-config surface cleanup; removes legacy aliases and renames `host.msg` to `host.onMsg` | `npm run test:src` 166/166; `npm run test:baseline` 158 pass with 8 baseline-skipped | No level tag; released in `v4.0.0`; see [L7.25 deliverables](#l725-deliverables-pre-release-surface-cleanup) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -1022,7 +1027,7 @@ Signed-off-by: user request for the silent-command and "no output yet" distincti
 
 Released in `v3.3.0`.
 
-> **Superseded in the next major.** The idle timer is now always armed when a
+> **Superseded in 4.0.0.** The idle timer is now always armed when a
 > command is written, so a silent command times out without an opt-in. The
 > `commandStartTimeout` option and `details.noOutput` were removed. A detected
 > prompt cancels the timer, so a silent command that returns to the prompt still
@@ -1071,7 +1076,7 @@ Released in `v3.3.0`.
 Signed-off-by: user request to replace nested `ssh` host hops and to make silent
 commands time out.
 
-Unreleased. Branch: `next-host-connection`.
+Released in `v4.0.0`.
 
 - `src/ssh2shell.js` — `_connect(parent = null)` owns primary and hop
   connections; a hop opens a `forwardOut` channel and logs in over it. Records
@@ -1105,8 +1110,8 @@ Unreleased. Branch: `next-host-connection`.
 
 ### L7.25 deliverables (pre-release surface cleanup)
 
-Pre-release cleanup of the instance and host-config surface. Unreleased.
-Branch: `next-host-connection`.
+Pre-release cleanup of the instance and host-config surface. Released in
+`v4.0.0` on `next-host-connection`.
 
 **Breaking changes**
 
@@ -1340,7 +1345,7 @@ behavior.
   arms the idle timer when the command is written, and `details.noOutput`
   distinguishes "no output yet" from "prompt missed". See
   [L7.22 deliverables](#l722-deliverables-silent-command-timeout). This was
-  superseded in the next major: the timer is always armed at command start and
+  superseded in 4.0.0: the timer is always armed at command start and
   both `commandStartTimeout` and `details.noOutput` are removed.
 - **Implemented:** opt-in stderr capture in the command response with
   `captureStderr` and `details.stderr`; `onStderrData` remains the always-on

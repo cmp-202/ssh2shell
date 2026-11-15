@@ -8,7 +8,7 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
-## [4.0.0] - Unreleased
+## [4.0.0] - 2026-11-15
 
 ### Breaking changes
 
@@ -71,3 +71,6 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   `PROVISION_*` environment contract. Re-provisioning removes the 3.x
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
+
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/cmp-202/ssh2shell/compare/v3.3.0...v4.0.0
