@@ -8,6 +8,11 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+### Development
+
+- Added [`docs/MIGRATING-4.md`](./docs/MIGRATING-4.md), a symptom-to-fix guide
+  for upgrades from 3.x, linked from the README and the 4.0.0 changelog entry.
+
 ## [4.0.1] - 2026-11-15
 
 ### Development
@@ -30,6 +35,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 ## [4.0.0] - 2026-11-15
 
 ### Breaking changes
+
+See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
 
 - **Host hops use `ssh2` `forwardOut` channels.** The nested `ssh` command path
   is gone, so a jump host no longer needs an `ssh` client, a shell, or a copy of

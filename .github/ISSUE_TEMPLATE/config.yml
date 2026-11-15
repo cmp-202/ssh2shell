@@ -3,6 +3,9 @@ contact_links:
   - name: Documentation
     url: https://github.com/cmp-202/ssh2shell#readme
     about: Usage, host configuration, events, and tunnelling
+  - name: Upgrading from 3.x
+    url: https://github.com/cmp-202/ssh2shell/blob/master/docs/MIGRATING-4.md
+    about: Breaking changes in 4.0.0 and how to fix common upgrade errors
   - name: Report a security vulnerability
     url: https://github.com/cmp-202/ssh2shell/security/advisories/new
     about: Report vulnerabilities privately instead of opening a public issue
