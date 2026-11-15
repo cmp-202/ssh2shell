@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a problem with ssh2shell
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Search the existing issues first, and remove
+        secrets, private keys, and real host names from anything you paste.
+
+  - type: input
+    id: version
+    attributes:
+      label: ssh2shell version
+      description: The version in your `package.json` or from `npm ls ssh2shell`.
+      placeholder: 4.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: The output of `node --version`.
+      placeholder: v20.11.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, Windows 11, macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest host object and command list that shows the problem.
+      render: javascript
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug output
+      description: |
+        Set `debug: true` and `verbose: true` on the host and paste the relevant
+        output. Remove credentials, keys, and real host names first.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I am using ssh2shell 4.x.
+          required: true
+        - label: I searched the existing issues and the README.
+          required: true
+        - label: This is not a security report (those go through SECURITY.md).
+          required: true

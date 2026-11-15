@@ -1295,6 +1295,9 @@ parameters and the `host`/`userName`/`port` fields in releases before the
 `ssh2` hop transport. It is fixed in `2.0.13`, `2.0.14`, and `3.0.0`. Users of
 `2.0.12` and earlier should upgrade.
 
+Report a vulnerability privately through [SECURITY.md](./SECURITY.md); do not
+open a public issue.
+
 ## Development
 
 ```bash
@@ -1307,9 +1310,9 @@ npm test
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
 runs the level-aware baseline tests. The live tests need SSH hosts; CI starts
 three throwaway `sshd` instances on the runner, and the same suite can run
-against the provisioning VMs locally. See [`test/README.md`](./test/README.md)
-for the test layout, live runner, environment variables, keys, CI hosts, and VM
-provisioning.
+against the provisioning VMs locally. See [CONTRIBUTING.md](./CONTRIBUTING.md)
+for the workflow and [`test/README.md`](./test/README.md) for the test layout,
+live runner, environment variables, keys, CI hosts, and VM provisioning.
 
 ## Changelog
 

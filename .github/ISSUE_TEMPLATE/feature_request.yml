@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a new capability or a change in behaviour
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first, then the change you have in mind. Changes
+        that fit the existing host and command model are easier to add than new
+        configuration surfaces.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should ssh2shell do differently? Include a small example if it helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you have tried, or other designs you rejected.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I am using ssh2shell 4.x.
+          required: true
+        - label: I searched the existing issues and the README.
+          required: true
