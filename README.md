@@ -878,8 +878,9 @@ are skipped, and the parent continues with its remaining hosts. Other primary
 hosts still run.
 
 See [`test/live/tunnel.js`](./test/live/tunnel.js),
-[`test/live/tunnel_3_hop.js`](./test/live/tunnel_3_hop.js), and
-[`test/live/host_traversal.js`](./test/live/host_traversal.js).
+[`test/live/chaining.js`](./test/live/chaining.js),
+[`test/live/host_traversal.js`](./test/live/host_traversal.js), and
+[`test/live/host_faults.js`](./test/live/host_faults.js).
 
 ## Events and the API
 

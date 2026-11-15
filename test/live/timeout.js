@@ -5,17 +5,14 @@ logFile('timeout.js');
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
-// Every data response from the server resets the command timeout timer. If
-// onCommandTimeout writes to the stream and the server responds, the timer is
-// reset and normal processing resumes. If the server never responds, the script
-// hangs because there is no way to reset the timer from the host handler. An
-// instance-level commandTimeout listener can re-arm it instead:
+// The command idle timer is armed when a command is written and reset by each
+// response. `onCommandTimeout` receives the live stream, so answering a prompt
+// there resets the timer and normal processing resumes. If the response never
+// matches, the handler records it and closes the session.
 //
-// self.sshObj.idleTimer = setTimeout(function () {
-//   self.emit('commandTimeout', command, response, stream, connection);
-// }, self._idleTime);
-//
-// commandTimeout means "no defined prompt was detected in time".
+// This is the handler-managed pattern: the test tracks its own state with
+// `FirstPass`. `timeout_retries.js` covers the library-managed alternative
+// (`commandTimeoutRetries` and `details.final`).
 
 const host = {
   server: {

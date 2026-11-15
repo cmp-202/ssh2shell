@@ -213,9 +213,6 @@ const checks = {
     contains: ['command 60'],
     logContains: ['Completed 60 commands'],
   },
-  ssh_user_command: {
-    contains: ['ssh middle', 'OpenSSH'],
-  },
   sudo_no_pass: {
     contains: ['\n0\n'],
     excludes: ['a password is required', 'Permission denied'],

@@ -5,10 +5,10 @@ logFile('graceful_close.js');
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
-// A nested shell queues an `exit` command when it opens. Closing gracefully
-// must run that exit, back out to the jump host, and still finalize both hosts.
-// Hops are opened with `forwardOut` from the parent connection, so every host
-// authenticates with the runner's local key.
+// Each hop is its own `ssh2` connection opened with `forwardOut`, so closing
+// gracefully tears down the hop channel, returns to the parent host, and still
+// finalizes both hosts. Hops authenticate from the runner, so every host uses
+// the local key.
 const privateKey = readPrivateKey();
 
 const jump = {

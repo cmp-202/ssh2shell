@@ -35,8 +35,8 @@ const target = {
   verbose: (process.env.VERBOSE === 'true'),
 };
 
-// Chain the hosts: jump -> target. The session backs out of the 
-// to connections after the target's commands finish.
+// Chain the hosts: jump -> target. Each hop closes its own connection after the
+// target's commands finish, and the session backs out to the jump host.
 
 jump.hosts = [target];
 

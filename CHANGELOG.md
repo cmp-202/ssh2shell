@@ -8,6 +8,15 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+### Development
+
+- Retired the redundant `tunnel_3_hop` and `ssh_user_command` live tests. The
+  3-hop chain is covered by `chaining`, and the removed `ssh` command path made
+  `ssh_user_command`'s premise obsolete.
+- Corrected stale hop and timeout comments in `tunnel`, `graceful_close`, and
+  `timeout` so they describe the `forwardOut` transport and the always-on idle
+  timer.
+
 ## [4.0.0] - 2026-11-15
 
 ### Breaking changes
