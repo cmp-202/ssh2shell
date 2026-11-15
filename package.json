@@ -15,7 +15,7 @@
     "ssh2": "^1.4.0"
   },
   "devDependencies": {
-    "dotenv": "^8.6.0"
+    "dotenv": "^18.0.10"
   },
   "scripts": {
     "build": "node scripts/build.js",
