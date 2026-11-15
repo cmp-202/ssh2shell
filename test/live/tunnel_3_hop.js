@@ -2,20 +2,19 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('tunnel_3_hop.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
-// Path to the private key as it exists on the jump host. Override this when
-// the key is installed under a different name or location.
-const hopKeyPath =
-  process.env.HOP_KEY_PATH || `/home/${process.env.USER_NAME}/.ssh/id_ed25519`;
+// Hops are opened with `forwardOut` from the parent connection, so every host
+// authenticates with the runner's local key.
+const privateKey = readPrivateKey();
 
 const jump = {
   server: {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    privateKey: readPrivateKey(),
+    privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname'],
@@ -28,11 +27,8 @@ const bastion = {
     host: process.env.SERVER2_HOST,
     port: process.env.SERVER2_PORT || process.env.PORT,
     userName: process.env.SERVER2_USER_NAME,
-    // Hop authentication uses the test key installed on the jump host for the
-    // login user, so the nested connection does not need a password.
-    ssh: {
-      identityFile: hopKeyPath,
-    },
+    privateKey,
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname', 'uptime'],
   debug: (process.env.DEBUG === 'true'),
@@ -44,11 +40,8 @@ const target = {
     host: process.env.SERVER3_HOST,
     port: process.env.SERVER3_PORT || process.env.PORT,
     userName: process.env.SERVER3_USER_NAME,
-    // Hop authentication uses the test key installed on the jump host for the
-    // login user, so the nested connection does not need a password.
-    ssh: {
-      identityFile: hopKeyPath,
-    },
+    privateKey,
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname', 'uptime'],
   debug: (process.env.DEBUG === 'true'),

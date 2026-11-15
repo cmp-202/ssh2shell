@@ -1,0 +1,76 @@
+# Changelog
+
+All notable changes to this project are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[semantic versioning](https://semver.org/spec/v2.0.0.html).
+
+Releases before `4.0.0` are recorded as git tags and GitHub Releases.
+
+## [Unreleased]
+
+## [4.0.0] - 2026-11-15
+
+### Breaking changes
+
+- **Host hops use `ssh2` `forwardOut` channels.** The nested `ssh` command path
+  is gone, so a jump host no longer needs an `ssh` client, a shell, or a copy of
+  your key. `server.ssh` and its options are removed: use `ssh2` connection
+  options instead (`algorithms` replaces `cipherSpec` / `macSpec`, and
+  `forceIPv4` / `forceIPv6` replace `forceAddressType`). `exitCommands` is
+  removed with the command path.
+- **`host.msg` is renamed to `host.onMsg`.** The Hubot-era `msg: { send: fn }`
+  shape is no longer mapped.
+- **`server.hashMethod` is removed.** Use `hostHash` or `hostVerifier`.
+- **`sshObj.stop` is removed.** Use `abort`.
+- **Host `idleTime` and `dataIdleTime` are removed.** Use `idleTimeOut` and
+  `dataIdleTimeOut`. The instance-level `SSH.idleTime` and `SSH.dataIdleTime`
+  remain.
+- **`commandStartTimeout` and `details.noOutput` are removed.** The command idle
+  timer is always armed when a command is written, so a silent command times
+  out. A command that returns to a prompt without output is a normal
+  completion.
+- **`passphrasePrompt` is removed.** Only `passwordPrompt` remains.
+- **An empty host list throws.** `new SSH2Shell([])`, `null`, and `undefined`
+  throw a `TypeError` instead of starting a run with no hosts.
+- **Host objects are mutated during a run.** `commands` is consumed,
+  `sessionText` accumulates, and flags such as `pwSent` and `sudoFailed` are
+  updated. Create a fresh object, or clone it, before reusing it with another
+  instance.
+
+### Added
+
+- Depth-first hop traversal with sibling hosts. Each hop is a real `ssh2`
+  connection opened through the parent's `forwardOut` channel, and it is
+  verified with the same `hostHash` / `hostVerifier` contract as a primary.
+- Contained hop failures. A failed hop emits `error` with type `Hop`, skips its
+  commands and unstarted descendants, and the parent continues with its
+  remaining hosts. A failed primary is finalized and the next primary runs.
+- Per-hop `connectedMessage`, `readyMessage`, and `closedMessage`.
+- Provisioning `--print-config` and environment-source logging (development
+  tooling).
+
+### Changed
+
+- The command idle timer is armed when a command is written, not after the
+  first output, so a command that never produces output still times out.
+- Responses are sliced after the last echoed command, which removes earlier
+  session noise and the garbled-buffer workaround.
+- `command` and `_buffer` are record-scoped and restored when backing out of a
+  hop, so the parent resumes its own command state.
+- Host config no longer receives library state: default handlers are resolved
+  per record instead of being written into the host object, and
+  `applyHostDefaults` no longer writes `server.hashKey`.
+
+### Development
+
+- Added `test/live/host_traversal.js` and `test/live/host_faults.js` as the
+  acceptance tests for hop traversal and fault containment.
+- Added `SSH2SHELL_MODULE` (`src`, `lib`, `baseline`, or a repository-relative
+  path) to select the build under test for live tests and provisioning.
+- Rewrote the provisioning script around the current host API and a documented
+  `PROVISION_*` environment contract. Re-provisioning removes the 3.x
+  `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
+- `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
+
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/cmp-202/ssh2shell/compare/v3.3.0...v4.0.0

@@ -4,17 +4,20 @@ These keys are only for the local live-test VMs. The private keys are
 gitignored; the matching `.pub` files are committed so the expected identities
 are visible in review.
 
+CI does not use these files: the live workflow generates a throwaway key pair
+per run and [`test/ci/setup-live-hosts.sh`](../ci/setup-live-hosts.sh) installs
+its public half.
+
 ## Key pairs
 
 | Key | Purpose | Installed for |
 | --- | --- | --- |
-| `test_ed25519` / `test_ed25519.pub` | Primary test login and nested SSH hops | `tester`, `nopasswd`, `suuser` on all hosts; `kbduser` on server1 |
+| `test_ed25519` / `test_ed25519.pub` | Primary test login and `forwardOut` hops | `tester`, `nopasswd`, `suuser` on all hosts; `kbduser` on server1 |
 | `admin_ed25519` / `admin_ed25519.pub` | Bootstrap/admin login | `ssh2shell` on all hosts |
 
-The private test key is also copied to each host as
-`~/.ssh/id_ed25519` for the hop users, so a nested `ssh -i` can authenticate
-without a password. Override the remote path with `HOP_KEY_PATH` /
-`HOP2_KEY_PATH` if a key is installed somewhere else.
+Hops are opened with `forwardOut` from the parent connection and authenticate
+with the runner's local private key, so the private key is never copied to a
+test host. Only the public keys go into `authorized_keys`.
 
 ## Regenerating
 

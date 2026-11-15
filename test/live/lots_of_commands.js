@@ -2,7 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('lots_of_commands.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
 // Queue a long run of sequential commands to exercise the command queue and

@@ -3,7 +3,6 @@
 // Applies the baseline host defaults in place. This mutates only the host
 // object; instance-level values (command, buffer, timers) stay in the class.
 function applyHostDefaults(sshObj) {
-  sshObj.sshToNextHost = false;
   if (!sshObj.connectedMessage) {
     sshObj.connectedMessage = 'Connected';
   }
@@ -32,11 +31,6 @@ function applyHostDefaults(sshObj) {
   // changes the second `commandComplete` argument.
   sshObj.commandResponse =
     sshObj.commandResponse === 'handled' ? 'handled' : 'raw';
-  // Opt-in: arm the command idle timer when the command is written. Without
-  // this, a command that never produces any output never arms the timer.
-  if (sshObj.commandStartTimeout !== true) {
-    sshObj.commandStartTimeout = false;
-  }
   // Opt-in: merge stderr into the command response and sessionText. The
   // `stderrData` event still fires either way.
   if (sshObj.captureStderr !== true) {
@@ -54,9 +48,6 @@ function applyHostDefaults(sshObj) {
   if (!sshObj.passwordPrompt) {
     sshObj.passwordPrompt = ':';
   }
-  if (!sshObj.passphrasePrompt) {
-    sshObj.passphrasePrompt = ':';
-  }
   if (!sshObj.passPromptText) {
     sshObj.passPromptText = 'Password';
   }
@@ -73,11 +64,7 @@ function applyHostDefaults(sshObj) {
   if (sshObj.disableASCIIFilter !== true) {
     sshObj.disableASCIIFilter = false;
   }
-  if (!sshObj.exitCommands) {
-    sshObj.exitCommands = [];
-  }
   sshObj.pwSent = false;
-  sshObj.sshAuth = false;
   // Retry budget for command idle timeouts. The library owns the attempt count;
   // a handler only reacts to the `details` argument.
   const retries = Number(sshObj.commandTimeoutRetries);
@@ -91,9 +78,6 @@ function applyHostDefaults(sshObj) {
   }
   if (typeof sshObj.sudoFailed !== 'boolean') {
     sshObj.sudoFailed = false;
-  }
-  if (sshObj.server.hashKey == null) {
-    sshObj.server.hashKey = '';
   }
   if (!sshObj.sessionText) {
     sshObj.sessionText = '';

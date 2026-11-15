@@ -46,6 +46,23 @@ class FakeStream extends EventEmitter {
 }
 
 /**
+ * Minimal stand-in for an ssh2 direct-tcpip channel. A hop hands this to the
+ * child client as its `sock`.
+ */
+class FakeChannel extends EventEmitter {
+  constructor() {
+    super();
+    this.closed = false;
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.emit('close');
+  }
+}
+
+/**
  * Minimal stand-in for ssh2.Client. Emits connect/ready on the next tick,
  * then hands a FakeStream to the shell callback.
  */
@@ -58,6 +75,13 @@ class FakeClient extends EventEmitter {
     this.autoReady = true;
     this.onShell = null;
     this.stream = null;
+    // `forwardOut` support for hop tests. A test can set `forwardOutError` to
+    // fail the channel request or `forwardOutDelay` to keep it pending.
+    this.forwardOutCalls = [];
+    this.forwardOutError = null;
+    this.forwardOutDelay = false;
+    this.forwardOutCallback = null;
+    this.channel = null;
   }
 
   connect(config) {
@@ -67,6 +91,39 @@ class FakeClient extends EventEmitter {
       this.emit('connect');
       this.emit('ready');
     });
+  }
+
+  forwardOut(srcIP, srcPort, dstIP, dstPort, callback) {
+    this.forwardOutCalls.push({ srcIP, srcPort, dstIP, dstPort });
+
+    if (this.forwardOutDelay) {
+      this.forwardOutCallback = callback;
+      return;
+    }
+
+    const channel = new FakeChannel();
+    this.channel = channel;
+    process.nextTick(() => {
+      if (this.forwardOutError) {
+        callback(this.forwardOutError);
+        return;
+      }
+      callback(null, channel);
+    });
+  }
+
+  // Completes a pending `forwardOut` request. Used by tests that need to stop
+  // or close while the channel request is in flight.
+  completeForwardOut(err = null) {
+    if (typeof this.forwardOutCallback !== 'function') {
+      return null;
+    }
+    const callback = this.forwardOutCallback;
+    this.forwardOutCallback = null;
+    const channel = new FakeChannel();
+    this.channel = channel;
+    callback(err, err ? undefined : channel);
+    return channel;
   }
 
   shell(window, options, callback) {
@@ -101,5 +158,6 @@ class FakeClient extends EventEmitter {
 module.exports = {
   Client: FakeClient,
   FakeClient,
+  FakeChannel,
   FakeStream,
 };

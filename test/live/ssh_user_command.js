@@ -2,7 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('ssh_user_command.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
 // A user command that starts with `ssh` must run normally and must not be

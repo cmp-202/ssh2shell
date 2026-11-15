@@ -1,13 +1,24 @@
 # API baseline and README reconciliation
 
 - **Baseline:** `refactor/L0-baseline` (`v2.0.14`)
-- **Source of truth:** `src/ssh2shell.js`, a 1:1 port of the baseline
-  `src/ssh2shell.coffee`; `lib/ssh2shell.js` is its published copy.
+- **Characterized build:** the frozen baseline in
+  `test/fixtures/baseline-ssh2shell.js`, a 1:1 port of the baseline
+  `src/ssh2shell.coffee`.
 - **Method:** read the implementation, exercise it with the offline harness in
   `test/unit/`, and compare every documented claim in `README.md` against the
   actual code.
 - **Status:** L1 baseline characterization, preserved through L4; L5, L6, and
   L6.1 record the signed-off behavior changes separately.
+
+> **Superseded in 4.0.0.** The current `src/ssh2shell.js` replaced the
+> nested `ssh` command with `ssh2` `forwardOut` hops. `server.ssh`, the
+> jump-host credential model, `exitCommands`, `passphrasePrompt`,
+> `commandStartTimeout`, and `details.noOutput` no longer exist. The host
+> message handler is now `onMsg`; `server.hashMethod`, `sshObj.stop`, the host
+> `idleTime` / `dataIdleTime` aliases, and the `msg: { send }` shape are also
+> removed. The sections below describe the frozen baseline and remain useful
+> for comparison only. See [NEXT-HOST-CONNECTION.md](NEXT-HOST-CONNECTION.md)
+> and the README for current behavior.
 
 The README is treated as *documented intent*. Where it disagrees with the code,
 the code is recorded as the current behavior and the mismatch is listed below.
@@ -75,23 +86,27 @@ until `_connections` is empty and `close()` runs.
 | `pipe(destination)` | Inherited | Legacy `Stream.prototype.pipe`; works by listening to `data`/`end`. |
 | `unpipe(destination)` | **Missing** | `Stream.prototype.unpipe` is undefined. The README no longer documents it; `pipe`/`unpipe` are stream-level operations on the instance, not host config. |
 
-### Public properties
+### Instance properties observed at baseline
 
-| Property | Meaning |
-| --- | --- |
-| `sshObj` | Current host object plus runtime state. |
-| `command` | Command currently being run (`""` between commands). |
-| `connection` | Current `ssh2.Client` instance. |
-| `_hosts` | Remaining **primary** hosts (each connected with `ssh2`). |
-| `_connections` | Stack of previous hosts used to back out through secondary/nested connections. |
-| `_stream` | Current shell stream. |
-| `_buffer` | Raw response buffer for the current command. |
-| `_commandSawData` | Internal: whether the current command has produced data (drives `details.noOutput`). |
-| `_stderrBuffer` | Internal: captured stderr for the current command when `captureStderr` is enabled. |
-| `idleTime` | Command timeout in ms (`idleTimeOut`, default 5000). |
-| `dataIdleTime` | Internal data-settle timer in ms; intended public key is `dataIdleTimeOut`, default 500. |
-| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Compiled `RegExp` prompt detectors. `standardPrompt` is compiled from `standardPromptRegex` when that opt-in is set, otherwise from the `standardPrompt` character set. |
-| `asciiFilter`, `textColorFilter` | Compiled `RegExp` response filters. |
+This table records the instance properties the baseline exposed, not a
+supported API. In the current major, members beginning with `_` are internal.
+`sshObj`, `command`, `idleTime`, and `dataIdleTime` are documented in the
+README; the rest are diagnostics or implementation state.
+
+| Property | Status | Meaning |
+| --- | --- | --- |
+| `sshObj` | Public | Current host object plus runtime state. |
+| `command` | Public | Command currently being run (`""` between commands). |
+| `connection` | Diagnostic | Active host's `ssh2.Client` instance. |
+| `_hosts` | Internal | Remaining **primary** hosts (each connected with `ssh2`). |
+| `_connections` | Internal | Stack of previous hosts used to back out through secondary/nested connections. |
+| `_stream` | Diagnostic | Active shell stream. |
+| `_buffer` | Internal | Raw response buffer for the current command. |
+| `_stderrBuffer` | Internal | Captured stderr for the current command when `captureStderr` is enabled. |
+| `idleTime` | Public | Command timeout in ms (`idleTimeOut`, default 5000). |
+| `dataIdleTime` | Public | Response-settling delay in ms (`dataIdleTimeOut`, default 500). |
+| `standardPrompt`, `passwordPrompt`, `passphrasePrompt` | Diagnostic | Compiled `RegExp` prompt detectors. `standardPrompt` is compiled from `standardPromptRegex` when that opt-in is set, otherwise from the `standardPrompt` character set. |
+| `asciiFilter`, `textColorFilter` | Diagnostic | Compiled `RegExp` response filters. |
 
 ### Events emitted by the code
 
@@ -104,7 +119,7 @@ until `_connections` is empty and `close()` runs.
 | `end` | `(sessionText, sshObj)` | Stream `finish`, `_previousHost`, `_nextPrimaryHost`. |
 | `commandProcessing` | `(command, response, sshObj, stream)` | `_onData` while a command is still producing output. |
 | `commandComplete` | `(command, response, sshObj, details)` | `_commandComplete` after a prompt is detected. `response` is the raw buffer by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer; `details.stderr` carries captured stderr when `captureStderr` is enabled. |
-| `commandTimeout` | `(command, response, stream, connection, details)` | `_scheduleIdleTimeout`, armed by `_onData` or by `_runCommand` when `commandStartTimeout` is set. `details` is `{ attempt, maxRetries, final, noOutput }`. |
+| `commandTimeout` | `(command, response, stream, connection, details)` | `_scheduleIdleTimeout`, armed when `_runCommand` writes a command and reset by `_onData`. A detected prompt cancels the timer. `details` is `{ attempt, maxRetries, final }`. |
 | `keyboard-interactive` | `(name, instructions, lang, prompts, finish)` | Re-emitted from the `ssh2.Client`. |
 | `newPrimaryHost` | value returned by `_nextPrimaryHost`, which is `_initiate`'s return value: at `connect()` time this is `_stream` (the prototype placeholder `{}` until the shell opens) | `connect` and connection `close`. |
 | `pipe` / `Unpipe` | — | Not emitted by the class. These are stream-level concepts; the README no longer lists them. |
@@ -115,7 +130,7 @@ until `_connections` is empty and `close()` runs.
 `connectedMessage`, `readyMessage`, `closedMessage`, `showBanner`, `verbose`,
 `debug`, `progress`, `exposeCredentials`, `enter`, `streamEncoding`, `window`,
 `pty`, `idleTimeOut`, `dataIdleTimeOut` (public timer key; falls back to the
-undocumented `dataIdleTime`), `commandResponse`, `commandStartTimeout`,
+undocumented `dataIdleTime`), `commandResponse`,
 `captureStderr`, `commandTimeoutRetries`, `sessionText`, `exitCommands`.
 
 **Prompts and filters:** `standardPrompt`, `standardPromptRegex`,
@@ -129,14 +144,20 @@ undocumented `dataIdleTime`), `commandResponse`, `commandStartTimeout`,
 `onCommandTimeout`, `onKeyboardInteractive`, `onData`, `onStderrData`,
 `onError`, `onEnd`.
 
-**Nested SSH command options (`server.ssh`):** `forceProtocolVersion`,
+**Nested SSH command options (`server.ssh`, baseline only):** `forceProtocolVersion`,
 `forceAddressType`, `disablePseudoTTY`, `forcePseudoTTY`, `verbose`,
 `cipherSpec`, `escape`, `logFile`, `configFile`, `identityFile`, `loginName`,
 `macSpec`, `options`.
 
 **Removed legacy aliases:** the misspelled `passwordPromt` and
-`passphrasePromt` fallbacks were removed post-L7. Only `passwordPrompt` and
-`passphrasePrompt` are read. The frozen baseline still honours the aliases.
+`passphrasePromt` fallbacks were removed post-L7. The baseline reads
+`passwordPrompt` and `passphrasePrompt`; the current build reads only
+`passwordPrompt` (for `sudo`). The frozen baseline still honours the aliases.
+
+The current major also removed the host `msg` handler (replaced by `onMsg`),
+the `msg: { send }` shape, `server.hashMethod` (use `hostHash`), `sshObj.stop`
+(use `abort`), and the host `idleTime` / `dataIdleTime` keys (use
+`idleTimeOut` / `dataIdleTimeOut`). The frozen baseline still accepts them.
 
 ## README claims that are confirmed by the code
 
@@ -149,9 +170,10 @@ undocumented `dataIdleTime`), `commandResponse`, `commandStartTimeout`,
 - `onCommandProcessing`, `onCommandComplete`, `onCommandTimeout`,
   `onKeyboardInteractive`, `onData`, `onStderrData`, `onError`, and `onEnd`
   are registered per host.
-- Multiple primary hosts, nested `hosts` arrays, notifications, sudo/su prompt
-  handling, and `server.ssh` option construction are implemented.
-- Fingerprint validation is delegated to `ssh2` through `server.hashMethod` and
+- Multiple primary hosts, nested `hosts` arrays, notifications, and sudo/su prompt
+  handling are implemented. The baseline also implements `server.ssh` option
+  construction; the current build does not.
+- Fingerprint validation is delegated to `ssh2` through `server.hostHash` and
   `server.hostVerifier`.
 
 ## L1 README corrections
@@ -286,21 +308,19 @@ run against both the current build and the frozen baseline, guarded by
   `test/unit/command-response.test.js`.
 - **`commandTimeoutRetries`.** A non-negative integer, default `0`. The library
   owns the attempt count and re-arms the idle timer for each non-final attempt;
-  the handler only reacts to
-  `details = { attempt, maxRetries, final, noOutput }`. The default handler
-  closes only on the final attempt, so `0` preserves the single-timeout
-  behavior. A handler can set `this.sshObj.retryCommandTimeout = false` to stop
-  retrying for the current command. The attempt count resets when the same
-  command is written and when a command completes, not for internal
-  password/exit writes. Test: `test/unit/timeout-retries.test.js`; live checks:
-  `test/live/timeout.js` (handler-managed) and `test/live/timeout_retries.js`
-  (opt-in retries).
-- **`commandStartTimeout`.** A boolean, default `false`. When `true`, the idle
-  timer is armed as soon as the command is written, so a command that never
-  produces output still reaches `commandTimeout`. The library tracks
-  `_commandSawData` per command and reports `details.noOutput`: `true` means no
-  data has arrived for the command, `false` means output arrived but no prompt
-  was detected. Incoming data still clears and re-arms the timer normally. Test:
+  the handler only reacts to `details = { attempt, maxRetries, final }`. The
+  default handler closes only on the final attempt, so `0` preserves the
+  single-timeout behavior. A handler can set
+  `this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+  command. The attempt count resets when the same command is written and when a
+  command completes, not for internal password/exit writes. Test:
+  `test/unit/timeout-retries.test.js`; live checks: `test/live/timeout.js`
+  (handler-managed) and `test/live/timeout_retries.js` (opt-in retries).
+- **Command idle timeout.** The idle timer is armed when a command is written, so
+  a command that never produces output still reaches `commandTimeout`. Incoming
+  data resets the timer, and a detected prompt cancels it. A silent command that
+  returns to the prompt completes normally. The literal `exit` command and
+  internal password writes do not arm the timer. Test:
   `test/unit/command-start-timeout.test.js`.
 - **`captureStderr`.** A boolean, default `false`. When `true`, stderr chunks
   are filtered with the same colour and ASCII filters as stdout, buffered in

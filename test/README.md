@@ -1,8 +1,9 @@
 # Testing ssh2shell
 
-This folder holds the offline test suites and the local environment used for
-live tests against real VMs. The main [README](../README.md) covers the library
-API; start here when you need to run, rebuild, or extend the tests.
+This folder holds the offline test suites and the environment used for live
+tests. Locally they run against the provisioning VMs; CI starts throwaway `sshd`
+hosts on the runner. The main [README](../README.md) covers the library API;
+start here when you need to run, rebuild, or extend the tests.
 
 ## Layout
 
@@ -38,9 +39,27 @@ Feature-specific suites include `test/unit/prompt-regex.test.js`
 (`standardPromptRegex`), `test/unit/command-response.test.js`
 (`commandResponse: 'handled'`), `test/unit/timeout-retries.test.js`
 (`commandTimeoutRetries`), `test/unit/command-start-timeout.test.js`
-(`commandStartTimeout` and `details.noOutput`), and
+(always-on command idle timeout), and
 `test/unit/stderr-capture.test.js` (`captureStderr` and `details.stderr`).
 Opt-in cases are guarded by `isBaseline()` so the frozen artifact still passes.
+
+## Test workflow
+
+Use the fastest suite that covers the change, and save the slow checks for
+boundaries:
+
+1. **Every small block:** run the full offline suite (`npm run test:src`). It is
+   fast and catches regressions in unrelated areas.
+2. **End of a change:** run only the live tests that exercise the changed path,
+   for example `node scripts/run-live.js timeout timeout_retries command_timeout`
+   for timeout work.
+3. **Commit, release, or moving to another development area:** run the full live
+   suite (`node scripts/run-live.js --all`), plus provisioning when the change
+   affects connection setup or the provisioned environment.
+
+The live suite grows over time, so a full run at the end of every block is mostly
+waiting. Targeted runs keep the feedback loop short; the full run at boundaries
+keeps the release honest.
 
 ## Live tests
 
@@ -54,8 +73,9 @@ cp .env-example .env
 
 Most tests authenticate with the key at `PRIVATE_KEY_PATH`. Passwords are used
 only where the protocol requires them: `sudo`, `su`, and keyboard-interactive.
-Nested hops use `HOP_KEY_PATH` and `HOP2_KEY_PATH`, which are paths on the jump
-host rather than on your workstation.
+Nested hosts are reached with `forwardOut` from the parent connection, so hops
+authenticate with the same local `PRIVATE_KEY_PATH`; no key needs to be copied
+to the jump host.
 
 Run the curated batch after a change:
 
@@ -77,9 +97,79 @@ node scripts/run-live.js simple tunnel chaining
 node scripts/run-live.js --all --timeout 300
 ```
 
+Live tests and `provision.js` load the build selected by `SSH2SHELL_MODULE`:
+`src` (default for development), `lib` (the release build), `baseline` (the
+frozen regression fixture), or a path relative to the repository root. For
+example:
+
+```bash
+SSH2SHELL_MODULE=lib npm run test:live
+SSH2SHELL_MODULE=baseline npm run test:live
+```
+
 `timeout.js` keeps the handler-managed `FirstPass` approach.
 `timeout_retries.js` uses `commandTimeoutRetries` and `details.final`, so the
 library owns the attempt count and re-arms the timer.
+
+### Host traversal and fault tests
+
+Two live tests exercise the host-array shape directly. They are not in the
+curated batch because they are the acceptance tests for the
+[next-host-connection](../docs/NEXT-HOST-CONNECTION.md) transport change.
+
+- `host_traversal.js` builds three primaries and reuses the VMs at three depths:
+
+  ```text
+  host1.hosts = [hosta]        hosta.hosts = [hostaa]    hostaa.hosts = [hostaaa]
+  host2.hosts = [hostb,hostc]  hostb.hosts = [hostbb]    hostc.hosts = [hostcc]
+  host3.hosts = [hostd,hoste,hostf]
+  primary list = [host1, host2, host3]
+  ```
+
+  Each host writes a unique `traversal:<label>` marker. The test logs
+  `traversal-order` and `end-order`, and exits nonzero unless the walk is the
+  expected depth-first order:
+  `host1,hosta,hostaa,hostaaa,host2,hostb,hostbb,hostc,hostcc,host3,hostd,hoste,hostf`.
+
+- `host_faults.js` puts a connection failure at three positions in the same
+  shape: a nested leaf (`bad-deep`), its never-started child
+  (`bad-deep-child`), and a primary (`bad-primary`). It logs `fault-order`,
+  `error-count`, and `end-order` using host labels.
+
+  Expected result for the ssh2 hop transport:
+
+  ```text
+  fault-order:primary1,good-hop,good-sibling,primary2
+  error-count:2
+  end-order:bad-deep,good-hop,good-sibling,primary1,bad-primary,primary2
+  ```
+
+  A failed hop is contained: its sibling still runs and the run backs out. A
+  failed primary is skipped and the next primary runs. `bad-deep-child` never
+  starts, so it never ends.
+
+  The frozen baseline fixture, which still uses the nested-`ssh` transport, fails
+  this test on purpose. It does not detect the failed hop, runs `bad-deep`'s
+  command on the parent shell, skips `good-sibling`, and emits only the primary
+  error:
+
+  ```text
+  fault-order:primary1,good-hop,bad-deep,primary2
+  error-count:1
+  end-order:bad-deep,good-hop,primary1,bad-primary,primary2
+  ```
+
+  Run it against the baseline with `SSH2SHELL_MODULE=baseline` to see the
+  contrast; `src` and `lib` pass.
+
+Run both directly with:
+
+```bash
+node scripts/run-live.js host_traversal host_faults --timeout 180
+```
+
+The runner check for `host_faults` encodes the post-change contract and allows
+the expected `ECONNREFUSED` marker and `Connection` error type.
 
 Each test runs in its own process with a 180-second default timeout. The runner
 does not trust the exit code: a failed connection still reaches the connect
@@ -123,11 +213,55 @@ The main environment variables are:
 | `SECOND_USER`, `SECOND_USER_PASSWORD` | `su` test account. |
 | `NOPASSWD_USER`, `NOPASSWD_PASSWORD` | Passwordless sudo test account. |
 | `KBD_USER`, `KBD_PASSWORD` | Keyboard-interactive account. |
-| `HOP_KEY_PATH`, `HOP2_KEY_PATH` | Test key path on each jump host. |
 | `EXPECTED_HOST_HASH` | Pinned host fingerprint for the fingerprint test. |
 | `DEBUG`, `VERBOSE` | `ssh2shell` session output. |
 
 [`.env-example`](../.env-example) lists every variable with its default.
+
+## CI live tests
+
+`.github/workflows/live.yml` runs the full live suite on `ubuntu-latest` without
+VMs. It runs on pushes to `master`, pull requests, a nightly schedule, and on
+demand. The job fails when any live test fails, so it can be added to branch
+protection as a required check. `publish.yml` calls the same workflow and does
+not publish unless it passes.
+
+[`ci/setup-live-hosts.sh`](./ci/setup-live-hosts.sh) creates the same four
+accounts as the provisioning script and starts three sshd instances on the
+runner's loopback interface, one per role:
+
+| Role | CI address | Notes |
+| --- | --- | --- |
+| `server1` | `127.0.0.10` | `tester`, `nopasswd`, `suuser`, `kbduser` (password auth disabled for `kbduser`) |
+| `server2` | `127.0.0.11` | `tester`, `nopasswd` (`NOPASSWD` sudo), `suuser` |
+| `server3` | `127.0.0.12` | `tester`, `nopasswd`, `suuser` |
+
+The instances listen on **2222**, not 22: the runner image already runs its own
+sshd on `0.0.0.0:22`. Override with `LIVE_SSH_PORT`, and change the `PORT` values
+in the workflow to match.
+
+The workflow generates a throwaway key pair, installs the public half, and runs
+`npm run test:live:all` against `src`. It copies the root-owned sshd logs into
+`test/logs/sshd` and uploads `test/logs` as an artifact.
+[`ci/stop-live-hosts.sh`](./ci/stop-live-hosts.sh) stops the instances.
+
+These are sshd processes on the runner, not VMs: they exercise the SSH
+transport, sudo, `su`, keyboard-interactive, and `forwardOut` hops, but not the
+provisioning script or the VM network setup. Run `provision.js` and the suite
+against real VMs when a change touches provisioning or networking.
+
+To reproduce on a Linux host, generate a key, run the setup script with its
+public half, copy the environment block from the workflow's **Run live suite**
+step, and run the suite. Stop the instances when you are done:
+
+```bash
+ssh-keygen -q -t ed25519 -N "" -C ssh2shell-ci -f /tmp/test_ed25519
+sudo bash test/ci/setup-live-hosts.sh /tmp/test_ed25519.pub
+# export the variables from .github/workflows/live.yml, with
+# PRIVATE_KEY_PATH=/tmp/test_ed25519
+npm run test:live:all
+sudo bash test/ci/stop-live-hosts.sh
+```
 
 ## Provisioning
 
@@ -144,12 +278,14 @@ role matrix, environment variables, adapter setup, and recovery behavior.
 
 ## Adding a live test
 
-1. Create `test/live/<name>.js`. Require `../../src/ssh2shell`, use
-   `logFile()` / `log()` from `../utils/logging.js`, and load the key with
-   `readPrivateKey()` from `../utils/private_key.js`.
+1. Create `test/live/<name>.js`. Require `../utils/module.js` (it resolves
+   `SSH2SHELL_MODULE`), use `logFile()` / `log()` from `../utils/logging.js`, and
+   load the key with `readPrivateKey()` from `../utils/private_key.js`.
 2. Add an entry to the `checks` map in `../scripts/run-live.js`. Use
    `contains` / `excludes` for session text, `logContains` for log output, and
-   `files` for tests that write separate output files.
+   `files` for tests that write separate output files. A fault test can allow an
+   expected error type with `allowErrors` and an expected connection marker with
+   `allowFatalMarkers`.
 3. Add the name to `defaultTests` if it belongs in the curated batch.
 4. Run it directly with `node scripts/run-live.js <name>` and check
    `test/logs/<name>.js.log`.

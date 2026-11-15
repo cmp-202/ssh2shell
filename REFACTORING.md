@@ -46,15 +46,18 @@ Two host layers exist and must stay distinct:
 
 - **Primary hosts** live in `_hosts` and are opened with a new `ssh2.Client`
   connection. `_nextPrimaryHost` iterates this array.
-- **Secondary (nested) hosts** live in the current host's `hosts` array and are
-  opened by typing an `ssh ...` command into the current shell (`_sshConnect`).
-  `_nextHost` iterates this array. Several secondary hosts may be chained.
+- **Secondary (nested) hosts** live in the current host's `hosts` array. Since
+  L7.24 a hop opens an `ssh2` `forwardOut` channel through the active record and
+  logs in over it, instead of typing an `ssh ...` command into the shell. The
+  active records form an ancestor stack in `_connections`; `_nextHost`
+  iterates the nested array. Several secondary hosts may be chained.
 
-`_runExit` is the "finish this host" routine. It runs queued exit commands, then
-opens the next secondary host if one remains, otherwise backs out through
-`_connections` via `_previousHost`, and finally closes. Backing out to a previous
-host re-runs `_runExit`, so that host's remaining `hosts` entries are resumed
-rather than discarded. See `docs/API-BASELINE.md` for the exact order.
+`_runExit` is the "finish this host" routine. It opens the next secondary host
+if one remains, otherwise backs out through `_connections` via `_previousHost`,
+and finally closes. The literal `exit` branch remains for `su` / `sudo -i` and
+the final primary shell; a hop is left by closing its connection. Backing out to
+a previous host re-runs `_runExit`, so that host's remaining `hosts` entries are
+resumed rather than discarded. See `docs/API-BASELINE.md` for the exact order.
 
 ## Branch and tag policy
 
@@ -105,6 +108,7 @@ The release tags give a stable coarse boundary for the untagged levels:
 | `refactor/L7.6..v3.1.0` | `v3.1.0` | L7.7-L7.17 plus follow-up commits (16 commits) |
 | `v3.1.0..v3.2.0` | `v3.2.0` | L7.18 (post-3.1.0 shutdown work) |
 | `v3.2.0..v3.3.0` | `v3.3.0` | L7.19-L7.23 (opt-in prompt/response/timeout/silent-command/stderr features) |
+| `v3.3.0..v4.0.0` | `v4.0.0` | L7.24-L7.25 (`ssh2` `forwardOut` hops, always-on command idle timeout, surface cleanup) |
 
 ```bash
 # Inspect everything after the last tagged level
@@ -119,14 +123,18 @@ git diff v3.1.0..v3.2.0
 git log --oneline v3.2.0..v3.3.0
 git diff v3.2.0..v3.3.0
 
-# Revert the post-3.2.0 work as one commit (keeps history)
-git revert --no-commit v3.2.0..v3.3.0
-git commit -m "revert post-3.2.0 work"
+# Inspect the post-3.3.0 work
+git log --oneline v3.3.0..v4.0.0
+git diff v3.3.0..v4.0.0
+
+# Revert the post-3.3.0 work as one commit (keeps history)
+git revert --no-commit v3.3.0..v4.0.0
+git commit -m "revert post-3.3.0 work"
 ```
 
-`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, `v3.2.0`, and `v3.3.0` are the
-release boundaries. The release process, tag convention, and `gitHead` check
-are in [docs/PUBLISHING.md](docs/PUBLISHING.md).
+`v2.0.14`, `v2.1.0`, `v3.0.0`, `v3.1.0`, `v3.2.0`, `v3.3.0`, and `v4.0.0`
+are the release boundaries. The release process, tag convention, and `gitHead`
+check are in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Level completion checklist
 
@@ -217,6 +225,8 @@ must be recorded here.
 | L7.21 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandTimeoutRetries` with library-owned attempts | New suite covers the single-timeout default, re-arm, handler answer, stop, opt-out, final-only close, and reset points; `npm test` 169/169 unit and 169/169 baseline; live `timeout` passes | No level tag; released in `v3.3.0`; see [L7.21 deliverables](#l721-deliverables-command-timeout-retries) |
 | L7.22 | — (ledger-only) | — | Done (v3.3.0) | Opt-in `commandStartTimeout` for silent commands and `details.noOutput` | New suite covers the default no-timer behavior, start-timer arming, `noOutput` true/false, and the per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.22 deliverables](#l722-deliverables-silent-command-timeout) |
 | L7.23 | — (ledger-only) | — | Done (v3.3.0) | Opt-in stderr capture in the command response (`captureStderr`) | New suite covers the default, raw merge, handled merge, escape filtering, and per-command reset; `npm test` 179/179 unit and 179/179 baseline | No level tag; released in `v3.3.0`; see [L7.23 deliverables](#l723-deliverables-stderr-capture) |
+| L7.24 | — (ledger-only) | — | Done (v4.0.0) | `ssh2` `forwardOut` host hops and an always-on command idle timeout | `npm run test:src` 163/163; `npm test` 155 pass with 8 baseline-skipped; full live suite 28/28 on `src` twice; clean-VM provisioning reports `sudoers: OK`, `sshd: OK`, `network: OK` | No level tag; released in `v4.0.0`; see [L7.24 deliverables](#l724-deliverables-ssh2-forwardout-hops-and-always-on-command-idle-timeout) |
+| L7.25 | — (ledger-only) | — | Done (v4.0.0) | Pre-release instance and host-config surface cleanup; removes legacy aliases and renames `host.msg` to `host.onMsg` | `npm run test:src` 166/166; `npm run test:baseline` 158 pass with 8 baseline-skipped | No level tag; released in `v4.0.0`; see [L7.25 deliverables](#l725-deliverables-pre-release-surface-cleanup) |
 
 Commit SHAs are deliberately omitted from this table: a commit cannot contain
 its own hash. Where a tag exists, it is the stable rollback reference; use
@@ -1017,6 +1027,12 @@ Signed-off-by: user request for the silent-command and "no output yet" distincti
 
 Released in `v3.3.0`.
 
+> **Superseded in 4.0.0.** The idle timer is now always armed when a
+> command is written, so a silent command times out without an opt-in. The
+> `commandStartTimeout` option and `details.noOutput` were removed. A detected
+> prompt cancels the timer, so a silent command that returns to the prompt still
+> completes normally. See `test/unit/command-start-timeout.test.js`.
+
 - `src/ssh2shell.js` — `_runCommand` arms the idle timer when
   `commandStartTimeout` is `true` and resets `_commandSawData` for the new
   command. `_onData` marks data as seen once a command is in flight.
@@ -1055,6 +1071,90 @@ Released in `v3.3.0`.
 - `npm test` — 179/179 unit and 179/179 baseline.
 - `stderrData` still fires in every case; the default payload is unchanged.
 
+### L7.24 deliverables (`ssh2` `forwardOut` hops and always-on command idle timeout)
+
+Signed-off-by: user request to replace nested `ssh` host hops and to make silent
+commands time out.
+
+Released in `v4.0.0`.
+
+- `src/ssh2shell.js` — `_connect(parent = null)` owns primary and hop
+  connections; a hop opens a `forwardOut` channel and logs in over it. Records
+  form an ancestor stack with per-record listeners and timers. `_failContext()`
+  contains hop failures, `_endPrimary()` advances past a failed primary, and
+  `_closeContext()` is the only record teardown. `_sanitizeResponse()` slices
+  after the last echoed command. The command idle timer is armed when a command
+  is written, reset by `_onData`, and cancelled by prompt detection.
+- `src/ssh2shell/defaults.js` — `commandStartTimeout` is gone and
+  `passphrasePrompt` is no longer defaulted.
+- Removed `src/ssh2shell/ssh-command.js`, `buildSshCommand()`, `shellQuote()`,
+  `shellControlChars`, `_sshConnect()`, `_processSSHPrompt()`,
+  `sshAuth` / `sshToNextHost`, `exitCommands`, and the `Security Alert` path.
+- `test/unit/host-hop.test.js` — record stack, hop transport, containment,
+  primary advance, and host-list validation.
+- `test/unit/command-start-timeout.test.js` — always-on timeout, a silent
+  command returning to a prompt, and prompt-race cancellation.
+- `test/live/host_traversal.js` and `test/live/host_faults.js` — depth-first
+  traversal and contained-fault acceptance tests.
+- `test/utils/module-target.js` and `test/utils/module.js` — `SSH2SHELL_MODULE`
+  selection for `src`, `lib`, `baseline`, or a repo-relative path.
+- `docs/NEXT-HOST-CONNECTION.md` — design and implementation record.
+
+#### Verification
+
+- `npm run test:src` — 163/163.
+- `npm test` — 155 pass, 8 baseline-skipped.
+- Live suite against `src` — 28/28, run twice.
+- Clean-VM provisioning (`SSH2SHELL_MODULE=src`) — `sudoers: OK`, `sshd: OK`,
+  `network: OK`.
+
+### L7.25 deliverables (pre-release surface cleanup)
+
+Pre-release cleanup of the instance and host-config surface. Released in
+`v4.0.0` on `next-host-connection`.
+
+**Breaking changes**
+
+- `host.msg` is renamed to `host.onMsg`. The Hubot-era `msg: { send: fn }`
+  shape is removed.
+- `server.hashMethod` is removed; use `hostHash`.
+- `sshObj.stop` is removed; use `abort`.
+- Host `idleTime` and `dataIdleTime` are removed; use `idleTimeOut` and
+  `dataIdleTimeOut`. Instance-level `SSH.idleTime` / `SSH.dataIdleTime` remain.
+
+**Host config no longer gains library state**
+
+- `_loadDefaults` resolves default command handlers per record instead of
+  writing instance-capturing closures into the host object.
+- The `{ send }` message shape is no longer rewritten into `host.msg`.
+- `applyHostDefaults` no longer writes `server.hashKey`.
+
+**Instance surface**
+
+- CoffeeScript-era prototype defaults moved into the constructor; the prototype
+  default block is deleted.
+- Constructor binds reduced to the public entry points, `_connect` /
+  `_connectHop`, and the three default command handlers.
+- Dead `_boundListener`, `_detachListener`, `_boundListeners`, and prototype
+  no-op handlers removed.
+- `ssh2Client` is now `_ssh2Client`, marked as an internal test seam.
+- `command` and `_buffer` are saved on the record and restored by
+  `_restoreContext()`, so backing out of a hop resumes the parent's command
+  state.
+
+**Docs**
+
+- README: `onMsg` replaces `msg`; removed aliases deleted; active-host mirrors
+  and internal members reduced to one Troubleshooting note; host-config
+  mutation and handler `this` documented; garbled-buffer workaround removed.
+- `docs/API-BASELINE.md`, `docs/CLOSE-SEMANTICS.md`, and
+  `docs/NEXT-HOST-CONNECTION.md` updated for the removed aliases.
+
+#### Verification
+
+- `npm run test:src` — 166/166.
+- `npm run test:baseline` — 158 pass, 8 baseline-skipped.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
@@ -1072,13 +1172,14 @@ observable behavior or security posture and needs its own level and sign-off.
   `test/unit/api-baseline.test.js`. It kept and modernized
   `lots_of_commands.js`, `pipe.js`, `ssh_user_command.js`, `sudo_no_pass.js`,
   and `timeout.js` as manual live-host checks.
-- **Replace the nested-host `ssh ...` command string with chained `ssh2`
-  connections.** Today `_sshConnect` builds a shell command (`ssh -x ...`) and
-  types it into the current shell. Chaining `ssh2.Client` objects would avoid
-  shell quoting, remove the dependency on a remote `ssh` binary, and make
-  authentication/fingerprint handling consistent for nested hosts. This is the
-  largest planned behavioral change and should be its own level with dedicated
-  tests.
+- **Done at L7.24 (signed off, superseded by
+  [L7.24 deliverables](#l724-deliverables-ssh2-forwardout-hops-and-always-on-command-idle-timeout)):
+  replace the nested-host `ssh ...` command string with chained `ssh2`
+  connections.** The hop now opens an `ssh2` `forwardOut` channel and logs in
+  over it, so there is no shell quoting, no remote `ssh` binary, and hop
+  authentication uses the runner's local credentials. Nested hosts run on the
+  normal `onData` / `commandComplete` path. The old `_sshConnect` /
+  `buildSshCommand()` path and `src/ssh2shell/ssh-command.js` are removed.
 - **Done post-L5 (signed off):** map the documented `dataIdleTimeOut` to the
   internal `dataIdleTime` timer (default 500 ms). `dataIdleTimeOut` wins; the
   undocumented `dataIdleTime` remains as a fallback.
@@ -1198,12 +1299,11 @@ behavior.
   the handled response and keep the raw buffer only as an optional extra.
   `commandProcessing` receives chunks before filtering, so handlers can see
   ANSI, partial prompts, and the same prompt more than once.
-- `commandComplete` does not fire for `exit`, empty commands, or the nested
-  `ssh` command, and the timeout itself does not emit `commandComplete` (a
-  subsequent answered `onData` can). The nested-`ssh` gap is a stage-engine
-  difference, not a missing event. Replacing the nested
-  `ssh ...` command string with chained `ssh2` connections removes that stage
-  and puts nested hosts back on the normal `onData` / `commandComplete` path.
+- `commandComplete` does not fire for `exit` or empty commands, and the timeout
+  itself does not emit `commandComplete` (a subsequent answered `onData` can).
+  The old nested-`ssh` gap was a stage-engine difference, not a missing event;
+  L7.24 removed that stage, so nested hosts now use the normal `onData` /
+  `commandComplete` path.
 - A command that restarts networking or `sshd` in the foreground can drop the
   session or exceed `idleTimeOut`; the current workaround is `nohup ... &` plus
   polling.
@@ -1218,16 +1318,20 @@ behavior.
 
 **Candidate improvements (behavior changes; implemented items are marked)**
 
-- Pass the handled response to `commandComplete`: remove the echoed command,
-  trailing prompt, ANSI, and wrap artifacts. The handler already receives
-  `command`, so this avoids redundant parsing. Keep the raw buffer as an
-  optional extra for callers that need it.
-- Keep the default standard-prompt set small (the most-used prompts) and add an
-  opt-in full regular expression (or `standardPromptRegex`) for callers that
-  need to anchor to `user@host:~$ `.
-- Treat `commandTimeout` as a first-class retry path: document that answering a
-  prompt from the timeout handler can resume normal completion, and consider a
-  built-in attempt counter instead of per-host `FirstPass` flags.
+- **Implemented:** pass the handled response to `commandComplete`: remove the
+  echoed command, trailing prompt, ANSI, and wrap artifacts. The handler already
+  receives `command`, so this avoids redundant parsing. The opt-in
+  `commandResponse: 'handled'` keeps the raw buffer as `details.rawResponse`.
+  See [L7.20 deliverables](#l720-deliverables-handled-commandcomplete-payload).
+- **Implemented:** keep the default standard-prompt set small (the most-used
+  prompts) and add an opt-in full regular expression (`standardPromptRegex`) for
+  callers that need to anchor to `user@host:~$ `. See
+  [L7.19 deliverables](#l719-deliverables-standardpromptregex).
+- **Implemented:** treat `commandTimeout` as a first-class retry path: answering
+  a prompt from the timeout handler can resume normal completion, and
+  `commandTimeoutRetries` gives the library an attempt counter instead of
+  per-host `FirstPass` flags. See
+  [L7.21 deliverables](#l721-deliverables-command-timeout-retries).
 - **Implemented:** define and test the queue-mutation contract: `sshObj.commands`
   push/unshift/splice from `commandComplete`, plus explicit skip/stop flags
   (`skipCommands`, `skipHosts`, `skipPrimaryHosts`, `abort`/`stop`) checked by
@@ -1240,7 +1344,9 @@ behavior.
 - **Implemented:** handle silent long-running commands. `commandStartTimeout`
   arms the idle timer when the command is written, and `details.noOutput`
   distinguishes "no output yet" from "prompt missed". See
-  [L7.22 deliverables](#l722-deliverables-silent-command-timeout).
+  [L7.22 deliverables](#l722-deliverables-silent-command-timeout). This was
+  superseded in 4.0.0: the timer is always armed at command start and
+  both `commandStartTimeout` and `details.noOutput` are removed.
 - **Implemented:** opt-in stderr capture in the command response with
   `captureStderr` and `details.stderr`; `onStderrData` remains the always-on
   event. See [L7.23 deliverables](#l723-deliverables-stderr-capture).

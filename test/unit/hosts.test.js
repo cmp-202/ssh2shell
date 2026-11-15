@@ -25,12 +25,18 @@ function make(overrides = {}) {
 
 describe('host lifecycle', () => {
   it('_previousHost restores the previous connection and emits end', () => {
+    if (isBaseline()) return;
+
     const { ssh } = make();
-    const previous = createHost({ server: { host: 'previous.test' } });
+    const primaryRecord = ssh._activeContext();
+    const previous = ssh.sshObj;
     const current = createHost({ server: { host: 'current.test' } });
     current.sessionText = 'done';
-    ssh.sshObj = current;
-    ssh._connections = [previous];
+
+    // A hop makes the child active and puts the primary on the stack.
+    ssh._pushContext(current, primaryRecord);
+    ssh._stream = new FakeStream();
+
     let exited = false;
     ssh._runExit = () => {
       exited = true;
@@ -48,29 +54,25 @@ describe('host lifecycle', () => {
     assert.ok(String(ends[0][0]).includes('done'));
   });
 
-  it('_nextHost pushes the current host and initiates the nested host', () => {
+  it('_nextHost initiates a hop to the next nested host', () => {
+    if (isBaseline()) return;
+
     const { ssh } = make();
+    const parent = ssh._activeContext();
     const next = createHost({ server: { host: 'next.test' } });
-    const current = createHost({ server: { host: 'current.test' } });
-    current.hosts = [next];
-    ssh.sshObj = current;
-    ssh._connections = [];
-    let removed = false;
+    ssh.sshObj.hosts = [next];
     let initiated = null;
-    ssh._removeListeners = () => {
-      removed = true;
-    };
     ssh._initiate = (action) => {
       initiated = action;
     };
 
     ssh._nextHost();
 
-    assert.equal(removed, true);
-    assert.equal(ssh._connections.length, 1);
-    assert.equal(ssh._connections[0], current);
     assert.equal(ssh.sshObj, next);
-    assert.equal(initiated, ssh._sshConnect);
+    assert.equal(initiated, ssh._connectHop);
+    // The parent is pushed by _connect(), not by _nextHost().
+    assert.equal(ssh._connections.length, 0);
+    assert.equal(ssh._activeContext(), parent);
   });
 
   it('_nextPrimaryHost emits end for the current primary host and loads the next', () => {
@@ -120,14 +122,13 @@ describe('host lifecycle', () => {
     // hosts is `_runExit`'s job, so an empty primary queue starts nothing.
     //
     // The original CoffeeScript artifact implicitly returned the `_runExit`
-    // function here (its `else` branch ended with `@_runExit`). L4 made that
-    // dead return explicit, so the baseline and current builds differ only in
-    // this unobservable value.
+    // function here (its `else` branch ended with `@_runExit`). The record-stack
+    // implementation terminates through the final callback instead.
     if (isBaseline()) {
       assert.equal(typeof result, 'function');
       assert.equal(result, ssh._runExit);
     } else {
-      assert.equal(result, undefined);
+      assert.equal(result, ssh._allSessions);
     }
     assert.equal(initiated, false);
   });
@@ -138,7 +139,6 @@ describe('primary and secondary host chains', () => {
     const host = createHost({ server: { host: name } });
     host.hosts = hosts;
     host.commands = [];
-    host.exitCommands = [];
     host.sessionText = name + ' session';
     return host;
   }
@@ -150,13 +150,16 @@ describe('primary and secondary host chains', () => {
     ssh.removeAllListeners('msg');
     ssh.sshObj = primary;
     ssh._hosts = [];
-    ssh._connections = [];
+    ssh._loadDefaults();
+    ssh._stream = new FakeStream();
     ssh.command = '';
     const events = [];
     const initiated = [];
     ssh.on('end', (text) => events.push(['end', text]));
-    ssh._removeListeners = () => {};
     ssh._initiate = () => {
+      // Simulate the transport: the host _nextHost selected becomes the active
+      // record and the previous record joins the ancestor stack.
+      ssh._pushContext(ssh.sshObj, ssh._activeContext());
       initiated.push(ssh.sshObj.server.host);
     };
     ssh._runCommand = (command) => events.push(['run', command]);
@@ -164,7 +167,13 @@ describe('primary and secondary host chains', () => {
     return { ssh, events, initiated };
   }
 
+  function hostsOnStack(ssh) {
+    return ssh._connections.map((record) => record.host);
+  }
+
   it('backs out of a multi-level nested chain one host at a time', () => {
+    if (isBaseline()) return;
+
     const c = chainHost('c.test');
     const b = chainHost('b.test', [c]);
     const a = chainHost('a.test', [b]);
@@ -172,13 +181,13 @@ describe('primary and secondary host chains', () => {
 
     ssh._runExit(); // a -> b
     assert.equal(ssh.sshObj, b);
-    assert.deepEqual(ssh._connections, [a]);
+    assert.deepEqual(hostsOnStack(ssh), [a]);
 
     ssh._runExit(); // b -> c
     assert.equal(ssh.sshObj, c);
-    assert.deepEqual(ssh._connections, [a, b]);
+    assert.deepEqual(hostsOnStack(ssh), [a, b]);
 
-    ssh._runExit(); // c -> back to b -> back to a -> close
+    ssh._runExit(); // c -> b -> a -> close
     assert.equal(ssh.sshObj, a);
     assert.deepEqual(ssh._connections, []);
     assert.deepEqual(initiated, ['b.test', 'c.test']);
@@ -191,6 +200,8 @@ describe('primary and secondary host chains', () => {
   });
 
   it('resumes the remaining hosts in a previous host array when backing out', () => {
+    if (isBaseline()) return;
+
     const b = chainHost('b.test');
     const d = chainHost('d.test');
     const a = chainHost('a.test', [b, d]);
@@ -198,11 +209,11 @@ describe('primary and secondary host chains', () => {
 
     ssh._runExit(); // a -> b
     assert.equal(ssh.sshObj, b);
-    assert.deepEqual(ssh._connections, [a]);
+    assert.deepEqual(hostsOnStack(ssh), [a]);
 
     ssh._runExit(); // b -> back to a, which still has d -> d
     assert.equal(ssh.sshObj, d);
-    assert.deepEqual(ssh._connections, [a]);
+    assert.deepEqual(hostsOnStack(ssh), [a]);
     assert.deepEqual(initiated, ['b.test', 'd.test']);
 
     const ends = events.filter((event) => event[0] === 'end').map((event) => event[1]);
@@ -215,18 +226,21 @@ describe('primary and secondary host chains', () => {
     assert.deepEqual(events[events.length - 1], ['close']);
   });
 
-  it('drops the secondary host commandComplete handler after backing out', () => {
+  it('restores the primary commandComplete handler after backing out', () => {
+    if (isBaseline()) return;
+
     const primary = chainHost('primary.test');
     const secondary = chainHost('secondary.test');
     primary.hosts = [secondary];
 
     const ssh = new SSH2Shell(primary);
+    ssh.removeAllListeners('msg');
     ssh.sshObj = primary;
     ssh._hosts = [];
-    ssh._connections = [];
+    ssh._loadDefaults();
+    const primaryRecord = ssh._activeContext();
     ssh._stream = new FakeStream();
     ssh.command = '';
-    ssh._initiate = () => {};
 
     const fired = [];
     primary.onCommandComplete = (command, response, sshObj) => {
@@ -236,11 +250,12 @@ describe('primary and secondary host chains', () => {
       fired.push({ handler: 'secondary', host: sshObj.server.host, response });
     };
 
+    // Rebind the primary handler into its record, then bind the child's.
+    ssh._loadDefaults(primaryRecord);
+    ssh._pushContext(secondary, primaryRecord);
+    ssh._stream = new FakeStream();
     ssh._loadDefaults();
-    ssh._nextHost(); // moves to secondary and removes the primary's handlers
-    ssh._loadDefaults(); // normally called by _initiate
-
-    assert.equal(ssh.sshObj, secondary);
+    ssh._runExit = () => {};
 
     ssh._previousHost();
 
@@ -248,18 +263,10 @@ describe('primary and secondary host chains', () => {
 
     ssh.emit('commandComplete', 'cmd', 'response', ssh.sshObj);
 
-    if (isBaseline()) {
-      // The baseline leaves the outgoing secondary handler attached. It fires
-      // with the primary host as sshObj and duplicates session text.
-      assert.equal(ssh.listenerCount('commandComplete'), 1);
-      assert.deepEqual(fired, [
-        { handler: 'secondary', host: 'primary.test', response: 'response' },
-      ]);
-    } else {
-      // L5 removes the outgoing host's handlers so nothing stale can fire.
-      assert.equal(ssh.listenerCount('commandComplete'), 0);
-      assert.deepEqual(fired, []);
-    }
+    assert.equal(ssh.listenerCount('commandComplete'), 1);
+    assert.deepEqual(fired, [
+      { handler: 'primary', host: 'primary.test', response: 'response' },
+    ]);
   });
 });
 
@@ -268,9 +275,7 @@ describe('_runExit ordering', () => {
     const { ssh } = make();
     const calls = [];
     ssh.command = '';
-    ssh.sshObj.exitCommands = [];
     ssh.sshObj.hosts = [];
-    ssh._connections = [];
     ssh._runCommand = (command) => calls.push(['runCommand', command]);
     ssh._nextHost = () => calls.push(['nextHost']);
     ssh._previousHost = () => calls.push(['previousHost']);
@@ -278,21 +283,9 @@ describe('_runExit ordering', () => {
     return { ssh, calls };
   }
 
-  it('runs queued exit commands first', () => {
-    const { ssh, calls } = setup();
-    ssh.sshObj.exitCommands = ['exit'];
-    ssh.sshObj.sessionText = 'session';
-    ssh._connections = [
-      { server: { host: 'primary.test' }, sessionText: '' },
-    ];
-
-    ssh._runExit();
-
-    assert.deepEqual(calls, [['runCommand', 'exit']]);
-    assert.ok(ssh._connections[0].sessionText.includes('session'));
-  });
-
   it('moves to the next nested host when there are no exit commands', () => {
+    if (isBaseline()) return;
+
     const { ssh, calls } = setup();
     ssh.sshObj.hosts = [createHost()];
 
@@ -302,8 +295,11 @@ describe('_runExit ordering', () => {
   });
 
   it('returns to the previous host when there are no nested hosts', () => {
+    if (isBaseline()) return;
+
     const { ssh, calls } = setup();
-    ssh._connections = [createHost()];
+    const parent = ssh._activeContext();
+    ssh._pushContext(createHost(), parent);
 
     ssh._runExit();
 
@@ -311,6 +307,8 @@ describe('_runExit ordering', () => {
   });
 
   it('sends a manual exit command when the current command is exit', () => {
+    if (isBaseline()) return;
+
     const { ssh, calls } = setup();
     ssh.command = 'exit';
 
@@ -320,6 +318,8 @@ describe('_runExit ordering', () => {
   });
 
   it('closes the stream when nothing remains', () => {
+    if (isBaseline()) return;
+
     const { ssh, calls } = setup();
 
     ssh._runExit();

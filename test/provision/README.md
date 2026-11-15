@@ -94,7 +94,13 @@ the live-test network on `192.168.44.0/24`.
 ## Roles
 
 The role is the first CLI argument, or `PROVISION_ROLE`, or `server1` by
-default.
+default. `--help` prints the usage, and `--print-config` shows every variable
+for the selected role, whether it came from the shell, a role-specific key, a
+generic key, or a default:
+
+```bash
+node test/provision/provision.js server2 --print-config
+```
 
 | Role | Hostname | Static IP | Test users | Extra |
 | --- | --- | --- | --- | --- |
@@ -108,9 +114,12 @@ default bootstrap login). `tester` is the primary test login.
 `/etc/sudoers.d/90-ssh2shell-nopasswd` grants passwordless sudo. `suuser` has no
 sudo and exists for the `su` test.
 
-The test key is installed in every test user's `authorized_keys`. It is also
-copied to `~/.ssh/id_ed25519` for `tester`, `nopasswd`, and `suuser` so nested
-`ssh -i` hops work. `ssh2shell` gets the admin key instead.
+The test public key is installed in every test user's `authorized_keys`.
+`ssh2shell` gets the admin public key instead. Hops use `forwardOut` from the
+parent connection, so the private test key stays on the runner and is never
+copied to a VM. Re-provisioning a VM that was built by 3.x removes the
+`~/.ssh/id_ed25519` and `.pub` copies that the old script left in `tester`,
+`nopasswd`, and `suuser`'s homes.
 
 ## Building the three VMs
 
@@ -239,6 +248,7 @@ the role, then `PROVISION_ROLE`, then `server1`.
 | `PROVISION_<ROLE>_HOST` | role static IP | Address of the VM as it is reachable now. Use the DHCP address for the first run, then the role's static IP (or leave it empty) for later runs. |
 | `PROVISION_<ROLE>_PORT` | `PORT` or `22` | SSH port. |
 | `PROVISION_<ROLE>_IP` | role static IP | Static address written to netplan or `/etc/network/interfaces`. |
+| `PROVISION_<ROLE>_PREFIX` | `24` | Network prefix for the static address. The matching netmask is derived for `/etc/network/interfaces`. |
 | `PROVISION_<ROLE>_HOSTNAME` | role name | Hostname. |
 | `PROVISION_<ROLE>_INTERFACE` | `enp0s3` | Guest network interface. |
 | `PROVISION_<ROLE>_USER` | `USER_NAME` | Bootstrap login user. A fresh Ubuntu install usually has `ubuntu`. |
@@ -250,7 +260,8 @@ the role, then `PROVISION_ROLE`, then `server1`.
 | `PROVISION_<ROLE>_IDLE_TIMEOUT` | `20000` | `idleTimeOut` for the `ssh2shell` session. |
 
 The same names without the role prefix (`PROVISION_HOST`, `PROVISION_USER`,
-`PROVISION_PASSWORD`, and so on) work as generic fallbacks for every role.
+`PROVISION_PASSWORD`, `PROVISION_PREFIX`, and so on) work as generic fallbacks
+for every role.
 
 The test key is only the default bootstrap key for the normal test login. If
 you set a different bootstrap user, such as `ubuntu`, also set that role's
@@ -352,7 +363,8 @@ non-zero exit code.
 - The script detects netplan vs `ifupdown` at runtime. The netplan path replaces
   `/etc/netplan/*.yaml` with a single static config, so it assumes one network
   interface. If the interface is not `enp0s3`, set
-  `PROVISION_<ROLE>_INTERFACE` (or `PROVISION_INTERFACE`).
+  `PROVISION_<ROLE>_INTERFACE` (or `PROVISION_INTERFACE`). If the test network
+  is not a `/24`, set `PROVISION_<ROLE>_PREFIX` (or `PROVISION_PREFIX`).
 - OpenSSH 8.7 renamed `ChallengeResponseAuthentication` to
   `KbdInteractiveAuthentication`. The script selects the directive that works
   on the installed release, and updates `/etc/ssh/sshd_config.d/*.conf` so a

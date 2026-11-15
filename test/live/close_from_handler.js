@@ -2,7 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('close_from_handler.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
 // close() from a handler stops the queue and closes the shell. The completed

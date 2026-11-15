@@ -2,23 +2,19 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('chaining.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
-// Paths to the private key as they exist on each jump host. Override these
-// when the key is installed under a different name or location.
-const hopKeyPath =
-  process.env.HOP_KEY_PATH || `/home/${process.env.USER_NAME}/.ssh/id_ed25519`;
-const hop2KeyPath =
-  process.env.HOP2_KEY_PATH ||
-  `/home/${process.env.SERVER2_USER_NAME}/.ssh/id_ed25519`;
+// Hops are opened with `forwardOut` from the parent connection, so every host
+// authenticates with the runner's local key.
+const privateKey = readPrivateKey();
 
 const jump = {
   server: {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    privateKey: readPrivateKey(),
+    privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname'],
@@ -31,11 +27,8 @@ const bastion = {
     host: process.env.SERVER2_HOST,
     port: process.env.SERVER2_PORT || process.env.PORT,
     userName: process.env.SERVER2_USER_NAME,
-    // Hop authentication uses the test key installed on the jump host for the
-    // login user, so the nested connection does not need a password.
-    ssh: {
-      identityFile: hopKeyPath,
-    },
+    privateKey,
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname'],
   debug: (process.env.DEBUG === 'true'),
@@ -47,10 +40,8 @@ const target = {
     host: process.env.SERVER3_HOST,
     port: process.env.SERVER3_PORT || process.env.PORT,
     userName: process.env.SERVER3_USER_NAME,
-    // This hop runs on the bastion, so the key path belongs to its login user.
-    ssh: {
-      identityFile: hop2KeyPath,
-    },
+    privateKey,
+    passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: ['hostname', 'uptime'],
   debug: (process.env.DEBUG === 'true'),

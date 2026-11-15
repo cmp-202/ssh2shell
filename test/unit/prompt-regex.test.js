@@ -109,20 +109,4 @@ describe('opt-in standard prompt regex', () => {
     assert.equal(completed, true);
   });
 
-  it('uses the full prompt regex when a nested SSH connection completes', () => {
-    if (isBaseline()) return;
-
-    const { ssh } = make({ standardPromptRegex: FULL_PROMPT });
-    let next = false;
-    ssh._nextCommand = () => {
-      next = true;
-    };
-    ssh.command = 'ssh user@host';
-    ssh._buffer = 'tester@host:~$ ';
-    ssh.sshObj.sshAuth = true;
-
-    ssh._processSSHPrompt();
-
-    assert.equal(next, true);
-  });
 });

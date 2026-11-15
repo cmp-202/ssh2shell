@@ -8,7 +8,6 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
-  delay,
   waitFor,
   waitForStream,
 } = require('./helpers/harness');
@@ -26,30 +25,11 @@ function make(overrides = {}) {
   return { ssh, host };
 }
 
-describe('command start timeout', () => {
-  it('does not arm a timeout for a silent command by default', async () => {
-    const timeouts = [];
-    const host = createHost({
-      commands: ['sleep 60'],
-      idleTimeOut: 20,
-      dataIdleTime: 5,
-      onCommandTimeout: (...args) => timeouts.push(args),
-    });
-
-    const ssh = new SSH2Shell(host);
-    ssh.connect();
-    await waitForStream(ssh);
-    ssh._stream.onWrite = () => {};
-    ssh._stream.receive('$ ');
-
-    await delay(80);
-    assert.equal(timeouts.length, 0);
-
-    ssh._removeListeners();
-    ssh.close();
-  });
-
-  it('arms the idle timer when commandStartTimeout is set', async () => {
+// The idle timer is armed when a command is written and reset by every data
+// event. A detected prompt cancels it. These tests are new behavior; the frozen
+// baseline still uses the data-armed timer and has no always-on start timer.
+describe('command idle timeout', () => {
+  it('times out a silent command that never returns to a prompt', async () => {
     if (isBaseline()) return;
 
     const timeouts = [];
@@ -57,7 +37,6 @@ describe('command start timeout', () => {
       commands: ['sleep 60'],
       idleTimeOut: 20,
       dataIdleTime: 5,
-      commandStartTimeout: true,
       onCommandTimeout: (command, response, stream, connection, details) => {
         timeouts.push({ command, response, details });
       },
@@ -77,14 +56,45 @@ describe('command start timeout', () => {
       attempt: 1,
       maxRetries: 0,
       final: true,
-      noOutput: true,
     });
 
     ssh._removeListeners();
     ssh.close();
   });
 
-  it('reports noOutput false when the command produced data', async () => {
+  it('completes a silent command that returns to the prompt', async () => {
+    if (isBaseline()) return;
+
+    const timeouts = [];
+    const completed = [];
+    const host = createHost({
+      commands: ['sleep 1'],
+      idleTimeOut: 200,
+      dataIdleTime: 10,
+      onCommandTimeout: (...args) => timeouts.push(args),
+      onCommandComplete: (command) => completed.push(command),
+    });
+
+    const ssh = new SSH2Shell(host);
+    ssh.connect();
+    await waitForStream(ssh);
+    ssh._stream.onWrite = (data, stream) => {
+      if (data === 'sleep 1\n') {
+        setTimeout(() => stream.receive('$ '), 1);
+      }
+    };
+    ssh._stream.receive('$ ');
+
+    await waitFor(() => completed.length === 1, { label: 'commandComplete' });
+
+    assert.deepEqual(completed, ['sleep 1']);
+    assert.equal(timeouts.length, 0);
+
+    ssh._removeListeners();
+    ssh.close();
+  });
+
+  it('times out when output arrives but no prompt returns', async () => {
     if (isBaseline()) return;
 
     const timeouts = [];
@@ -92,7 +102,6 @@ describe('command start timeout', () => {
       commands: ['sleep 60'],
       idleTimeOut: 20,
       dataIdleTime: 5,
-      commandStartTimeout: true,
       onCommandTimeout: (command, response, stream, connection, details) => {
         timeouts.push({ response, details });
       },
@@ -110,40 +119,90 @@ describe('command start timeout', () => {
 
     await waitFor(() => timeouts.length === 1, { label: 'timeout' });
 
-    assert.equal(timeouts[0].details.noOutput, false);
     assert.ok(timeouts[0].response.includes('partial output'));
+    assert.deepEqual(timeouts[0].details, {
+      attempt: 1,
+      maxRetries: 0,
+      final: true,
+    });
 
     ssh._removeListeners();
     ssh.close();
   });
 
-  it('resets the no-output state when a new command is written', () => {
+  it('cancels the idle timer when a prompt arrives before the settle delay', async () => {
     if (isBaseline()) return;
 
-    const { ssh } = make({ commandStartTimeout: true });
-    ssh.command = 'one';
-    ssh._commandSawData = true;
+    const timeouts = [];
+    const completed = [];
+    const host = createHost({
+      commands: ['sleep 1'],
+      idleTimeOut: 25,
+      dataIdleTime: 60,
+      onCommandTimeout: (...args) => timeouts.push(args),
+      onCommandComplete: (command) => completed.push(command),
+    });
 
-    ssh._runCommand('one');
+    const ssh = new SSH2Shell(host);
+    ssh.connect();
+    await waitForStream(ssh);
+    ssh._stream.onWrite = (data, stream) => {
+      if (data === 'sleep 1\n') {
+        setTimeout(() => stream.receive('$ '), 1);
+      }
+    };
+    ssh._stream.receive('$ ');
 
-    assert.equal(ssh._commandSawData, false);
-    if (ssh.idleTimer) clearTimeout(ssh.idleTimer);
+    await waitFor(() => completed.length === 1, { label: 'commandComplete' });
+
+    assert.deepEqual(completed, ['sleep 1']);
+    assert.equal(timeouts.length, 0);
+
+    ssh._removeListeners();
+    ssh.close();
   });
 
-  it('marks data as seen only while a command is in flight', () => {
+  it('does not arm the idle timer for the literal exit command', () => {
     if (isBaseline()) return;
 
     const { ssh } = make();
-    ssh.command = '';
-    ssh._onData('banner');
-    assert.equal(ssh._commandSawData, false);
+    ssh.command = 'exit';
+    ssh._runCommand('exit');
 
+    assert.equal(ssh.idleTimer, null);
+
+    ssh._removeListeners();
+    ssh.close();
+  });
+
+  it('does not arm the idle timer for an internal password write', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = make({ server: { password: 'secret' } });
+    ssh.command = 'sudo ls';
+    ssh._runCommand('secret');
+
+    assert.equal(ssh.idleTimer, null);
+
+    ssh._removeListeners();
+    ssh.close();
+  });
+
+  it('arms a fresh timer for each command write', () => {
+    if (isBaseline()) return;
+
+    const { ssh } = make({ idleTimeOut: 5000 });
     ssh.command = 'one';
-    ssh._onData('output');
-    assert.equal(ssh._commandSawData, true);
+    ssh._runCommand('one');
+    const first = ssh.idleTimer;
+    assert.notEqual(first, null);
 
-    if (ssh.idleTimer) clearTimeout(ssh.idleTimer);
-    if (ssh.dataReceivedTimer) clearTimeout(ssh.dataReceivedTimer);
+    ssh.command = 'two';
+    ssh._runCommand('two');
+
+    assert.notEqual(ssh.idleTimer, null);
+    assert.notEqual(ssh.idleTimer, first);
+
     ssh._removeListeners();
     ssh.close();
   });

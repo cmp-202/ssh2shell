@@ -46,13 +46,15 @@ describe('whole-run stop', () => {
       callbackText = text;
     });
     await waitForStream(ssh);
+    // Teardown clears the `_stream` alias, so keep the stream the run used.
+    const stream = ssh._stream;
 
-    ssh._stream.onWrite = echoPrompt;
-    ssh._stream.receive('$ ');
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
 
     await waitFor(() => callbackText !== undefined, { label: 'callback' });
 
-    assert.deepEqual(ssh._stream.writes, ['echo one\n']);
+    assert.deepEqual(stream.writes, ['echo one\n']);
     assert.deepEqual(completed, ['echo one']);
     assert.equal(ends.length, 1);
     assert.ok(callbackText.includes('example.test:'));
@@ -63,37 +65,7 @@ describe('whole-run stop', () => {
       )
     );
     assert.equal(ssh._stopping, true);
-    assert.equal(ssh._stream.closed, true);
-  });
-
-  it('runs queued exit commands before closing', async () => {
-    if (isBaseline()) return;
-
-    let ssh;
-    const host = createHost({
-      commands: ['echo one', 'echo two'],
-      onCommandComplete: (command, response, sshObj) => {
-        if (command === 'echo one') {
-          sshObj.exitCommands.push('exit');
-          ssh.stop('command-failed');
-        }
-      },
-    });
-
-    ssh = new SSH2Shell(host);
-    let callbackText;
-    ssh.connect((text) => {
-      callbackText = text;
-    });
-    await waitForStream(ssh);
-
-    ssh._stream.onWrite = echoPrompt;
-    ssh._stream.receive('$ ');
-
-    await waitFor(() => callbackText !== undefined, { label: 'callback' });
-
-    assert.deepEqual(ssh._stream.writes, ['echo one\n', 'exit\n']);
-    assert.equal(ssh._stream.closed, true);
+    assert.equal(stream.closed, true);
   });
 
   it('sshObj.abort stops the run after the handler returns', async () => {
@@ -116,15 +88,52 @@ describe('whole-run stop', () => {
       callbackText = text;
     });
     await waitForStream(ssh);
+    const stream = ssh._stream;
 
-    ssh._stream.onWrite = echoPrompt;
-    ssh._stream.receive('$ ');
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
 
     await waitFor(() => callbackText !== undefined, { label: 'callback' });
 
-    assert.deepEqual(ssh._stream.writes, ['echo one\n']);
+    assert.deepEqual(stream.writes, ['echo one\n']);
     assert.ok(
       messages.some((message) => message.includes('Stop requested: handler-abort'))
+    );
+  });
+
+  it('sshObj.stop is no longer an abort alias', async () => {
+    if (isBaseline()) return;
+
+    const completed = [];
+    const messages = [];
+    const host = createHost({
+      commands: ['echo one', 'echo two'],
+      onCommandComplete: (command, response, sshObj) => {
+        completed.push(command);
+        if (command === 'echo one') {
+          sshObj.stop = 'legacy-stop';
+        }
+      },
+    });
+
+    const ssh = new SSH2Shell(host);
+    ssh.on('msg', (message) => messages.push(String(message)));
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitForStream(ssh);
+    const stream = ssh._stream;
+
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
+
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    assert.deepEqual(completed, ['echo one', 'echo two']);
+    assert.equal(
+      messages.some((message) => message.includes('Stop requested')),
+      false
     );
   });
 
@@ -161,16 +170,17 @@ describe('safe close', () => {
       callbackText = text;
     });
     await waitForStream(ssh);
+    const stream = ssh._stream;
 
-    ssh._stream.onWrite = echoPrompt;
-    ssh._stream.receive('$ ');
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
 
     await waitFor(() => callbackText !== undefined, { label: 'callback' });
 
-    assert.deepEqual(ssh._stream.writes, ['echo one\n']);
+    assert.deepEqual(stream.writes, ['echo one\n']);
     assert.equal(ends.length, 1);
     assert.ok(callbackText.includes('output'));
-    assert.equal(ssh._stream.closed, true);
+    assert.equal(stream.closed, true);
   });
 
   it('close() continues with the remaining primary hosts', async () => {

@@ -58,6 +58,7 @@ one command to decide what to do next.
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
 - [Development](#development)
+- [Changelog](#changelog)
 - [License](#license)
 
 ## Why ssh2shell
@@ -81,6 +82,11 @@ npm install ssh2shell
 ```
 
 Requires Node.js 18 or newer.
+
+**Upgrading from 3.x:** 4.0.0 is a breaking release. Host hops now use `ssh2`
+`forwardOut` connections, `server.ssh` and `exitCommands` are removed, and
+several host options were renamed. Read the [4.0.0 changes](./CHANGELOG.md)
+before upgrading.
 
 ## Quick start
 
@@ -143,7 +149,7 @@ When all hosts finish, `connect(callback)` passes the combined text.
 | --- | --- | --- | --- |
 | Single host | `new SSH2Shell(host)` | One `ssh2` connection | You have one server |
 | Multiple primary hosts | `new SSH2Shell([host1, host2])` | A new `ssh2` connection per host, one after another | You have several independent servers |
-| Tunnelling | `host1.hosts = [host2]` | An `ssh` command run inside the current session | You must reach a host through a jump host |
+| Tunnelling | `host1.hosts = [host2]` | A new `ssh2` connection through the parent connection's `forwardOut` channel | You must reach a host through a jump host |
 
 **Notifications.** `commands` entries can emit a `msg` or add text to
 `sessionText` without sending anything to the host. See
@@ -153,6 +159,12 @@ When all hosts finish, `connect(callback)` passes the combined text.
 
 The defaults below are the values used when a property is omitted. Optional
 properties never need to be included just to keep a default.
+
+`ssh2shell` fills defaults into the host object and keeps runtime state there:
+`commands` is consumed as it runs, `sessionText` accumulates output, and
+per-host flags such as `pwSent` and `sudoFailed` are updated. Treat a host
+config as belonging to one run. Create a fresh object, or clone it, before
+reusing it with another instance.
 
 ### `server`
 
@@ -164,17 +176,14 @@ directly.
 | --- | --- | --- | --- |
 | `host` | string | — | **Required.** Host name or IP address. |
 | `port` | number \| string | `22` | SSH port. |
-| `userName` | string | — | **Required.** Login name. `username` is accepted as an alias. |
+| `userName` | string | — | **Required.** Login name. ssh2's native `username` also works. |
 | `password` | string | — | Password authentication. |
 | `privateKey` | Buffer \| string | — | Private key contents, usually from `fs.readFileSync()`. |
-| `passPhrase` | string | — | Private-key passphrase. `passphrase` is accepted as an alias. |
+| `passPhrase` | string | — | Private-key passphrase. ssh2's native `passphrase` also works. |
 | `tryKeyboard` | boolean | `false` | Enable keyboard-interactive authentication. |
 | `hostHash` | string | — | Hash algorithm used to verify the server key. Any algorithm from `crypto.getHashes()` works. `sha256` is a good choice. |
 | `hostVerifier` | function | — | `(hashedKey, verify) => boolean`. Called with the hashed key when `hostHash` is set. |
 | `algorithms` | object | — | ssh2 cipher, compression, hmac, kex, and server host key settings. |
-
-`hashMethod` is accepted as a legacy alias for `hostHash`. It is copied to
-`hostHash` before the connection is opened.
 
 `hashKey` is **not** used by `ssh2shell` or `ssh2`. Do not set it.
 
@@ -217,8 +226,7 @@ before it is matched and stored.
 | `standardPrompt` | string | `">$%#"` | Characters that identify a command prompt. Compiled to a regex matching one of these at the end of a line. |
 | `standardPromptRegex` | string \| RegExp | — | Opt-in full prompt regex. Replaces `standardPrompt` for prompt detection. Anchored to the end; `g`, `y`, and `m` flags are ignored. |
 | `passwordPrompt` | string | `":"` | Text that identifies a password prompt. |
-| `passphrasePrompt` | string | `":"` | Text that identifies a passphrase prompt. |
-| `passPromptText` | string | `"Password"` | Text that must appear before the password/passphrase prompt. Shared by both prompt types. |
+| `passPromptText` | string | `"Password"` | Text that must appear before the password prompt. |
 | `commandResponse` | `"raw"` \| `"handled"` | `"raw"` | Shape of the `commandComplete` response. `handled` removes the echoed command and trailing prompt and trims; `details.rawResponse` keeps the raw buffer. `sessionText` stays raw. |
 | `captureStderr` | boolean | `false` | Merge captured stderr into the `commandComplete` response and `sessionText`. `details.stderr` carries the captured text. `stderrData` still fires. |
 | `asciiFilter` | string | `"[^\r\n\x20-\x7e]"` | Regex that removes non-standard ASCII. Complete terminal escape sequences are removed first. Tabs are preserved by the compiled default. |
@@ -233,7 +241,7 @@ still works, but a prompt ending in `:` will not.
 If the trailing-character match is too loose, set `standardPromptRegex` to the
 full prompt, for example `'tester@host:~\\$\\s?$'`. It is anchored to the end
 automatically and used everywhere `standardPrompt` is: normal command
-completion, `sudo`, and nested `ssh` prompts. An invalid pattern falls back to
+completion and `sudo` prompts. An invalid pattern falls back to
 `standardPrompt` and logs a debug message. Treat it as trusted configuration; a
 pathological pattern can be expensive to evaluate.
 
@@ -264,18 +272,17 @@ payload would remain in the response. Set `disableASCIIFilter` to keep them.
 
 | Property | Type | Default | Description |
 | --- | --- | --- | --- |
-| `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. Every `onData` event resets the timer. |
-| `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. |
-| `commandStartTimeout` | boolean | `false` | Arm `idleTimeOut` as soon as a command is written, so a command that never produces output still times out. |
+| `idleTimeOut` | number | `5000` | Milliseconds of silence before the command is treated as timed out. The timer starts when a command is written, resets on every `onData` event, and is cancelled by prompt detection. |
+| `dataIdleTimeOut` | number | `500` | Milliseconds of silence used to decide that a response burst has ended. Keep it below `idleTimeOut`. |
 | `commandTimeoutRetries` | number | `0` | Number of times to re-arm `commandTimeout` after a non-final attempt. `0` preserves the single-timeout behavior. |
 
 `idleTimeOut` is an inactivity timeout, not a limit on how long a command may
-run. Every `onData` event resets the timer, so a command that keeps producing
-output stays alive. When no data has arrived for `idleTimeOut` milliseconds, the
-`commandTimeout` event fires with a fifth `details` argument:
-`{ attempt, maxRetries, final, noOutput }`. `noOutput` is `true` when the command
-has not produced any data yet, which distinguishes a silent command from a
-missed prompt.
+run. The timer starts when the command is written, so a command that never
+produces output still times out. Every `onData` event resets the timer, so a
+command that keeps producing output stays alive. A detected prompt cancels the
+timer, and the command completes normally. When no prompt has been detected for
+`idleTimeOut` milliseconds, the `commandTimeout` event fires with a fifth
+`details` argument: `{ attempt, maxRetries, final }`.
 
 The library owns the attempt count. With `commandTimeoutRetries` set, it
 re-arms the timer after each non-final attempt; the handler only reacts. The
@@ -294,18 +301,20 @@ onCommandTimeout(command, response, stream, connection, details) {
 }
 ```
 
-The idle timer is armed by incoming data. A command that produces no output at
-all is not covered by `commandTimeout` unless you opt in with
-`commandStartTimeout: true`, which arms the timer when the command is written.
-The timeout details then report `noOutput: true`. Without the option, use a
-server keepalive or an external timeout for completely silent commands.
+The idle timer is armed when the command is written, so a command that produces
+no output still times out like any other command that never returns to the
+prompt. A command that returns to the prompt without output is a normal
+completion, not a timeout. The timeout does not distinguish the two cases in its
+payload; inspect `response` if a handler needs to.
 
 `dataIdleTimeOut` is the response-settling delay. It groups stream chunks into
-one response before prompt matching. It is not the command timeout.
+one response before prompt matching. It is not the command timeout. Keep it
+below `idleTimeOut`; prompt detection cancels the idle timer, but the settle
+delay must run first.
 
-`idleTime` is accepted as a legacy alias for `idleTimeOut`. You can also set
-`SSH.idleTime` or `SSH.dataIdleTime` on the instance before `connect()`; a host
-value overrides the instance value for that host.
+`SSH.idleTime` and `SSH.dataIdleTime` can be set on the instance before
+`connect()`; a host `idleTimeOut` or `dataIdleTimeOut` overrides the instance
+value for that host.
 
 ### Messages and debug output
 
@@ -314,7 +323,6 @@ value overrides the instance value for that host.
 | `connectedMessage` | string | `"Connected"` | Emitted as a `msg` when the connection opens. |
 | `readyMessage` | string | `"Ready"` | Emitted as a `msg` when the shell is ready. |
 | `closedMessage` | string | `"Closed"` | Emitted as a `msg` when the connection closes. |
-| `msg` | function \| `{ send }` | `console.log` | Receives every `msg` event. The legacy `{ send: fn }` shape is accepted. |
 | `verbose` | boolean | `false` | Emit process details, including the loaded host config and intermediate values useful for troubleshooting. |
 | `debug` | boolean | `false` | Emit internal process steps. |
 | `progress` | boolean | `true` | Write a stderr liveness indicator while a command is in flight. Set to `false` to disable. TTY-only; never affects `sessionText`. |
@@ -333,14 +341,19 @@ stream handler, and `onError` runs before the default error handler so it can
 observe the error before the connection closes. Handlers added to the instance
 with `SSH.on(...)` run for every host, in parallel with any host handler.
 
+Handlers are called with `this` set to the `SSH2Shell` instance, so
+`this.sshObj`, `this.emit()`, `this.close()`, and `this.stop()` are available.
+Use a normal `function` when you need `this`; an arrow function captures the
+surrounding scope instead.
+
 | Handler | Arguments | Runs when |
 | --- | --- | --- |
-| `msg` | `message` | A message is emitted. |
+| `onMsg` | `message` | A message is emitted. Replaces the default `console.log` sink for that host. |
 | `onData` | `data` | Raw data arrives from the stream. |
 | `onStderrData` | `data` | Data arrives on stderr. |
 | `onCommandProcessing` | `command, response, sshObj, stream` | Output arrives before the prompt is detected. |
-| `onCommandComplete` | `command, response, sshObj, details` | A command returns to the prompt. Use it to inspect the response, queue follow-up commands, or stop the current host. |
-| `onCommandTimeout` | `command, response, stream, connection, details` | No data arrives for `idleTimeOut` milliseconds. |
+| `onCommandComplete` | `command, response, sshObj, details` | When the prompt is detected after a command is run. |
+| `onCommandTimeout` | `command, response, stream, connection, details` | Catches when a command hangs or is waiting for input. |
 | `onEnd` | `sessionText, sshObj` | The host session finishes. |
 | `onError` | `err, type, close, callback` | An error is raised. |
 | `onKeyboardInteractive` | `name, instructions, instructionsLang, prompts, finish` | Keyboard-interactive authentication is requested. |
@@ -353,11 +366,11 @@ progress.
 can answer a prompt with `stream.write('y\n')`. See
 [Respond to a prompt mid-command](#respond-to-a-prompt-mid-command).
 
-`onCommandTimeout` receives `details` as
-`{ attempt, maxRetries, final, noOutput }`. With `commandTimeoutRetries` set, the
-library re-arms the timer for non-final attempts; the handler does not need to
-count. Set `this.sshObj.retryCommandTimeout = false` to stop retrying for the
-current command.
+`onCommandTimeout` receives `details` as `{ attempt, maxRetries, final }`. With
+`commandTimeoutRetries` set, the library re-arms the timer for non-final
+attempts; the handler does not need to count. Set
+`this.sshObj.retryCommandTimeout = false` to stop retrying for the current
+command.
 
 `onCommandComplete` receives `details.rawResponse` and, when `captureStderr` is
 enabled, `details.stderr` with the captured stderr text.
@@ -567,10 +580,9 @@ const host = {
 };
 ```
 
-Fingerprint validation applies to the **primary** connection only. Nested
-connections are made by running `ssh` on the primary host, so their host-key
-handling belongs to that host's `known_hosts` configuration and to the
-`server.ssh` options. See [Security](#security).
+Fingerprint validation applies to every connection. A nested host sets its own
+`hostHash` / `hostVerifier` on its `server` object, and the hop is verified the
+same way as a primary connection. See [Security](#security).
 
 See [`test/live/fingerprint.js`](./test/live/fingerprint.js) for a runnable
 example.
@@ -684,7 +696,7 @@ SSH.on('commandProcessing', function (command, response, sshObj, stream) {
 Do not define the same handler in both places. It will run twice.
 
 If no prompt is detected and no answer is sent, `commandTimeout` fires after
-`idleTimeOut` milliseconds with no data.
+`idleTimeOut` milliseconds without a prompt.
 
 See [`test/live/prompt_response.js`](./test/live/prompt_response.js) for a
 runnable example.
@@ -725,14 +737,6 @@ const host = {
     );
   },
 };
-```
-
-If you see garbled text before the real response, save the partial response and
-clear the buffer before writing:
-
-```javascript
-this.sshObj.sessionText += response;
-this._buffer = '';
 ```
 
 To change timeout handling for every host, leave `onCommandTimeout` out of the
@@ -781,36 +785,39 @@ SSH.connect((allSessionText) => {
 Each host is independent. Shared functions can be assigned to multiple host
 objects, and shared handlers can be added to the instance instead.
 
+Pass either a single host object or a non-empty array. An empty array, `null`,
+or `undefined` throws a `TypeError` at construction. The array is copied, so it
+can be reused across runs.
+
+If a primary host fails to connect, the run does not end: that host is finalized
+and the next primary is attempted. Each primary is tried once, in order. This is
+separate from hop containment, where a failed nested host only skips its own
+subtree.
+
 See
-[`test/live/multiple_primary_hosts.js`](./test/live/multiple_primary_hosts.js).
+[`test/live/multiple_primary_hosts.js`](./test/live/multiple_primary_hosts.js)
+and [`test/live/host_faults.js`](./test/live/host_faults.js).
 
 ### Tunnelling through a jump host
 
 Set `hosts` on a host object to connect to further hosts **through** it. Each
-nested connection is an `ssh` command run inside the current session, so it uses
-the shell of the host you are already on.
+nested host is a real `ssh2` connection opened through the parent connection
+with `forwardOut`, so the jump host only forwards TCP. It does not need an `ssh`
+client, a shell, or a copy of your key.
 
 ```javascript
 const fs = require('fs');
 
+// Hops authenticate from this process, so the key stays local.
+const privateKey = fs.readFileSync(process.env.PRIVATE_KEY_PATH);
+
 const jump = {
-  server: {
-    host: '10.0.0.10',
-    userName: 'deploy',
-    privateKey: fs.readFileSync(process.env.PRIVATE_KEY_PATH),
-  },
+  server: { host: '10.0.0.10', userName: 'deploy', privateKey },
   commands: ['hostname'],
 };
 
 const target = {
-  server: {
-    host: '192.168.1.20',
-    userName: 'deploy',
-    ssh: {
-      // Key as it exists on the jump host, used by the nested `ssh -i`.
-      identityFile: process.env.HOP_KEY_PATH || '/home/deploy/.ssh/id_ed25519',
-    },
-  },
+  server: { host: '192.168.1.20', userName: 'deploy', privateKey },
   commands: ['hostname', 'uptime'],
 };
 
@@ -820,95 +827,59 @@ const SSH = new SSH2Shell(jump);
 SSH.connect((sessionText) => console.log(sessionText));
 ```
 
-`identityFile` must be an absolute path on the jump host; the value is
-single-quoted, so `~` is not expanded. For multi-hop chains, use
-`HOP_KEY_PATH` for the first hop and `HOP2_KEY_PATH` for the second (see
-[`test/live/chaining.js`](./test/live/chaining.js)).
+`server.host` and `server.port` are the destination the **jump host** connects
+to, so names resolve from the jump host's network. Every other connection
+setting (`userName`, `password`, `privateKey`, `passPhrase`, `agent`,
+`tryKeyboard`, `hostHash` / `hostVerifier`, `algorithms`, `readyTimeout`,
+`keepaliveInterval`, and so on) applies to the `ssh2` login for that host and
+uses local values. A hop does not inherit the parent's credentials; set them on
+each host object.
+
+There is no `server.ssh` block. Options that used to map to `ssh` flags map to
+`ssh2` connection options instead: `algorithms` replaces `cipherSpec` and
+`macSpec`, and `forceIPv4` / `forceIPv6` replace `forceAddressType`. See
+[Host-to-host connections](./docs/NEXT-HOST-CONNECTION.md) for the full mapping.
 
 Nested hosts can be chained to any depth:
 
 ```javascript
 jump.hosts = [bastion];
 bastion.hosts = [target];
-target.hosts = [];
 ```
 
 The process is:
 
 1. Connect to the primary host and run its commands.
-2. For each entry in its `hosts` array, save the current host and load the
-   nested host.
-3. Run `ssh` on the current host to reach the nested host.
-4. Run the nested host's commands, then process its own `hosts` array.
-5. Restore the previous host and continue with its remaining `hosts` entries.
-6. Close all sessions and pass the combined text to the callback.
+2. For each entry in its `hosts` array, open a `forwardOut` channel through the
+   current connection and log in to the nested host over that channel.
+3. Run the nested host's commands, then process its own `hosts` array.
+4. Close the nested connection, restore the parent, and continue with its
+   remaining `hosts` entries.
+5. Close all connections and pass the combined text to the callback.
 
-A nested host object must be defined before it is added to another `hosts`
-array.
+The `hosts` array is copied for the run, so it is not consumed and can be reused
+across runs.
 
-**`server.ssh` options.** These options apply only to nested `ssh` connections.
-The primary connection uses ssh2 directly.
+Each hop uses the same host-key contract as the primary: `ssh2` accepts the key
+unless `hostHash` / `hostVerifier` is set, and the library never injects
+`StrictHostKeyChecking=no`. Set a verifier on a nested host object to pin its
+key.
 
-```javascript
-const host = {
-  server: {
-    // ...connection settings
-    ssh: {
-      forceProtocolVersion: 2,   // 1 or 2; true selects 2
-      forceAddressType: 4,       // 4 or 6; true selects 4
-      disablePseudoTTY: false,   // true adds -T
-      forcePseudoTTY: false,     // true adds -t
-      verbose: false,            // true adds -v
-      cipherSpec: '',            // -c
-      escape: '',                // -e
-      logFile: '',               // -E
-      configFile: '',            // -F
-      identityFile: '',          // -i
-      loginName: '',             // -l
-      macSpec: '',               // -m
-      options: {},               // -o key=value for each entry
-    },
-  },
-  commands: ['hostname'],
-};
-```
-
-| Property | Maps to | Notes |
-| --- | --- | --- |
-| `forceProtocolVersion` | `-1` / `-2` | `1`, `2`, or `true` (selects `-2`). Any other value raises a Security Alert error. |
-| `forceAddressType` | `-4` / `-6` | `4`, `6`, or `true` (selects `-4`). Any other value raises a Security Alert error. |
-| `disablePseudoTTY` | `-T` | Disables pseudo-terminal allocation. |
-| `forcePseudoTTY` | `-t` | Forces pseudo-terminal allocation. |
-| `verbose` | `-v` | Verbose ssh output. |
-| `cipherSpec` | `-c` | Cipher specification. |
-| `escape` | `-e` | Escape character. |
-| `logFile` | `-E` | Log file path. |
-| `configFile` | `-F` | Config file path. |
-| `identityFile` | `-i` | Identity file path. |
-| `loginName` | `-l` | Login name. |
-| `macSpec` | `-m` | MAC specification. |
-| `options` | `-o key=value` | Each own enumerable entry. Keys are reduced to `[a-zA-Z0-9]`; values are shell-quoted. |
-
-The nested command is always built as:
-
-```text
-ssh -x <flags> -o "StrictHostKeyChecking=no" -p <port> '<userName>'@'<host>'
-```
-
-`userName` and `host` are shell-quoted, and `port` is reduced to digits.
-`options` keys and values containing shell control characters are rejected with
-a `Security Alert` error.
-
-> **Note:** `StrictHostKeyChecking=no` is added to every nested connection. If
-> that is not acceptable, enforce host-key policy in the primary host's
-> `~/.ssh/config` or `known_hosts`, or avoid tunnelling for those hosts.
-
-Connection-level features such as keyboard-interactive apply to the primary
-connection only. Each nested host uses its own `connectedMessage`,
+Connection-level features such as keyboard-interactive work per connection, not
+just the primary. Each nested host uses its own `connectedMessage`,
 `readyMessage`, and `closedMessage`.
 
-See [`test/live/tunnel.js`](./test/live/tunnel.js) and
-[`test/live/chaining.js`](./test/live/chaining.js).
+`sessionText` stays per host. A nested host's text is merged into its immediate
+parent, so the primary ends up with the whole subtree in traversal order.
+
+If a nested host fails to connect, the failure is contained: the `error` event
+fires with type `Hop`, that host's remaining commands and unstarted descendants
+are skipped, and the parent continues with its remaining hosts. Other primary
+hosts still run.
+
+See [`test/live/tunnel.js`](./test/live/tunnel.js),
+[`test/live/tunnel_3_hop.js`](./test/live/tunnel_3_hop.js), and
+[`test/live/host_traversal.js`](./test/live/host_traversal.js).
 
 ## Events and the API
 
@@ -937,9 +908,9 @@ SSH.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, f
 | `stderrData` | `data` | Data from stderr. Defaults to `console.error`. |
 | `commandProcessing` | `command, response, sshObj, stream` | Output received before the prompt is detected. |
 | `commandComplete` | `command, response, sshObj, details` | A command returned to the prompt. `response` is raw by default; `commandResponse: 'handled'` removes the echoed command and trailing prompt. `details.rawResponse` is always the raw buffer; `details.stderr` carries captured stderr when `captureStderr` is enabled. The handler can modify `sshObj.commands` to queue follow-up work. |
-| `commandTimeout` | `command, response, stream, connection, details` | No data arrived for `idleTimeOut` milliseconds, or `commandStartTimeout` armed the timer at command start. `details` is `{ attempt, maxRetries, final, noOutput }`. |
+| `commandTimeout` | `command, response, stream, connection, details` | No prompt was detected for `idleTimeOut` milliseconds after the command was written or the last data event. `details` is `{ attempt, maxRetries, final }`. |
 | `end` | `sessionText, sshObj` | A host session finished. On the final host, `sessionText` is the combined text. |
-| `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. `close` requests a connection close; `callback(err, type)` runs before closing. |
+| `error` | `err, type, close, callback` | An error occurred. A dropped transport uses type `Connection close` and passes an `Error` with `level = 'Connection close'` and `hadError`. A failed host hop uses type `Hop`; the hop is contained and the parent continues. `close` requests a connection close; `callback(err, type)` runs before closing. |
 | `keyboard-interactive` | `name, instructions, instructionsLang, prompts, finish` | The server requested keyboard-interactive authentication. |
 
 `commandComplete` receives the response after the command has been removed from
@@ -961,11 +932,11 @@ part of the public API.
 | Member | Description |
 | --- | --- |
 | `connect(callback)` | Start the session. `callback(sessionText)` is optional and receives the combined text when all hosts finish. |
-| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, runs the library's queued `exitCommands` (bounded by `idleTimeOut`), closes once, and calls the callback once. A no-op before `connect()` or after the run finishes. |
+| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, closes the active connection and its ancestors, and calls the callback once. A no-op before `connect()` or after the run finishes. |
 | `close()` | Close the current shell stream. A no-op if the shell has not opened yet. Remaining primary hosts still run; use `stop()` to abandon them. |
-| `close({ graceful: true })` | Run queued exit commands and back out of nested shells before closing. Remaining primary hosts still run. |
+| `close({ graceful: true })` | Back out of nested shells before closing. Remaining primary hosts still run. |
 | `emit(name, ...args)` | Raise an event. Inherited from `EventEmitter`. |
-| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, `hosts`, `exitCommands`, `pwSent`, `sudoFailed`, `stopReason`, and the `skipCommands` / `skipHosts` / `skipPrimaryHosts` / `abort` flags. |
+| `sshObj` | The current host object, including runtime state such as `sessionText`, `commands`, `hosts`, `pwSent`, `sudoFailed`, `stopReason`, and the `skipCommands` / `skipHosts` / `skipPrimaryHosts` / `abort` flags. |
 | `command` | The command currently being processed. |
 | `idleTime` | The active command timeout in milliseconds. |
 | `dataIdleTime` | The active response-settling delay in milliseconds. |
@@ -1058,13 +1029,12 @@ onCommandProcessing(command, response, sshObj, stream) {
   `skipCommands` if the current host should stop now; otherwise its remaining
   commands still run.
 - `stop(reason)` clears every queue. If a command is still running it sends
-  Ctrl-C first, then runs the library's queued `exitCommands` (bounded by
-  `idleTimeOut`), closes once, and calls the callback once. The reason appears
-  as `Stop requested: <reason>` and in `sshObj.stopReason`.
+  Ctrl-C first, then closes the active connection and its ancestors, and calls
+  the callback once. The reason appears as `Stop requested: <reason>` and in
+  `sshObj.stopReason`.
 - `close()` closes the current connection but still runs the remaining primary
   hosts, matching earlier releases. Use `stop()` to abandon them.
-- `close({ graceful: true })` runs the queued exit commands and backs out of
-  nested shells before closing.
+- `close({ graceful: true })` backs out of nested shells before closing.
 
 **Notes**
 
@@ -1076,7 +1046,7 @@ onCommandProcessing(command, response, sshObj, stream) {
   closes the shell, then the connection.
 - Prefer clearing the queues while the shell is usable. Close when the prompt is
   not recognised and Ctrl-C does not recover, or the connection is compromised.
-- Do not call `this.connection.end()` from a handler. Use `close()` so the final
+- Do not end the connection directly from a handler. Use `close()` so the final
   session text is preserved.
 
 The full behavior matrix and internal details are in
@@ -1086,7 +1056,7 @@ The full behavior matrix and internal details are in
 
 ### Log to a file
 
-Set `msg` on the host to send status messages to a file instead of the console,
+Set `onMsg` on the host to send status messages to a file instead of the console,
 and append the final transcript in the callback:
 
 ```javascript
@@ -1095,7 +1065,7 @@ const log = (text) => fs.appendFileSync('ssh2shell.log', `${text}\n`);
 
 const host = {
   // ...
-  msg: log,
+  onMsg: log,
 };
 
 const SSH = new SSH2Shell(host);
@@ -1105,7 +1075,7 @@ SSH.connect((sessionText) => {
 });
 ```
 
-`msg` receives every message emitted by `ssh2shell`, including the connection
+`onMsg` receives every message emitted by `ssh2shell`, including the connection
 messages and any `msg:` notifications. The callback's `sessionText` is the
 complete transcript. For live per-command output as the run progresses, enable
 `verbose`.
@@ -1213,24 +1183,25 @@ silent commands; it produces nothing when stderr is redirected to a file.
 
 ### Silent commands
 
-A command that never writes anything does not arm the data-driven idle timer.
-Opt in with `commandStartTimeout: true` to arm it when the command is written:
+The idle timer starts when a command is written, so a command that writes
+nothing still times out if it never returns to the prompt. A silent command that
+does return to the prompt completes normally.
+
+Give a legitimately long silent command a larger `idleTimeOut`:
 
 ```javascript
 const host = {
   // ...
-  commandStartTimeout: true,
   idleTimeOut: 30000,
   onCommandTimeout(command, response, stream, connection, details) {
-    if (details.noOutput) {
-      this.emit('msg', `${command} produced no output`);
-    }
+    this.emit('msg', `${command} did not return to a prompt`);
   },
 };
 ```
 
-The timeout details still report `{ attempt, maxRetries, final, noOutput }`, so
-the same handler works with `commandTimeoutRetries`.
+The timeout details report `{ attempt, maxRetries, final }`, so the same handler
+works with `commandTimeoutRetries`. To distinguish a silent command from one that
+wrote output but missed the prompt, inspect `response`.
 
 ### Capturing stderr
 
@@ -1260,8 +1231,8 @@ chunk, so existing stderr handlers keep working.
   configured password and passphrase replaced with `[REDACTED]`, and object
   dumps mask `password` and `passphrase` keys.
 - Credentials are only redacted from `ssh2shell`'s own debug and verbose output.
-  Your own `msg`, `data`, and `commandComplete` handlers receive raw text and
-  must redact it if you log it.
+  Your own `onMsg`, `onData`, and `onCommandComplete` handlers receive raw text
+  and must redact it if you log it.
 - Prefer environment variables or a secrets manager over hard-coded passwords
   in source files.
 
@@ -1283,10 +1254,12 @@ normal `msg` and sets `sshObj.sudoFailed = true`, so it is visible without
 `sshObj.sudoFailed` in `onCommandComplete`, or set `abortOnSudoFailure: true` to
 stop the run.
 
-**A nested host fails to authenticate.** Nested connections use the `ssh`
-command on the primary host. Confirm that the primary host can reach the target
-and that the supplied `userName`, `password`, `passPhrase`, or `identityFile`
-works from that host.
+**A nested host fails to authenticate.** Each hop is an `ssh2` login made from
+this process through the parent connection. Confirm that the jump host can reach
+the target address and port, and that the nested host object has working
+credentials (`userName`, `password`, `privateKey`, `passPhrase`, or `agent`).
+Hops use local credentials, not the parent's. The failure arrives as an `error`
+event with type `Hop`, and the parent continues with its remaining hosts.
 
 **The output contains escape codes or control characters.** Adjust
 `disableColorFilter`, `disableASCIIFilter`, `textColorFilter`, or `asciiFilter`.
@@ -1296,26 +1269,30 @@ See [Prompts and response filters](#prompts-and-response-filters).
 Common causes are a wrong host or port, a rejected key, or an invalid
 `standardPrompt`.
 
+**You need lower-level connection state.** Members whose names begin with `_`
+are internal and may change between releases. `connection` and `_stream` are
+diagnostic handles for the active host; use the documented methods rather than
+driving them directly.
+
 ## Security
 
-Keep `ssh2shell` and its dependencies up to date. The library validates and
-quotes values that are interpolated into the nested `ssh` command, but the
+Keep `ssh2shell` and its dependencies up to date. Host values are passed to
+`ssh2` as data, so there is no nested command string to quote or validate. The
 application is still responsible for validating untrusted input before it
-reaches `server` or `server.ssh`.
+reaches `server`.
 
 - Allow-list `host`, `userName`, and `port` at the application boundary.
-- Treat `server.ssh` values (`identityFile`, `cipherSpec`, `escape`, `logFile`,
-  `configFile`, `loginName`, `macSpec`, and `options`) as configuration, not
-  user input.
-- Nested connections add `StrictHostKeyChecking=no`. If that is not acceptable,
-  enforce host-key policy on the primary host or avoid tunnelling.
+- Treat `privateKey`, `passPhrase`, and `agent` as configuration, not user input.
+- Set `hostHash` / `hostVerifier` on primaries and hops where host identity
+  matters. `ssh2` accepts any host key by default; the library never injects
+  `StrictHostKeyChecking=no`.
 - Keep `exposeCredentials` at its default (`false`) in production.
-- Use fingerprint validation on primary connections where host identity matters.
 
 **Advisory:** [GHSA-4j47-m47f-3jp8](https://github.com/cmp-202/ssh2shell/security/advisories/GHSA-4j47-m47f-3jp8)
 covers argument injection and shell breakout through unquoted `server.ssh`
-parameters and the `host`/`userName`/`port` fields. It is fixed in `2.0.13`,
-`2.0.14`, and `3.0.0`. Users of `2.0.12` and earlier should upgrade.
+parameters and the `host`/`userName`/`port` fields in releases before the
+`ssh2` hop transport. It is fixed in `2.0.13`, `2.0.14`, and `3.0.0`. Users of
+`2.0.12` and earlier should upgrade.
 
 ## Development
 
@@ -1327,9 +1304,16 @@ npm test
 ```
 
 `npm test` checks that `lib/` matches `src/`, runs the offline unit tests, and
-runs the level-aware baseline tests. The live tests need real hosts. See
-[`test/README.md`](./test/README.md) for the test layout, live runner,
-environment variables, keys, and VM provisioning.
+runs the level-aware baseline tests. The live tests need SSH hosts; CI starts
+three throwaway `sshd` instances on the runner, and the same suite can run
+against the provisioning VMs locally. See [`test/README.md`](./test/README.md)
+for the test layout, live runner, environment variables, keys, CI hosts, and VM
+provisioning.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for user-facing changes by release,
+including the breaking changes in the current major version.
 
 ## License
 

@@ -73,7 +73,6 @@ describe('command timeout retries', () => {
       attempt: 1,
       maxRetries: 0,
       final: true,
-      noOutput: false,
     });
 
     await delay(40);

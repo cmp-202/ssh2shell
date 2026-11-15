@@ -32,10 +32,52 @@ if (fs.existsSync(provisionEnvPath)) {
 }
 require('dotenv').config({ path: path.join(repoRoot, '.env') });
 
-const SSH2Shell = require(path.join(repoRoot, 'src', 'ssh2shell'));
+const SSH2Shell = require(path.join(repoRoot, 'test', 'utils', 'module.js'));
+
 const { logFile, log } = require(path.join(repoRoot, 'test', 'utils', 'logging.js'));
 
-const ROLE_NAME = (process.argv[2] || process.env.PROVISION_ROLE || 'server1').toLowerCase();
+const ROLE_ENV_KEYS = [
+  'HOST',
+  'PORT',
+  'IP',
+  'PREFIX',
+  'HOSTNAME',
+  'INTERFACE',
+  'USER',
+  'PASSWORD',
+  'SUDO_PASSWORD',
+  'KEY_PATH',
+  'APPLY_NETWORK',
+  'REGENERATE_MACHINE_ID',
+  'IDLE_TIMEOUT',
+];
+
+// 3.x provisioning copied the test private key into these homes so nested
+// `ssh -i` hops worked. 4.0.0 hops use `forwardOut`, so a re-provision removes
+// the stale key material instead of leaving it on the VM.
+const LEGACY_HOP_KEY_USERS = ['tester', 'nopasswd', 'suuser'];
+
+const argv = process.argv.slice(2);
+const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
+const roleArg = argv.find((arg) => !arg.startsWith('--'));
+
+if (flags.has('--help')) {
+  console.log(
+    [
+      'Usage: node test/provision/provision.js [role] [--print-config]',
+      '',
+      'Roles: server1, server2, server3',
+      'The role defaults to PROVISION_ROLE, then server1.',
+      '',
+      'Each setting is read from PROVISION_<ROLE>_<KEY> first, then PROVISION_<KEY>.',
+      'For example, PROVISION_SERVER2_INTERFACE overrides PROVISION_INTERFACE.',
+      'Use --print-config to show every variable and which one supplied each value.',
+    ].join('\n')
+  );
+  process.exit(0);
+}
+
+const ROLE_NAME = (roleArg || process.env.PROVISION_ROLE || 'server1').toLowerCase();
 
 const ROLES = {
   server1: {
@@ -44,7 +86,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser', 'kbduser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: true,
     challengeResponse: 'yes',
@@ -55,7 +96,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: true,
     hasKbdUser: false,
     challengeResponse: 'no',
@@ -66,7 +106,6 @@ const ROLES = {
     interfaceName: 'enp0s3',
     users: ['ssh2shell', 'tester', 'nopasswd', 'suuser'],
     sudoUsers: ['ssh2shell', 'tester', 'nopasswd'],
-    hopKeyUsers: ['tester', 'nopasswd', 'suuser'],
     nopasswdSudo: false,
     hasKbdUser: false,
     challengeResponse: 'no',
@@ -81,22 +120,92 @@ if (!roleDefaults) {
 }
 
 // Per-role variables such as PROVISION_SERVER1_USER override the generic
-// PROVISION_* variables and the built-in defaults.
-function roleEnv(name) {
-  return (
-    process.env[`PROVISION_${ROLE_NAME.toUpperCase()}_${name}`] ||
-    process.env[`PROVISION_${name}`]
+// PROVISION_* variables and the built-in defaults. The full role-specific name
+// is built at runtime, so `PROVISION_SERVER2_INTERFACE` is not a literal in
+// this file. ROLE_ENV_KEYS lists the complete contract and `--print-config`
+// shows the exact name and source for the selected role.
+function roleEnvName(key) {
+  return `PROVISION_${ROLE_NAME.toUpperCase()}_${key}`;
+}
+
+function roleEnvEntry(key) {
+  const specific = roleEnvName(key);
+  if (process.env[specific]) {
+    return { value: process.env[specific], source: specific };
+  }
+
+  const shared = `PROVISION_${key}`;
+  if (process.env[shared]) {
+    return { value: process.env[shared], source: shared };
+  }
+
+  return { value: undefined, source: 'default' };
+}
+
+function roleEnv(key) {
+  return roleEnvEntry(key).value;
+}
+
+function positiveInteger(value, fallback, label) {
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1) {
+    console.error(`${label} must be a positive integer, got: ${value}`);
+    process.exit(1);
+  }
+  return number;
+}
+
+function networkPrefix(value) {
+  const prefix = positiveInteger(
+    value,
+    24,
+    `${roleEnvName('PREFIX')} / PROVISION_PREFIX`
   );
+  if (prefix > 32) {
+    console.error(`Network prefix must be between 1 and 32, got: ${prefix}`);
+    process.exit(1);
+  }
+  return prefix;
+}
+
+function prefixToNetmask(prefix) {
+  const mask = (0xffffffff << (32 - prefix)) >>> 0;
+  return [24, 16, 8, 0].map((shift) => (mask >>> shift) & 255).join('.');
+}
+
+function booleanEnv(value, fallback) {
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+  return !['false', '0', 'no'].includes(String(value).toLowerCase());
 }
 
 const role = {
   ...roleDefaults,
   hostname: roleEnv('HOSTNAME') || roleDefaults.hostname,
   ip: roleEnv('IP') || roleDefaults.ip,
+  prefix: networkPrefix(roleEnv('PREFIX')),
   interfaceName: roleEnv('INTERFACE') || roleDefaults.interfaceName,
 };
+role.netmask = prefixToNetmask(role.prefix);
 
-logFile(`provision-${ROLE_NAME}.js`);
+const port = positiveInteger(
+  roleEnv('PORT') || process.env.PORT,
+  22,
+  `${roleEnvName('PORT')} / PROVISION_PORT`
+);
+const idleTimeOut = positiveInteger(
+  roleEnv('IDLE_TIMEOUT'),
+  20000,
+  `${roleEnvName('IDLE_TIMEOUT')} / PROVISION_IDLE_TIMEOUT`
+);
+const applyNetwork = booleanEnv(roleEnv('APPLY_NETWORK'), true);
+const regenerateMachineId = booleanEnv(roleEnv('REGENERATE_MACHINE_ID'), false);
+
 const logPath = path.join(repoRoot, 'test', 'logs', `provision-${ROLE_NAME}.js.log`);
 
 function resolvePath(value) {
@@ -111,8 +220,10 @@ function readRequiredFile(label, filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-// The test key is always needed: it is installed for the test users and copied
-// to the hop users so nested `ssh -i` connections work.
+// The test key is always needed: its public half is installed for the test
+// users, and its private half is the default bootstrap login key. Hops use the
+// runner's local key through `forwardOut`, so no private key is copied to the
+// VMs.
 const testPrivateKeyPath = resolvePath(
   process.env.TEST_PRIVATE_KEY_PATH ||
     process.env.PRIVATE_KEY_PATH ||
@@ -125,10 +236,6 @@ const adminPublicKeyPath = resolvePath(
   process.env.ADMIN_PUBLIC_KEY_PATH ||
     path.join(repoRoot, 'test', 'certs', 'admin_ed25519.pub')
 );
-
-const testPrivateKey = readRequiredFile('Test private key', testPrivateKeyPath);
-const testPublicKey = readRequiredFile('Test public key', testPublicKeyPath);
-const adminPublicKey = readRequiredFile('Admin public key', adminPublicKeyPath);
 
 const loginUser = roleEnv('USER') || process.env.USER_NAME;
 if (!loginUser) {
@@ -167,6 +274,51 @@ const sudoPassword =
   roleEnv('SUDO_PASSWORD') ||
   loginPassword ||
   process.env.PASSWORD;
+
+// Shows the complete environment contract for the selected role, including
+// which variable supplied each value. This is also the quickest way to confirm
+// that a role-specific name such as PROVISION_SERVER2_INTERFACE is read.
+function printConfig() {
+  console.log(`Role: ${ROLE_NAME}`);
+  console.log('');
+  console.log('Environment:');
+  for (const key of ROLE_ENV_KEYS) {
+    const entry = roleEnvEntry(key);
+    console.log(
+      `  ${roleEnvName(key).padEnd(42)} ${entry.source}`
+    );
+  }
+
+  console.log('');
+  console.log('Resolved:');
+  console.log(`  host        ${roleEnv('HOST') || role.ip}`);
+  console.log(`  port        ${port}`);
+  console.log(`  ip          ${role.ip}/${role.prefix} (${role.netmask})`);
+  console.log(`  hostname    ${role.hostname}`);
+  console.log(`  interface   ${role.interfaceName}`);
+  console.log(`  user        ${loginUser ? '[set]' : '[not set]'}`);
+  console.log(`  password    ${loginPassword ? '[set]' : '[not set]'}`);
+  console.log(`  sudo        ${sudoPassword ? '[set]' : '[not set]'}`);
+  console.log(`  key         ${bootstrapKeyPath || 'none'}`);
+  console.log(`  network     ${applyNetwork ? 'apply' : 'write only'}`);
+  console.log(`  machine-id  ${regenerateMachineId ? 'regenerate' : 'keep'}`);
+  console.log(`  idle        ${idleTimeOut} ms`);
+}
+
+if (flags.has('--print-config')) {
+  printConfig();
+  process.exit(0);
+}
+
+logFile(`provision-${ROLE_NAME}.js`);
+log(`Role: ${ROLE_NAME}`);
+for (const key of ROLE_ENV_KEYS) {
+  log(`  ${roleEnvName(key)}: ${roleEnvEntry(key).source}`);
+}
+
+const testPrivateKey = readRequiredFile('Test private key', testPrivateKeyPath);
+const testPublicKey = readRequiredFile('Test public key', testPublicKeyPath);
+const adminPublicKey = readRequiredFile('Admin public key', adminPublicKeyPath);
 
 const b64 = (value) => Buffer.from(value, 'utf8').toString('base64');
 
@@ -298,25 +450,17 @@ function buildCommands() {
       ...installFile(`/home/${user}/.ssh/authorized_keys`, key.trim(), 600, user)
     );
   }
-  for (const user of role.hopKeyUsers) {
+  // Remove the private key that 3.x copied for nested `ssh -i` hops. Hops now
+  // use `forwardOut` with the runner's key, so a re-provisioned VM should not
+  // keep a copy of the test private key.
+  for (const user of LEGACY_HOP_KEY_USERS) {
+    if (!role.users.includes(user)) {
+      continue;
+    }
     commands.push(
-      ...installFile(
-        `/home/${user}/.ssh/id_ed25519`,
-        testPrivateKey.trim(),
-        600,
-        user
-      )
-    );
-    commands.push(
-      ...installFile(
-        `/home/${user}/.ssh/id_ed25519.pub`,
-        testPublicKey.trim(),
-        644,
-        user
-      )
+      `sudo rm -f /home/${user}/.ssh/id_ed25519 /home/${user}/.ssh/id_ed25519.pub`
     );
   }
-
   // sshd: password auth stays available for the test users; keyboard-interactive
   // is enabled only where kbduser exists, and the Match block is kept last.
   //
@@ -385,7 +529,7 @@ function buildCommands() {
   // A fresh install already has a unique machine-id. Set
   // PROVISION_<ROLE>_REGENERATE_MACHINE_ID=true when the VM was cloned from
   // another VM and still shares its source id.
-  if (roleEnv('REGENERATE_MACHINE_ID') === 'true') {
+  if (regenerateMachineId) {
     commands.push('sudo install -d -m 755 /var/lib/dbus');
     commands.push('sudo rm -f /etc/machine-id /var/lib/dbus/machine-id');
     commands.push('sudo systemd-machine-id-setup');
@@ -419,7 +563,6 @@ function buildCommands() {
   // validated first; the actual apply runs in the background because it can
   // drop this session. If the static address does not come up, the previous
   // config is restored so the VM stays reachable.
-  const applyNetwork = (roleEnv('APPLY_NETWORK') || 'true') !== 'false';
   // Use the absolute path because a non-login SSH session may not have
   // /sbin or /usr/sbin in PATH. /sbin resolves through usrmerge on newer
   // releases.
@@ -440,7 +583,7 @@ function buildCommands() {
     `auto ${role.interfaceName}`,
     `iface ${role.interfaceName} inet static`,
     `    address ${role.ip}`,
-    '    netmask 255.255.255.0',
+    `    netmask ${role.netmask}`,
   ].join('\n');
 
   const netplanConfig = [
@@ -451,7 +594,7 @@ function buildCommands() {
     '      dhcp4: false',
     '      dhcp6: false',
     '      addresses:',
-    `        - ${role.ip}/24`,
+    `        - ${role.ip}/${role.prefix}`,
     '      optional: true',
   ].join('\n');
 
@@ -500,18 +643,38 @@ function buildCommands() {
   return commands;
 }
 
+function logMessage(message) {
+  // A host `onMsg` handler replaces the default console sink, so write both.
+  console.log(message);
+  log(message);
+}
+
 const host = {
   server: {
     host: roleEnv('HOST') || role.ip,
-    port: roleEnv('PORT') || process.env.PORT || 22,
+    port,
     userName: loginUser,
-    password: sudoPassword,
+    // ssh2shell uses one password for both login and sudo. Prefer the login
+    // password so password authentication works; fall back to SUDO_PASSWORD
+    // when the bootstrap login is key-based.
+    password: loginPassword || sudoPassword,
     privateKey: bootstrapKeyPath ? fs.readFileSync(bootstrapKeyPath) : undefined,
   },
   commands: buildCommands(),
-  idleTimeOut: Number(roleEnv('IDLE_TIMEOUT') || 20000),
+  idleTimeOut,
   debug: process.env.DEBUG === 'true',
   verbose: process.env.VERBOSE === 'true',
+  // The provisioning commands echo their own progress and validation markers.
+  // `handled` keeps the commandComplete log free of the echoed command and
+  // prompt; `captureStderr` merges sshd/netplan errors into the same response.
+  commandResponse: 'handled',
+  captureStderr: true,
+  onMsg: logMessage,
+  onCommandComplete: (command, response, sshObj) => {
+    log(`${sshObj.server.host} $ ${command}`);
+    log(response.trim());
+  },
+  onError: (err, type) => log(`${type}: ${err}`),
 };
 
 if (process.env.KEY_PASSPHRASE) {
@@ -519,13 +682,6 @@ if (process.env.KEY_PASSPHRASE) {
 }
 
 const SSH = new SSH2Shell(host);
-
-SSH.on('msg', log);
-SSH.on('commandComplete', (command, response, sshObj) => {
-  log(`${sshObj.server.host} $ ${command}`);
-  log(response.trim());
-});
-SSH.on('error', (err, type) => log(`${type}: ${err}`));
 
 SSH.connect((sessionText) => {
   log(`-----Callback session text:\n${sessionText}\n-----Callback end`);

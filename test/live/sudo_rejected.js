@@ -2,7 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('sudo_rejected.js');
 
-const SSH2Shell = require('../../src/ssh2shell');
+const SSH2Shell = require('../utils/module.js');
 
 // Log in with the correct password, then swap in a wrong sudo password as the
 // prompt arrives. The default behavior must report the rejection, set

@@ -4,7 +4,6 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { installFakeSsh2, loadSSH2Shell, createHost } = require('./helpers/harness');
-const { FakeStream } = require('./helpers/fake-ssh2');
 
 installFakeSsh2();
 const SSH2Shell = loadSSH2Shell();
@@ -34,14 +33,6 @@ describe('L2 port semantics', () => {
 
     assert.equal(payloads.length, 1);
     assert.equal(payloads[0], ssh._stream);
-  });
-
-  it('_sshConnect returns the write result', () => {
-    const { ssh } = makeLoaded();
-    ssh._stream = new FakeStream();
-    ssh._stream.write = () => 'WRITE_RESULT';
-
-    assert.equal(ssh._sshConnect(), 'WRITE_RESULT');
   });
 
   it('_runExit returns the close result when there is nothing left to do', () => {
