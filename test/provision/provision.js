@@ -52,6 +52,11 @@ const ROLE_ENV_KEYS = [
   'IDLE_TIMEOUT',
 ];
 
+// 3.x provisioning copied the test private key into these homes so nested
+// `ssh -i` hops worked. 4.0.0 hops use `forwardOut`, so a re-provision removes
+// the stale key material instead of leaving it on the VM.
+const LEGACY_HOP_KEY_USERS = ['tester', 'nopasswd', 'suuser'];
+
 const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((arg) => arg.startsWith('--')));
 const roleArg = argv.find((arg) => !arg.startsWith('--'));
@@ -443,6 +448,17 @@ function buildCommands() {
     commands.push(...ensureSshDir(user));
     commands.push(
       ...installFile(`/home/${user}/.ssh/authorized_keys`, key.trim(), 600, user)
+    );
+  }
+  // Remove the private key that 3.x copied for nested `ssh -i` hops. Hops now
+  // use `forwardOut` with the runner's key, so a re-provisioned VM should not
+  // keep a copy of the test private key.
+  for (const user of LEGACY_HOP_KEY_USERS) {
+    if (!role.users.includes(user)) {
+      continue;
+    }
+    commands.push(
+      `sudo rm -f /home/${user}/.ssh/id_ed25519 /home/${user}/.ssh/id_ed25519.pub`
     );
   }
   // sshd: password auth stays available for the test users; keyboard-interactive

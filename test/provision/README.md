@@ -117,7 +117,9 @@ sudo and exists for the `su` test.
 The test public key is installed in every test user's `authorized_keys`.
 `ssh2shell` gets the admin public key instead. Hops use `forwardOut` from the
 parent connection, so the private test key stays on the runner and is never
-copied to a VM.
+copied to a VM. Re-provisioning a VM that was built by 3.x removes the
+`~/.ssh/id_ed25519` and `.pub` copies that the old script left in `tester`,
+`nopasswd`, and `suuser`'s homes.
 
 ## Building the three VMs
 

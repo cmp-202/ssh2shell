@@ -68,5 +68,6 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - Added `SSH2SHELL_MODULE` (`src`, `lib`, `baseline`, or a repository-relative
   path) to select the build under test for live tests and provisioning.
 - Rewrote the provisioning script around the current host API and a documented
-  `PROVISION_*` environment contract.
+  `PROVISION_*` environment contract. Re-provisioning removes the 3.x
+  `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
