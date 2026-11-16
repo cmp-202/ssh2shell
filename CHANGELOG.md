@@ -6,8 +6,7 @@ All notable changes to this project are recorded here. The format follows
 
 Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
-## [Unreleased]
-
+## [4.0.2] - 2026-11-16
 ### Development
 
 - Added [`docs/MIGRATING-4.md`](./docs/MIGRATING-4.md), a symptom-to-fix guide
