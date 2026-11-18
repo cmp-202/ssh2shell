@@ -52,6 +52,7 @@ const server3 = env.SERVER3_HOST;
 const defaultTests = [
   'simple',
   'keyboard-interactive',
+  'hop_keyboard_interactive',
   'sudo_su',
   'sudo_no_pass',
   'prompt_response',
@@ -104,6 +105,11 @@ const checks = {
   'keyboard-interactive': {
     contains: [`\n${kbdUser}\n`],
   },
+  hop_keyboard_interactive: {
+    contains: [`\n${kbdUser}\n`, 'hop-keyboard-interactive-marker'],
+    excludes: ['SSH failed'],
+    logContains: [`hop-keyboard-interactive-handler:${kbdUser}`],
+  },
   fingerprint: {
     contains: [`\n${user}\n`],
   },
@@ -144,6 +150,11 @@ const checks = {
     contains: ['sudo-rejected-continued'],
     logContains: ['Sudo authentication failed for', 'sudo-failed:true'],
     logExcludes: ['Stop requested'],
+  },
+  sudo_abort: {
+    logContains: ['Sudo authentication failed for', 'sudo-failed:true', 'Stop requested: sudo-failed'],
+    logExcludes: ['sudo-abort-follow-up-ran'],
+    excludes: ['sudo-abort-must-not-run'],
   },
   transport_drop: {
     contains: ['transport-drop-before'],

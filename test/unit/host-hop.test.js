@@ -139,6 +139,58 @@ describe('host hop transport', () => {
     ssh.close();
   });
 
+  newOnly('uses the child host keyboard-interactive handler on a hop', async () => {
+    let handled = null;
+    const hop = hopHost({
+      server: {
+        host: 'hop.test',
+        port: 2222,
+        userName: 'kbduser',
+        password: 'kbdpassword',
+        tryKeyboard: true,
+      },
+      // Keep a command pending so the hop shell stays open while the
+      // challenge is delivered.
+      commands: ['echo hop'],
+      onKeyboardInteractive: function (name, instructions, instructionsLang, prompts, finish) {
+        handled = {
+          user: this.sshObj.server.userName,
+          password: this.sshObj.server.password,
+        };
+        finish(['kbd-answer']);
+      },
+    });
+    const primary = createHost({
+      server: { host: 'primary.test' },
+      commands: [],
+      hosts: [hop],
+    });
+    const ssh = await connected(primary);
+    const parentConnection = ssh.connection;
+    ssh._nextHost();
+
+    await waitFor(
+      () => ssh._activeContext().host === hop && ssh.connection && ssh.connection !== parentConnection,
+      { label: 'hop keyboard-interactive handler' }
+    );
+
+    const hopConnection = ssh.connection;
+    const responses = await new Promise((resolve) => {
+      hopConnection.emit(
+        'keyboard-interactive',
+        'sshd',
+        '',
+        'en',
+        [{ prompt: 'Password:' }],
+        resolve
+      );
+    });
+
+    assert.deepEqual(responses, ['kbd-answer']);
+    assert.deepEqual(handled, { user: 'kbduser', password: 'kbdpassword' });
+    ssh.close();
+  });
+
   newOnly('terminates when _connectHop has no parent record', () => {
     const ssh = new SSH2Shell(createHost());
     let called = false;

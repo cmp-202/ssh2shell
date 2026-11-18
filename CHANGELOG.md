@@ -8,6 +8,12 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+### Development
+
+- Added live coverage for keyboard-interactive authentication on a nested hop
+  and for `abortOnSudoFailure`, plus deterministic tests that feed one PTY
+  transcript through `onData` at every chunk boundary.
+
 ## [4.0.4] - 2026-11-18
 
 ### Fixed
