@@ -224,7 +224,9 @@ The main environment variables are:
 VMs. It runs on pushes to `master`, pull requests, a nightly schedule, and on
 demand. The job fails when any live test fails, so it can be added to branch
 protection as a required check. `publish.yml` calls the same workflow and does
-not publish unless it passes.
+not publish unless it passes. Fork pull requests skip the job; GitHub treats the
+skipped required check as satisfied. Same-repo PRs, pushes, schedules, and
+`workflow_call` still run it.
 
 [`ci/setup-live-hosts.sh`](./ci/setup-live-hosts.sh) creates the same four
 accounts as the provisioning script and starts three sshd instances on the

@@ -406,7 +406,7 @@ record shape changes from a host config to `record.host`:
 | Credentials | Local process: `password`, `privateKey`, `passPhrase`, `agent` | Local process, same fields | Same `ssh2` authentication. |
 | Host key | `hostHash` / `hostVerifier` on `server` | Same fields passed to the child client | `_normalizeServer` applies `hostHash`. |
 | Auth prompts | `ssh2` handles them; `keyboard-interactive` is re-emitted | Same | `_bindConnection` installs the same handler. |
-| Shell | `context.connection.shell(window, { pty })` | Same | `_openShell`. |
+| Shell | `context.connection.shell(window, callback)` | Same | `_openShell`; `window` carries the PTY choice. |
 | Stream encoding | `streamEncoding`, default `utf8` | Same | `_openShell`. |
 | Data routing | Active stream only | Active stream only; inactive parent streams are ignored | Stream handler compares `context` with `_activeContext()`. |
 | Host defaults | `_loadDefaults` | `_loadDefaults` | Same host object contract. |
