@@ -68,6 +68,40 @@ describe('whole-run stop', () => {
     assert.equal(stream.closed, true);
   });
 
+  it("stop() leaves the caller's nested hosts array intact", async () => {
+    if (isBaseline()) return;
+
+    const nested = createHost({
+      server: { host: 'nested.test' },
+      commands: ['echo nested'],
+    });
+    const hosts = [nested];
+    let ssh;
+    const host = createHost({
+      commands: ['echo one'],
+      hosts,
+      onCommandComplete: () => {
+        ssh.stop('command-failed');
+      },
+    });
+
+    ssh = new SSH2Shell(host);
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitForStream(ssh);
+    const stream = ssh._stream;
+
+    stream.onWrite = echoPrompt;
+    stream.receive('$ ');
+
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    // The run's queue is cleared through the record, not the caller's config.
+    assert.deepEqual(hosts, [nested]);
+  });
+
   it('sshObj.abort stops the run after the handler returns', async () => {
     if (isBaseline()) return;
 
@@ -181,6 +215,23 @@ describe('safe close', () => {
     assert.equal(ends.length, 1);
     assert.ok(callbackText.includes('output'));
     assert.equal(stream.closed, true);
+  });
+
+  it("_prepareGracefulClose leaves the caller's nested hosts array intact", () => {
+    if (isBaseline()) return;
+
+    const nested = createHost({ server: { host: 'nested.test' } });
+    const hosts = [nested];
+    const host = createHost({ hosts });
+
+    const ssh = new SSH2Shell(host);
+    ssh.sshObj = host;
+    ssh._loadDefaults();
+
+    ssh._prepareGracefulClose();
+
+    assert.deepEqual(hosts, [nested]);
+    assert.deepEqual(ssh._activeContext().pendingHosts, []);
   });
 
   it('close() continues with the remaining primary hosts', async () => {

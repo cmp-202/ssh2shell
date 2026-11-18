@@ -193,3 +193,47 @@ describe('single-host command flow', () => {
     ssh.close();
   });
 });
+
+describe('shell options', () => {
+  it('requests a PTY by default', async () => {
+    const host = createHost({ commands: [] });
+    const session = await start(host);
+
+    assert.equal(session.connection.shellCalls.length, 1);
+    assert.equal(session.connection.shellCalls[0].window, true);
+
+    session.stream.receive('$ ');
+    await waitFor(() => session.callbackText !== undefined, {
+      label: 'callback',
+    });
+  });
+
+  it('honours pty: false by disabling the PTY request', async () => {
+    if (isBaseline()) return;
+
+    const host = createHost({ commands: [], pty: false });
+    const session = await start(host);
+
+    // ssh2 allocates a PTY whenever the first shell() argument is not `false`.
+    assert.equal(session.connection.shellCalls[0].window, false);
+
+    session.stream.receive('$ ');
+    await waitFor(() => session.callbackText !== undefined, {
+      label: 'callback',
+    });
+  });
+
+  it('honours window: false with pty left at its default', async () => {
+    if (isBaseline()) return;
+
+    const host = createHost({ commands: [], window: false });
+    const session = await start(host);
+
+    assert.equal(session.connection.shellCalls[0].window, false);
+
+    session.stream.receive('$ ');
+    await waitFor(() => session.callbackText !== undefined, {
+      label: 'callback',
+    });
+  });
+});

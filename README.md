@@ -327,12 +327,12 @@ value for that host.
 | `verbose` | boolean | `false` | Emit process details, including the loaded host config and intermediate values useful for troubleshooting. |
 | `debug` | boolean | `false` | Emit internal process steps. |
 | `progress` | boolean | `true` | Write a stderr liveness indicator while a command is in flight. Set to `false` to disable. TTY-only; never affects `sessionText`. |
-| `exposeCredentials` | boolean | `false` | Redact passwords and passphrases in debug and verbose output. Set to `true` to show them. |
+| `exposeCredentials` | boolean | `false` | Redact passwords, passphrases, and private keys in debug and verbose output. Set to `true` to show them. |
 | `showBanner` | boolean | `false` | Include the host banner in `sessionText`. |
 | `enter` | string | `"\n"` | End-of-line sequence written after each command. |
 | `streamEncoding` | string | `"utf8"` | Encoding applied to the shell stream. |
-| `window` | boolean | `true` | First argument to `connection.shell()`. An explicit `false` is preserved. |
-| `pty` | boolean | `true` | Pseudo-terminal option passed to `connection.shell()`. An explicit `false` is preserved. |
+| `window` | boolean \| object | `true` | First argument to `connection.shell()`. `false` disables the PTY; an object sets the terminal size. |
+| `pty` | boolean | `true` | Request a pseudo-terminal. `false` is equivalent to `window: false`, because `ssh2` has no separate PTY option. |
 
 ### Host event handlers
 
@@ -524,9 +524,9 @@ const host = {
 };
 ```
 
-Keyboard-interactive is only available on the first (primary) connection. A
-nested connection made with the `ssh` command handles authentication through
-the shell prompt instead.
+Keyboard-interactive works on every connection, including nested hosts. Each
+hop is an `ssh2` login over `forwardOut`, not a nested `ssh` command, so set
+`tryKeyboard` on any host whose server challenges for it.
 
 See [`test/live/keyboard-interactive.js`](./test/live/keyboard-interactive.js)
 for a complete example.
@@ -859,7 +859,8 @@ The process is:
 5. Close all connections and pass the combined text to the callback.
 
 The `hosts` array is copied for the run, so it is not consumed and can be reused
-across runs.
+across runs. A handler that sets `skipHosts` clears that host's own list by
+design.
 
 Each hop uses the same host-key contract as the primary: `ssh2` accepts the key
 unless `hostHash` / `hostVerifier` is set, and the library never injects
@@ -1151,9 +1152,9 @@ onCommandProcessing: function (command, response, sshObj, stream) {
 },
 ```
 
-Debug and verbose output redacts the configured password and passphrase by
-default. Set `exposeCredentials: true` only while diagnosing an authentication
-problem, and never leave it enabled in production or in logs.
+Debug and verbose output redacts the configured password, passphrase, and
+private key by default. Set `exposeCredentials: true` only while diagnosing an
+authentication problem, and never leave it enabled in production or in logs.
 
 ### Progress indicator
 

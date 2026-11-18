@@ -230,6 +230,68 @@ describe('primary failure navigation', () => {
   });
 });
 
+describe('invalid host configs', () => {
+  newOnly('reports a missing server on a primary as Parameters instead of throwing', async () => {
+    const host = { commands: [] };
+    const ssh = new SSH2Shell(host);
+    const errors = [];
+    ssh.on('error', (...args) => errors.push(args));
+
+    assert.doesNotThrow(() => ssh.connect());
+    await waitFor(() => errors.length > 0, { label: 'parameters error' });
+
+    assert.equal(errors[0][1], 'Parameters');
+    assert.equal(ssh.host, 'No host');
+  });
+
+  newOnly('contains a nested host without server as a Hop error', async () => {
+    const nested = { commands: [] };
+    const primary = createHost({
+      server: { host: 'primary.test' },
+      commands: [],
+      hosts: [nested],
+    });
+    const ssh = await connected(primary);
+    const errors = [];
+    ssh.on('error', (...args) => errors.push(args));
+
+    let resumed = false;
+    ssh._runExit = () => {
+      resumed = true;
+    };
+
+    assert.doesNotThrow(() => ssh._nextHost());
+    await waitFor(() => errors.length > 0, { label: 'hop error' });
+
+    assert.equal(errors[0][1], 'Hop');
+    assert.equal(resumed, true);
+    assert.equal(ssh.sshObj, primary);
+    assert.equal(ssh.host, 'primary.test');
+
+    ssh.close();
+  });
+
+  newOnly('continues with the next nested host after a missing server', async () => {
+    const bad = { commands: [] };
+    const good = createHost({ server: { host: 'good.test' }, commands: [] });
+    const primary = createHost({
+      server: { host: 'primary.test' },
+      commands: [],
+      hosts: [bad, good],
+    });
+    const ssh = await connected(primary);
+    const errors = [];
+    ssh.on('error', (...args) => errors.push(args));
+
+    ssh._nextHost();
+
+    await waitFor(() => ssh.sshObj === good, { label: 'next nested host' });
+    assert.ok(errors.some((args) => args[1] === 'Hop'));
+
+    ssh.close();
+  });
+});
+
 describe('host list validation', () => {
   newOnly('rejects empty and invalid host lists at construction', () => {
     assert.throws(() => new SSH2Shell(), TypeError);

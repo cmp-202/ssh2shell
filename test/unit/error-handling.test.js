@@ -378,6 +378,10 @@ describe('error handling and connection termination', () => {
   it('shell errors close the stream when ssh2 supplies one', async () => {
     class ShellError extends FakeClient {
       shell(window, options, callback) {
+        if (typeof options === 'function') {
+          callback = options;
+          options = undefined;
+        }
         const stream = new FakeStream();
         this.stream = stream;
         process.nextTick(() => callback(new Error('shell boom'), stream));

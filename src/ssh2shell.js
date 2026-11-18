@@ -622,6 +622,16 @@ class SSH2Shell extends Stream {
     return this._stream;
   }
 
+  // A host config without `server` is invalid, but it must reach `_connect`
+  // before anything dereferences it: the primary reports `Parameters` and a
+  // hop reports `Hop`. Labels stay readable in the meantime.
+  _hostLabel(host) {
+    if (!host || !host.server || !host.server.host) {
+      return 'No host';
+    }
+    return host.server.host;
+  }
+
   // Host prefixes disambiguate messages when the session can span more than
   // one host. A single host reads better without repeating its address on
   // every line. Nested hosts keep the prefix, including after their queue has
@@ -1465,7 +1475,7 @@ class SSH2Shell extends Stream {
         this._restoreContext(parent);
       } else if (parentHost) {
         this.sshObj = parentHost;
-        this.host = parentHost.server.host;
+        this.host = this._hostLabel(parentHost);
       }
       this._systemMsg('debug', `previousHost: previous host loaded: ${this.host}`);
     }
@@ -1497,11 +1507,11 @@ class SSH2Shell extends Stream {
 
     this._systemMsg(
       'debug',
-      `nextHost: hop to ${nextHost.server.host} through ${this.host}`
+      `nextHost: hop to ${this._hostLabel(nextHost)} through ${this.host}`
     );
 
     this.sshObj = nextHost;
-    this.host = nextHost.server.host;
+    this.host = this._hostLabel(nextHost);
 
     return this._initiate(this._connectHop);
   }
@@ -1534,7 +1544,7 @@ class SSH2Shell extends Stream {
     this._buffer = '';
     this._stderrBuffer = '';
     this.sshObj = this._hosts.shift();
-    this.host = this.sshObj.server.host;
+    this.host = this._hostLabel(this.sshObj);
     this._primaryhostSessionText = `${this.host}: `;
     this._closing = false;
     this._gracefulClosing = false;
@@ -1620,11 +1630,13 @@ class SSH2Shell extends Stream {
       if (Array.isArray(host.commands)) {
         host.commands.length = 0;
       }
-      if (Array.isArray(host.hosts)) {
-        host.hosts.length = 0;
-      }
-      if (Array.isArray(record.pendingHosts)) {
+      // Drop the record's own queue, not the caller's `hosts` array.
+      // `_nextHost()` reads `pendingHosts`, so an empty copy stops the hop
+      // while the config stays reusable across runs.
+      if (record.pendingHosts) {
         record.pendingHosts.length = 0;
+      } else {
+        record.pendingHosts = [];
       }
     };
     clearRecord(this._activeContext());
@@ -1734,11 +1746,13 @@ class SSH2Shell extends Stream {
       if (Array.isArray(host.commands)) {
         host.commands.length = 0;
       }
-      if (Array.isArray(host.hosts)) {
-        host.hosts.length = 0;
-      }
-      if (Array.isArray(record.pendingHosts)) {
+      // Drop the record's own queue, not the caller's `hosts` array.
+      // `_nextHost()` reads `pendingHosts`, so an empty copy stops the hop
+      // while the config stays reusable across runs.
+      if (record.pendingHosts) {
         record.pendingHosts.length = 0;
+      } else {
+        record.pendingHosts = [];
       }
     };
     clearRecord(this._activeContext());
@@ -1886,7 +1900,7 @@ class SSH2Shell extends Stream {
 
     this._systemMsg(
       'debug',
-      `removeListeners: removing event listeners linked to ${context.host ? context.host.server.host : 'host'}`
+      `removeListeners: removing event listeners linked to ${context.host ? this._hostLabel(context.host) : 'host'}`
     );
 
     if (context.listeners) {
@@ -2013,7 +2027,7 @@ class SSH2Shell extends Stream {
 
     const host = record.host || this.sshObj;
     this.sshObj = host;
-    this.host = host.server ? host.server.host : 'No host';
+    this.host = this._hostLabel(host);
 
     this._progressEnd();
     this.command = '';
@@ -2437,7 +2451,12 @@ class SSH2Shell extends Stream {
     const connection = context.connection;
     const host = context.host;
 
-    connection.shell(host.window, { pty: host.pty }, (err, stream) => {
+    // ssh2 allocates a PTY whenever the first `shell()` argument is not
+    // `false`; its second argument has no PTY switch. Honour `pty: false` by
+    // passing `false` as the window, the same as `window: false`.
+    const window = host.pty === false ? false : host.window;
+
+    connection.shell(window, (err, stream) => {
       if (context.closed || context.failing) {
         if (stream && typeof stream.close === 'function') {
           try {
