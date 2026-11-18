@@ -51,7 +51,9 @@ jobs:
         env:
           EXPECTED_REF: ${{ inputs.ref || github.ref_name }}
         run: |
-          expected="$EXPECTED_REF"
+          # A workflow_dispatch input may be a full ref (`refs/tags/v4.0.3`)
+          # while a tag push yields `v4.0.3`; compare the short form in both.
+          expected="${EXPECTED_REF#refs/tags/}"
           actual="v$(node -p "require('./package.json').version")"
           if [ "$expected" != "$actual" ]; then
             echo "Ref $expected does not match package version $actual" >&2

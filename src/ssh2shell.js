@@ -363,7 +363,7 @@ class SSH2Shell extends Stream {
 
     this._active = record;
     this.sshObj = host;
-    this.host = host.server ? host.server.host : 'No host';
+    this.host = this._hostLabel(host);
     this.connection = null;
     this._stream = {};
     this.idleTimer = null;
@@ -385,9 +385,7 @@ class SSH2Shell extends Stream {
     this.connection = context.connection;
     this._stream = context.stream || {};
     this.sshObj = context.host;
-    this.host = context.host && context.host.server
-      ? context.host.server.host
-      : this.host;
+    this.host = context.host ? this._hostLabel(context.host) : this.host;
     this.idleTime = context.idleTime;
     this.dataIdleTime = context.dataIdleTime;
     this.idleTimer = context.idleTimer || null;
@@ -612,24 +610,33 @@ class SSH2Shell extends Stream {
       false,
       function (err, type, close) {
         const expose = this.exposeCredentials === true;
-        this.emit(
-          'msg',
-          expose ? this.sshObj.server : redactCredentials(this.sshObj.server)
-        );
-        this.emit('msg', this.sshObj.commands);
+        if (this.sshObj.server) {
+          this.emit(
+            'msg',
+            expose ? this.sshObj.server : redactCredentials(this.sshObj.server)
+          );
+        }
+        if (
+          Array.isArray(this.sshObj.commands) &&
+          this.sshObj.commands.length > 0
+        ) {
+          this.emit('msg', this.sshObj.commands);
+        }
       }
     );
     return this._stream;
   }
 
-  // A host config without `server` is invalid, but it must reach `_connect`
-  // before anything dereferences it: the primary reports `Parameters` and a
-  // hop reports `Hop`. Labels stay readable in the meantime.
+  // A host config without `server` (or without a usable host name) is invalid,
+  // but it must reach `_connect` before anything dereferences it: the primary
+  // reports `Parameters` and a hop reports `Hop`. Labels stay readable in the
+  // meantime. `ssh2` accepts `hostname` as an alternative to `host`.
   _hostLabel(host) {
-    if (!host || !host.server || !host.server.host) {
+    const server = host && host.server;
+    if (!server || (!server.host && !server.hostname)) {
       return 'No host';
     }
-    return host.server.host;
+    return server.host || server.hostname;
   }
 
   // Host prefixes disambiguate messages when the session can span more than
@@ -1098,10 +1105,14 @@ class SSH2Shell extends Stream {
     this._buffer = '';
     this.command = '';
     this._commandInFlight = false;
-    // Cancel command on host.
-    const result = this._stream.write('\x03');
 
-    if (this.sshObj.abortOnSudoFailure && !this._stopping) {
+    const aborting = this.sshObj.abortOnSudoFailure && !this._stopping;
+    // On the abort path `stop()` owns the interrupt because it needs the
+    // in-flight flag to arm its stop timer; sending Ctrl-C here too would
+    // interrupt the shell twice.
+    const result = aborting ? undefined : this._stream.write('\x03');
+
+    if (aborting) {
       // Wait for the shell to return to a prompt (or the idle timeout) before
       // running exit commands, so the Ctrl-C has a chance to cancel sudo.
       this._commandInFlight = true;
@@ -1386,7 +1397,7 @@ class SSH2Shell extends Stream {
     }
 
     this._mergedHosts.add(host);
-    parent.sessionText += `\n${host.server.host}: ${host.sessionText || ''}`;
+    parent.sessionText += `\n${this._hostLabel(host)}: ${host.sessionText || ''}`;
     return true;
   }
 
@@ -1412,9 +1423,9 @@ class SSH2Shell extends Stream {
       this._mergeNestedText(host);
       this._systemMsg(
         'debug',
-        `finalizeHost: end nested host ${host.server.host}${reason ? ` (${reason})` : ''}`
+        `finalizeHost: end nested host ${this._hostLabel(host)}${reason ? ` (${reason})` : ''}`
       );
-      this.emit('end', `${host.server.host}: \n${host.sessionText || ''}`, host);
+      this.emit('end', `${this._hostLabel(host)}: \n${host.sessionText || ''}`, host);
       return true;
     }
 
@@ -1422,7 +1433,7 @@ class SSH2Shell extends Stream {
     this._allSessions += this._primaryhostSessionText;
     this._systemMsg(
       'debug',
-      `finalizeHost: end primary host ${host.server.host}${reason ? ` (${reason})` : ''}`
+      `finalizeHost: end primary host ${this._hostLabel(host)}${reason ? ` (${reason})` : ''}`
     );
     this.emit('end', this._primaryhostSessionText, host);
     return true;
@@ -2242,11 +2253,22 @@ class SSH2Shell extends Stream {
     // exists and before the client is opened.
     this._loadDefaults(context);
 
-    if (!host.server) {
+    // `ssh2` accepts either `host` or `hostname`. Without one it silently
+    // falls back to `localhost:22`, so treat both as required.
+    if (!host.server || (!server.host && !server.hostname)) {
       if (context.isPrimary) {
-        return this._reportMissingParameters();
+        this._reportMissingParameters();
+        // Reporting alone leaves the run unfinished. Finalize the host and
+        // advance exactly like any other primary failure.
+        return this._failContext(
+          context,
+          new Error('Missing connection parameters'),
+          'parameters'
+        );
       }
-      this._hopFailed(context, new Error('Missing connection parameters'));
+      const err = new Error('Missing connection parameters');
+      err.level = 'Parameters';
+      this._hopFailed(context, err);
       return this._stream;
     }
 
@@ -2264,7 +2286,7 @@ class SSH2Shell extends Stream {
     parentConnection.forwardOut(
       '127.0.0.1',
       0,
-      server.host,
+      server.host || server.hostname,
       Number(server.port) || 22,
       (err, channel) => {
         if (context.closed || context.failing) {

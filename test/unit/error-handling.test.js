@@ -163,6 +163,9 @@ describe('error handling and connection termination', () => {
     // `_loadDefaults` supplies defaults, so exercise `_connect` directly with
     // no server object to reach the missing-parameters branch.
     ssh.sshObj = { commands: ['echo one'] };
+    // Keep this focused on the direct `_connect` path: without a queued
+    // primary, finalizing the invalid host ends the run instead of navigating.
+    ssh._hosts = [];
     ssh.removeAllListeners('msg');
 
     const errors = [];

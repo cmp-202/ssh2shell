@@ -91,6 +91,25 @@ describe('credential logging', () => {
     }
   });
 
+  it('redacts private key material in verbose strings', () => {
+    if (isBaseline()) return;
+
+    const privateKey = Buffer.from(
+      '-----BEGIN OPENSSH PRIVATE KEY-----\nstring-key-material\n'
+    );
+    const { ssh, messages } = messagesFrom({
+      verbose: true,
+      server: { privateKey },
+    });
+    messages.length = 0;
+
+    ssh._systemMsg('verbose', `key: ${privateKey}`);
+
+    const text = textOf(messages);
+    assert.ok(text.includes('[REDACTED]'));
+    assert.ok(!text.includes('string-key-material'));
+  });
+
   it('redacts a credential command in verbose output by default', () => {
     const { ssh, host, messages } = messagesFrom({ verbose: true });
     messages.length = 0;

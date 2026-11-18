@@ -935,7 +935,7 @@ part of the public API.
 | Member | Description |
 | --- | --- |
 | `connect(callback)` | Start the session. `callback(sessionText)` is optional and receives the combined text when all hosts finish. An instance runs once; a second call throws. |
-| `stop(reason)` | Abort the whole run. Clears every command and host queue, sends Ctrl-C if a command is in flight, closes the active connection and its ancestors, and calls the callback once. A no-op before `connect()` or after the run finishes. |
+| `stop(reason)` | Abort the whole run. Clears the run's command and host queues, leaves the caller's nested `hosts` arrays intact, sends Ctrl-C if a command is in flight, closes the active connection and its ancestors, and calls the callback once. A no-op before `connect()` or after the run finishes. |
 | `close()` | Close the current shell stream. A no-op if the shell has not opened yet. Remaining primary hosts still run; use `stop()` to abandon them. |
 | `close({ graceful: true })` | Back out of nested shells before closing. Remaining primary hosts still run. |
 | `emit(name, ...args)` | Raise an event. Inherited from `EventEmitter`. |

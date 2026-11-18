@@ -454,7 +454,10 @@ describe('sudo failure visibility', () => {
         message.includes('Sudo authentication failed for tester')
       )
     );
-    assert.ok(ssh._stream.writes.includes('\x03'));
+    assert.equal(
+      ssh._stream.writes.filter((write) => write === '\x03').length,
+      1
+    );
 
     // Do not leave the stop timer armed in the test process.
     ssh._forceStop();

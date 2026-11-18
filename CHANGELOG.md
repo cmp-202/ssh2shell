@@ -8,6 +8,25 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+### Fixed
+
+- A primary host with no `server`, or a server with neither `host` nor
+  `hostname`, now reports `Parameters`, finalizes that host, and continues to
+  the next primary instead of leaving the run unfinished. It no longer silently
+  targets `localhost:22`.
+- Host labels, nested session text, and hop forwarding now use `hostname` when
+  `host` is absent.
+- `privateKey` is included in string redaction as well as object dumps, so
+  verbose and debug messages cannot echo key material.
+- `abortOnSudoFailure` sends a single Ctrl-C instead of two.
+- A `workflow_dispatch` ref such as `refs/tags/vX.Y.Z` now passes the publish
+  version check.
+
+### Development
+
+- Documented that fork pull requests skip the `Live suite` job and that GitHub
+  treats the skipped required check as satisfied.
+
 ## [4.0.3] - 2026-11-18
 
 ### Fixed
@@ -20,8 +39,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - `pty: false` now disables the pseudo-terminal. It was previously ignored
   because `ssh2` takes the PTY request from the first `shell()` argument.
 - `stop()` and `close({ graceful: true })` no longer empty the caller's nested
-  `hosts` arrays; the run's own queue is cleared instead, so a host config can
-  be reused.
+  `hosts` arrays; the run's own queue is cleared instead, so the nested `hosts`
+  array can be reused.
 - `stop()` is now a no-op after a run that ended on a failure, and
   `abortOnSudoFailure` finishes as soon as the interrupted shell returns to a
   prompt instead of waiting out the idle timeout.

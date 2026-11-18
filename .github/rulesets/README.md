@@ -37,6 +37,10 @@ gh api --method POST repos/cmp-202/ssh2shell/rulesets \
   `.github/workflows/ci.yml`; `Live suite` comes from
   `.github/workflows/live.yml`. Renaming a job means updating
   `branch-master.json` as well.
+- Fork pull requests skip the `Live suite` job because its setup and stop
+  scripts run as root. GitHub reports a condition-skipped required check as
+  satisfied, so a fork PR can merge without live coverage; same-repo PRs,
+  pushes, schedules, and `workflow_call` still run it.
 - `branch-master.json` has an empty bypass list, so direct pushes to `master`
   are blocked for everyone, including the owner. Changes go through a pull
   request. No approvals are required, but the checks must pass and review

@@ -97,7 +97,12 @@ const CREDENTIAL_KEY = /^(password|passphrase|privateKey)$/i;
 function credentialSecrets(sshObj) {
   const server = (sshObj && sshObj.server) || {};
 
-  return [server.password, server.passPhrase, server.passphrase]
+  return [
+    server.password,
+    server.passPhrase,
+    server.passphrase,
+    server.privateKey,
+  ]
     .filter((secret) => secret != null && secret !== '')
     .map((secret) => String(secret));
 }

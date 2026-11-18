@@ -231,17 +231,78 @@ describe('primary failure navigation', () => {
 });
 
 describe('invalid host configs', () => {
-  newOnly('reports a missing server on a primary as Parameters instead of throwing', async () => {
+  newOnly('reports a missing server on a primary and finishes the run', async () => {
     const host = { commands: [] };
     const ssh = new SSH2Shell(host);
     const errors = [];
+    const messages = [];
+    let callbackText;
     ssh.on('error', (...args) => errors.push(args));
+    ssh.on('msg', (message) => messages.push(message));
 
-    assert.doesNotThrow(() => ssh.connect());
+    assert.doesNotThrow(() => {
+      ssh.connect((text) => {
+        callbackText = text;
+      });
+    });
     await waitFor(() => errors.length > 0, { label: 'parameters error' });
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
 
     assert.equal(errors[0][1], 'Parameters');
     assert.equal(ssh.host, 'No host');
+    assert.equal(ssh._runComplete, true);
+    assert.equal(callbackText, '');
+    assert.ok(!messages.includes(undefined));
+    assert.ok(!messages.includes('[]'));
+  });
+
+  newOnly('continues to the next primary after a missing server', async () => {
+    const good = createHost({ server: { host: 'good.test' }, commands: [] });
+    const ssh = new SSH2Shell([{ commands: [] }, good]);
+    const errors = [];
+    ssh.on('error', (...args) => errors.push(args));
+
+    ssh.connect();
+    await waitFor(() => ssh.host === 'good.test', { label: 'second primary' });
+    await waitForStream(ssh);
+
+    assert.ok(errors.some((args) => args[1] === 'Parameters'));
+    assert.equal(ssh._hosts.length, 0);
+    ssh.stop();
+  });
+
+  newOnly('treats a server object without a host as missing parameters', async () => {
+    const ssh = new SSH2Shell({ server: {}, commands: [] });
+    const errors = [];
+    let callbackText;
+    ssh.on('error', (...args) => errors.push(args));
+
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    assert.equal(errors[0][1], 'Parameters');
+    assert.equal(ssh._runComplete, true);
+  });
+
+  newOnly('accepts and labels a hostname-only server', async () => {
+    const host = {
+      server: {
+        hostname: 'hostname.test',
+        userName: 'tester',
+        password: 'secret',
+      },
+      commands: [],
+    };
+    const ssh = new SSH2Shell(host);
+
+    ssh.connect();
+    await waitForStream(ssh);
+
+    assert.equal(ssh.host, 'hostname.test');
+    assert.equal(ssh.connection.config.hostname, 'hostname.test');
+    ssh.stop();
   });
 
   newOnly('contains a nested host without server as a Hop error', async () => {
