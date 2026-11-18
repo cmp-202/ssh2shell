@@ -46,8 +46,12 @@ jobs:
 
       - name: Verify version matches the ref
         shell: bash
+        # Pass the ref through the environment. Interpolating it into the
+        # script text would let a crafted tag or dispatch input run commands.
+        env:
+          EXPECTED_REF: ${{ inputs.ref || github.ref_name }}
         run: |
-          expected="${{ inputs.ref || github.ref_name }}"
+          expected="$EXPECTED_REF"
           actual="v$(node -p "require('./package.json').version")"
           if [ "$expected" != "$actual" ]; then
             echo "Ref $expected does not match package version $actual" >&2

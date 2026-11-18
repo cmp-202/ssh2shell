@@ -27,6 +27,12 @@ jobs:
     name: Live suite
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The setup and stop scripts run as root against code from the checked-out
+    # ref. Fork PRs must not get that: GitHub uses this workflow from the base
+    # branch for fork pull requests, so this gate cannot be removed by the PR.
+    # Same-repo PRs, pushes, scheduled runs, manual runs, and workflow_call
+    # from the publish tag all still run the live suite.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Check out
