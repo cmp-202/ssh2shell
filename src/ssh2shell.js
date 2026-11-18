@@ -936,7 +936,14 @@ class SSH2Shell extends Stream {
         // Check for no command but first prompt detected.
         case this.command.length < 1 && this.standardPrompt.test(this._buffer):
           this._systemMsg('debug', `onData: First prompt detected`);
-          
+
+          // A prompt during a stop means the interrupted command (or the
+          // sudo session) returned. Clearing the in-flight flag lets the stop
+          // finish now instead of waiting out the stop timer.
+          if (this._stopping) {
+            this._commandInFlight = false;
+          }
+
           if (this.sshObj.showBanner) {
             this.sshObj.sessionText += this._buffer;
           }
@@ -1853,6 +1860,9 @@ class SSH2Shell extends Stream {
   }
 
   _callFinalCallback() {
+    // The callback ends the run, whether it ended cleanly or on a failure.
+    // Marking it here makes stop() and close() no-ops afterwards.
+    this._runComplete = true;
     if (this._callbackCalled) {
       return this._allSessions;
     }
@@ -2198,6 +2208,14 @@ class SSH2Shell extends Stream {
   }
 
   connect(callback) {
+    // An instance owns one run. A second connect() used to drain the empty
+    // host queue and call back with '', which looked like an empty session.
+    if (this._started) {
+      throw new Error(
+        'SSH2Shell instances run once; create a new instance to connect again'
+      );
+    }
+
     if (typeof callback === 'function') {
       this._callback = callback;
     }

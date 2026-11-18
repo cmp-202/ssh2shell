@@ -20,6 +20,11 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - `stop()` and `close({ graceful: true })` no longer empty the caller's nested
   `hosts` arrays; the run's own queue is cleared instead, so a host config can
   be reused.
+- `stop()` is now a no-op after a run that ended on a failure, and
+  `abortOnSudoFailure` finishes as soon as the interrupted shell returns to a
+  prompt instead of waiting out the idle timeout.
+- A second `connect()` now throws instead of calling back with an empty string.
+  Each `SSH2Shell` instance runs once; construct a new one to run again.
 
 ## [4.0.2] - 2026-11-16
 

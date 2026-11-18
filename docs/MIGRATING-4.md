@@ -136,6 +136,7 @@ Consequences worth checking:
 | `error` type `Parameters` | A host object has no `server`; add one before connecting |
 | Key passphrase is never prompted | `passphrasePrompt` removed; use `passwordPrompt` |
 | Second run does nothing, or repeats output | Host object reused; `commands` is consumed and `sessionText` accumulates |
+| Calling `connect()` twice throws | Instances run once; construct a new `SSH2Shell` with a fresh host config |
 | `TypeError` when constructing | Empty host list, `null`, or `undefined` |
 | Output no longer contains earlier session text | Responses are sliced after the last echoed command |
 
