@@ -8,6 +8,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.0.4] - 2026-11-18
+
 ### Fixed
 
 - A primary host with no `server`, or a server with neither `host` nor
@@ -139,7 +141,8 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...HEAD
+[4.0.4]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...v4.0.4
 [4.0.3]: https://github.com/cmp-202/ssh2shell/compare/v4.0.2...v4.0.3
 [4.0.2]: https://github.com/cmp-202/ssh2shell/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...v4.0.1
