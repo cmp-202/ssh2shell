@@ -6,7 +6,23 @@ All notable changes to this project are recorded here. The format follows
 
 Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
+## [Unreleased]
+
+### Fixed
+
+- A host object without `server` now reports an `error` of type `Parameters`
+  (primary) or `Hop` (nested) instead of throwing a `TypeError` before the
+  connection starts.
+- `verbose: true` now redacts `privateKey` in the config dump, alongside
+  `password` and `passphrase`. `exposeCredentials: true` still shows it.
+- `pty: false` now disables the pseudo-terminal. It was previously ignored
+  because `ssh2` takes the PTY request from the first `shell()` argument.
+- `stop()` and `close({ graceful: true })` no longer empty the caller's nested
+  `hosts` arrays; the run's own queue is cleared instead, so a host config can
+  be reused.
+
 ## [4.0.2] - 2026-11-16
+
 ### Development
 
 - Added [`docs/MIGRATING-4.md`](./docs/MIGRATING-4.md), a symptom-to-fix guide
@@ -97,6 +113,7 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.1...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.2...HEAD
+[4.0.2]: https://github.com/cmp-202/ssh2shell/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/cmp-202/ssh2shell/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/cmp-202/ssh2shell/compare/v3.3.0...v4.0.0

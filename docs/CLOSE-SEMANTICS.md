@@ -187,8 +187,9 @@ R1–R8 were signed off and implemented.
 
 ### R1. `stop(reason)` is the whole-run stop
 
-- Clears the current `sshObj.commands`, every nested `hosts` array, and the
-  private primary-host queue.
+- Clears the current `sshObj.commands`, the run's nested host queues, and the
+  private primary-host queue. The caller's `hosts` arrays are left intact so a
+  config can be reused.
 - If a command is in flight, writes Ctrl-C and waits for the prompt or the idle
   timeout before closing.
 - Closes the active record and every ancestor. Leaving a nested shell is a

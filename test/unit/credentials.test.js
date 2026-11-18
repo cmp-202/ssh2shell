@@ -70,6 +70,27 @@ describe('credential logging', () => {
     }
   });
 
+  it('redacts private key material in the config dump', () => {
+    const privateKey = Buffer.from(
+      '-----BEGIN OPENSSH PRIVATE KEY-----\nkey-material\n'
+    );
+    const { messages } = messagesFrom({
+      verbose: true,
+      server: { privateKey },
+    });
+    const dump = messages.find(
+      (message) => message && typeof message === 'object' && message.server
+    );
+
+    if (isBaseline()) {
+      // The baseline has no redaction; the key is dumped as-is.
+      assert.equal(dump.server.privateKey, privateKey);
+    } else {
+      assert.ok(dump, 'verbose config dump was emitted');
+      assert.equal(dump.server.privateKey, '[REDACTED]');
+    }
+  });
+
   it('redacts a credential command in verbose output by default', () => {
     const { ssh, host, messages } = messagesFrom({ verbose: true });
     messages.length = 0;

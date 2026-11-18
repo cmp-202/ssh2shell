@@ -133,6 +133,7 @@ Consequences worth checking:
 | A handler that sets `sshObj.stop` no longer ends the run | The flag is now `sshObj.abort`, or call `SSH.stop()` |
 | Idle timeouts are ignored | Old `idleTime` / `dataIdleTime` names on the host |
 | A silent command hangs, then times out | Expected: the idle timer is always armed |
+| `error` type `Parameters` | A host object has no `server`; add one before connecting |
 | Key passphrase is never prompted | `passphrasePrompt` removed; use `passwordPrompt` |
 | Second run does nothing, or repeats output | Host object reused; `commands` is consumed and `sessionText` accumulates |
 | `TypeError` when constructing | Empty host list, `null`, or `undefined` |
