@@ -8,10 +8,11 @@ const {
   isBaseline,
   loadSSH2Shell,
   createHost,
+  injectSsh2Client,
   waitFor,
   waitForStream,
 } = require('./helpers/harness');
-const { FakeStream } = require('./helpers/fake-ssh2');
+const { FakeClient, FakeStream } = require('./helpers/fake-ssh2');
 
 installFakeSsh2();
 const SSH2Shell = loadSSH2Shell();
@@ -179,6 +180,48 @@ describe('whole-run stop', () => {
 
     assert.equal(ssh._started, false);
     assert.equal(ssh._stopping, false);
+  });
+
+  it('stop() is a no-op after the run ended on a primary failure', async () => {
+    if (isBaseline()) return;
+
+    class ShellError extends FakeClient {
+      shell(window, options, callback) {
+        if (typeof options === 'function') {
+          callback = options;
+        }
+        const stream = new FakeStream();
+        this.stream = stream;
+        process.nextTick(() => callback(new Error('shell boom'), stream));
+        return stream;
+      }
+    }
+
+    const ssh = new SSH2Shell(createHost({ commands: ['echo one'] }));
+    injectSsh2Client(ssh, ShellError);
+    const messages = [];
+    ssh.on('msg', (message) => messages.push(String(message)));
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    // The callback ends the run even when the last host failed rather than
+    // closed cleanly.
+    assert.equal(ssh._runComplete, true);
+
+    const before = messages.length;
+    ssh.stop('user');
+
+    assert.equal(ssh._stopping, false);
+    assert.equal(ssh._stopReason, null);
+    assert.equal(messages.length, before);
+    assert.equal(
+      messages.some((message) => message.includes('Stop requested')),
+      false
+    );
   });
 });
 
@@ -362,6 +405,27 @@ describe('handler stop flags', () => {
   });
 });
 
+describe('instance reuse', () => {
+  it('connect() throws instead of rerunning a finished instance', async () => {
+    if (isBaseline()) return;
+
+    const host = createHost({ commands: [] });
+    const ssh = new SSH2Shell(host);
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitForStream(ssh);
+    ssh._stream.receive('$ ');
+    await waitFor(() => callbackText !== undefined, { label: 'callback' });
+
+    assert.throws(
+      () => ssh.connect(() => {}),
+      /instances run once/i
+    );
+  });
+});
+
 describe('sudo failure visibility', () => {
   it('emits a normal msg and can abort the run', () => {
     if (isBaseline()) return;
@@ -394,5 +458,44 @@ describe('sudo failure visibility', () => {
 
     // Do not leave the stop timer armed in the test process.
     ssh._forceStop();
+  });
+
+  it('abortOnSudoFailure finishes as soon as the prompt returns', async () => {
+    if (isBaseline()) return;
+
+    const host = createHost({
+      commands: ['sudo ls'],
+      abortOnSudoFailure: true,
+      // Long enough that waiting for the stop timer is unmistakable.
+      idleTimeOut: 1000,
+    });
+    const ssh = new SSH2Shell(host);
+    let callbackText;
+    ssh.connect((text) => {
+      callbackText = text;
+    });
+    await waitForStream(ssh);
+    const stream = ssh._stream;
+
+    stream.onWrite = (data, target) => {
+      if (data === 'sudo ls\n') {
+        setTimeout(() => target.receive('[sudo] password for tester: '), 1);
+      } else if (data === 'secret\n') {
+        setTimeout(() => target.receive('[sudo] password for tester: '), 1);
+      } else if (data === '\x03') {
+        setTimeout(() => target.receive('$ '), 1);
+      }
+    };
+    stream.receive('$ ');
+
+    // The Ctrl-C prompt arrives almost immediately; the 1000ms stop timer
+    // must not be what ends the run.
+    await waitFor(() => callbackText !== undefined, {
+      label: 'callback after prompt',
+      timeout: 500,
+    });
+
+    assert.equal(ssh._stopReason, 'sudo-failed');
+    assert.equal(ssh._stopping, true);
   });
 });
