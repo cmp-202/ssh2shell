@@ -20,6 +20,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "check:build": "node scripts/check-build.js",
+    "check:changelog": "node scripts/check-changelog.js",
     "test": "npm run check:build && npm run test:unit && npm run test:baseline",
     "test:unit": "node scripts/run-tests.js lib",
     "test:src": "node scripts/run-tests.js src",
@@ -28,7 +29,7 @@
     "test:live": "node scripts/run-live.js",
     "test:live:all": "node scripts/run-live.js --all",
     "provision": "node test/provision/provision.js",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm run check:changelog && npm test"
   },
   "keywords": [
     "SSH",

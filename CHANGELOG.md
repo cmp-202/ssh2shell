@@ -13,6 +13,12 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - Added live coverage for keyboard-interactive authentication on a nested hop
   and for `abortOnSudoFailure`, plus deterministic tests that feed one PTY
   transcript through `onData` at every chunk boundary.
+- Added `npm run check:changelog` to CI and `prepublishOnly`, and documented the
+  release-cadence, release-candidate review, changelog, and registry-propagation
+  procedures in `docs/PUBLISHING.md`.
+- Live workflow runs with the same ref now queue instead of cancelling each
+  other, so a parallel publish or push cannot remove a PR's required
+  `Live suite` check.
 
 ## [4.0.4] - 2026-11-18
 

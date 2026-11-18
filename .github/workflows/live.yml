@@ -20,7 +20,11 @@ permissions:
 
 concurrency:
   group: live-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # This workflow also runs as a reusable workflow from publish.yml. Cancelling
+  # a same-ref run could remove the required "Live suite" check from a PR or the
+  # live gate from a publish. Serialize instead; separate runners mean parallel
+  # live runs do not contend for ports.
+  cancel-in-progress: false
 
 jobs:
   live:

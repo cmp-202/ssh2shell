@@ -1,5 +1,27 @@
 # Publishing ssh2shell
 
+## Release cadence
+
+Merge work to `master` continuously through pull requests and let a batch of
+changes settle. A green merge is **not** a release event; it is fine for `master`
+to be ahead of npm `latest`.
+
+Release only on a trigger:
+
+- a security or critical fix,
+- a user-facing bug fix,
+- a new feature,
+- or a milestone explicitly called by the maintainer.
+
+Test-only, docs-only, and CI-only changes do not trigger a release on their own.
+They ride along with the next triggered release. Do not publish a version solely
+to deliver internal work.
+
+Before tagging, run the external/free review against the **release candidate**
+(the release branch or the merge commit on `master`), not against an already
+published tag. Fix its actionable findings in the same release. Avoid a
+same-day follow-up release unless the issue is critical.
+
 ## One-off interactive publish
 
 `npm publish` requires a one-time password when 2FA is enabled:
@@ -47,8 +69,23 @@ For a new version:
 
 ```bash
 npm version <major|minor|patch> --no-git-tag-version
-# update REFACTORING.md, CHANGELOG.md, and docs as needed
 git switch -c release/X.Y.Z
+```
+
+Update the changelog in a fixed order:
+
+1. Insert `## [X.Y.Z] - YYYY-MM-DD` above the existing `## [Unreleased]`
+   section. Move the release's `###` groups and bullets under it, remove empty
+   groups, and leave `[Unreleased]` in place for future work.
+2. Add `[X.Y.Z]: https://github.com/cmp-202/ssh2shell/compare/vPREVIOUS...vX.Y.Z`
+   to the link definitions at the bottom.
+3. Point the existing `[Unreleased]` link at `compare/vX.Y.Z...HEAD`.
+4. Run `npm run check:changelog`. It fails if the version, date, bullets, or
+   compare links are missing, and it runs again from `prepublishOnly`.
+
+Then update `REFACTORING.md` and any other affected docs, and push the branch:
+
+```bash
 git add package.json package-lock.json REFACTORING.md CHANGELOG.md docs
 git commit -m "chore: release X.Y.Z"
 git push -u origin release/X.Y.Z
@@ -81,8 +118,10 @@ npm view ssh2shell version
 npm view ssh2shell@X.Y.Z dist.tarball
 ```
 
-The registry can take a minute or two to show the new `latest` after the
-workflow succeeds. Confirm the published `gitHead` matches the release commit:
+The registry can take a minute or two (sometimes longer) to show the new
+`latest` after the workflow succeeds. If the first check still shows the old
+version, retry for a few minutes before treating it as a failed publish. Confirm
+the published `gitHead` matches the release commit:
 
 ```bash
 npm view ssh2shell@X.Y.Z gitHead
@@ -94,10 +133,17 @@ git rev-parse HEAD
 Run this list for every release so the steps that are easy to forget are not
 left to memory.
 
+- [ ] Confirm a release trigger exists (security/critical fix, user-facing fix,
+      feature, or an explicitly called milestone). Do not release test/docs/CI
+      work on its own.
 - [ ] Decide the semver level from the commits since the last tag.
+- [ ] Run the external/free review on the release candidate and resolve its
+      actionable findings in the same release.
 - [ ] `npm version <major|minor|patch> --no-git-tag-version`.
-- [ ] Update `REFACTORING.md`, `CHANGELOG.md`, and any docs affected by the
-      release.
+- [ ] Move `[Unreleased]` entries under a dated version heading, add its compare
+      link, and update the `[Unreleased]` link.
+- [ ] Update `REFACTORING.md` and any docs affected by the release.
+- [ ] `npm run check:changelog` passes.
 - [ ] `npm test` passes (`check:build`, unit, baseline).
 - [ ] Run the live suite locally when the change touches connection or command
       flow: `npm run test:live:all`.
