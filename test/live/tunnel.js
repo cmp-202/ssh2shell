@@ -17,9 +17,7 @@ const jump = {
     privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['hostname'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['hostname']
 };
 
 const target = {
@@ -30,9 +28,7 @@ const target = {
     privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['hostname', 'uptime'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['hostname', 'uptime']
 };
 
 // Chain the hosts: jump -> target. Each hop closes its own connection after the
@@ -43,6 +39,8 @@ jump.hosts = [target];
 const SSH = new SSH2Shell(jump);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;

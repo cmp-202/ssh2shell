@@ -26,9 +26,7 @@ const parent = {
     privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['hostname'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['hostname']
 };
 
 const child = {
@@ -45,9 +43,7 @@ const child = {
   onKeyboardInteractive: function (name, instructions, instructionsLang, prompts, finish) {
     log(`hop-keyboard-interactive-handler:${this.sshObj.server.userName}`);
     finish([kbdPassword]);
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 parent.hosts = [child];
@@ -56,6 +52,8 @@ child.hosts = [];
 const SSH = new SSH2Shell(parent);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;

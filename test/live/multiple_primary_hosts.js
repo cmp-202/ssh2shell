@@ -13,9 +13,7 @@ const host1 = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['hostname', 'uptime'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['hostname', 'uptime']
 };
 
 const host2 = {
@@ -26,14 +24,14 @@ const host2 = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['hostname', 'uptime'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['hostname', 'uptime']
 };
 
 const SSH = new SSH2Shell([host1, host2]);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((allSessionText) => {
   const text = `-----Callback session text:\n${allSessionText}\n-----Callback end`;

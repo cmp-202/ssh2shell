@@ -25,14 +25,14 @@ const host = {
       sshObj.answeredNano = true;
       stream.write('y\n');
     }
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 // To apply the same logic to every host, attach it to the instance instead:
 // SSH.on('commandProcessing', function (command, response, sshObj, stream) {

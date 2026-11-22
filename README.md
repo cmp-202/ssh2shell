@@ -334,6 +334,10 @@ value for that host.
 | `window` | boolean \| object | `true` | First argument to `connection.shell()`. `false` disables the PTY; an object sets the terminal size. |
 | `pty` | boolean | `true` | Request a pseudo-terminal. `false` is equivalent to `window: false`, because `ssh2` has no separate PTY option. |
 
+`debug` and `verbose` may also be set once on the `SSH2Shell` instance; an
+explicit instance value overrides the host value. See
+[Verbose and debug output](#verbose-and-debug-output).
+
 ### Host event handlers
 
 Handlers defined on the host object run only for that host. For most events
@@ -1146,15 +1150,37 @@ the session spans more than one host (multiple primary hosts or nested hosts); a
 single-host session omits the prefix. Do not enable them inside
 `onCommandProcessing`, which runs for every chunk of output.
 
-Add your own messages with the same flags:
+For a multi-host run, set either flag on the instance once before `connect()`
+instead of repeating it in every host config. An explicit instance boolean
+overrides every host value in both directions, so `false` also suppresses a
+host that enables the flag:
 
 ```javascript
-onCommandProcessing: function (command, response, sshObj, stream) {
-  if (sshObj.verbose) {
-    this.emit('msg', `${sshObj.server.host}: response: ${response}`);
-  }
+const ssh = new SSH2Shell(hosts);
+ssh.debug = process.env.DEBUG === 'true';
+ssh.verbose = process.env.VERBOSE === 'true';
+ssh.connect(callback);
+```
+
+`ssh.debug` and `ssh.verbose` report the effective value for the active host.
+Host values are still used when the instance flag has not been set.
+
+To add your own debug or verbose messages from a handler, call
+`this.systemMsg(type, message)` with `'debug'` or `'verbose'`. Inside a handler,
+`this` is the `SSH2Shell` instance:
+
+```javascript
+onCommandTimeout: function (command, response, stream, connection) {
+  this.systemMsg('debug', `${this.sshObj.server.host}: timeout: ${command}`);
 },
 ```
+
+`systemMsg()` gates the message on the effective flag for the active host, then
+applies the same host prefix and credential redaction as the library's own
+messages. Prefer it over manually checking `this.debug` / `this.verbose` and
+calling `this.emit('msg', ...)`: a manual check can read the wrong value and
+bypasses redaction. Reading `ssh.debug` / `ssh.verbose` is still appropriate
+when you need the effective value for some other purpose.
 
 Debug and verbose output redacts the configured password, passphrase, and
 private key by default. Set `exposeCredentials: true` only while diagnosing an

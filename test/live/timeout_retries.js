@@ -35,24 +35,18 @@ const host = {
   standardPrompt: '$',
   idleTimeOut: 5000,
   commandTimeoutRetries: 1,
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
   onCommandTimeout: function (command, response, stream, connection, details) {
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: host.onCommandTimeout attempt ${details.attempt}/${details.maxRetries} final=${details.final}`
-      );
-    }
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: host.onCommandTimeout attempt ${details.attempt}/${details.maxRetries} final=${details.final}`
+    );
 
     // Answer the first prompt while the library still has retries left.
     if (details.final === false && response.indexOf('(Y,n)') !== -1) {
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: First prompt using correct input: Sending 'y' to the \`(y,n):\` prompt`
-        );
-      }
+      this.systemMsg(
+        'debug',
+        `${this.sshObj.server.host}: First prompt using correct input: Sending 'y' to the \`(y,n):\` prompt`
+      );
       this.sshObj.sessionText += response + this.sshObj.enter;
       this._buffer = '';
       stream.write('y' + this.sshObj.enter);
@@ -68,16 +62,14 @@ const host = {
       return;
     }
 
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: Final timeout: All attempts completed`
-      );
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: Timeout details:${this.sshObj.enter}Command: ${command} ${this.sshObj.enter}Response: ${response}`
-      );
-    }
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: Final timeout: All attempts completed`
+    );
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: Timeout details:${this.sshObj.enter}Command: ${command} ${this.sshObj.enter}Response: ${response}`
+    );
 
     // No prompt matched, so record the response and close the connection.
     this.emit(
@@ -90,9 +82,7 @@ const host = {
     this.close();
   },
   onEnd: function (sessionText, sshObj) {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${sshObj.server.host}: host.onEnd`);
-    }
+    this.systemMsg('debug', `${sshObj.server.host}: host.onEnd`);
     this.emit(
       'msg',
       `\nThis is the full session response:\n\n${this.sshObj.sessionText}\n`
@@ -103,6 +93,8 @@ const host = {
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;

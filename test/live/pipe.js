@@ -15,9 +15,7 @@ const host = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['echo host pipe'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['echo host pipe']
 };
 
 const SSH = new SSH2Shell(host);
@@ -29,6 +27,8 @@ const firstLog = fs.createWriteStream(path.join(logDir, 'pipe-first.log'));
 const secondLog = fs.createWriteStream(path.join(logDir, 'pipe-second.log'));
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.pipe(firstLog);
 SSH.pipe(secondLog);
 

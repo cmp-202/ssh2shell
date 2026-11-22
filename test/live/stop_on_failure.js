@@ -25,15 +25,15 @@ const host = {
     if (command.includes('stop-test-first')) {
       sshObj.abort = 'command-failed';
     }
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 const SSH = new SSH2Shell(host);
 
 const ends = [];
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('end', () => {
   ends.push(Date.now());
 });

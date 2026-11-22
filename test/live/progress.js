@@ -42,6 +42,8 @@ const host2 = makeHost(
 const SSH = new SSH2Shell([host1, host2]);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 if (!process.stderr.isTTY) {
   console.log(

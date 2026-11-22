@@ -44,14 +44,14 @@ const host = {
         this.sshObj.sessionText += response;
       }
     );
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('error', (err, type) => log(`${type}: ${err}`));
 
 // To change timeout handling for every host, leave onCommandTimeout out of the

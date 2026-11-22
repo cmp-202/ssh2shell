@@ -162,10 +162,12 @@ SSH.connect((sessionText) => {
 });
 ```
 
-Set `debug: true` and `verbose: true` on the host for connection-level detail.
-The common error types are `Connection`, `Hop`, `Command Timeout`, `Stream`,
-and `Connection close`; see [Error handling](./ERROR-HANDLING.md) for the full
-contract.
+Set `debug: true` and `verbose: true` on the host for connection-level detail,
+or set `SSH.debug` / `SSH.verbose` once before `connect()` to apply the value to
+every host in a multi-host run. An explicit instance boolean overrides the host
+values in both directions. The common error types are `Connection`, `Hop`,
+`Command Timeout`, `Stream`, and `Connection close`; see
+[Error handling](./ERROR-HANDLING.md) for the full contract.
 
 When you open an issue, include the `ssh2shell` and Node.js versions, the error
 type, and a minimal host object and command list. Remove keys, passwords, and

@@ -59,6 +59,14 @@ function loadSSH2Shell() {
   return require(modulePath);
 }
 
+// The public helper is `systemMsg`; the frozen baseline only has `_systemMsg`.
+// Tests that emit debug/verbose messages must work against both targets.
+function systemMsg(ssh, type, message, object = null) {
+  return isBaseline()
+    ? ssh._systemMsg(type, message, object)
+    : ssh.systemMsg(type, message, object);
+}
+
 function createHost(overrides = {}) {
   const server = Object.assign(
     {
@@ -196,6 +204,7 @@ module.exports = {
   loadSSH2Shell,
   once,
   processSudo,
+  systemMsg,
   waitFor,
   waitForStream,
 };

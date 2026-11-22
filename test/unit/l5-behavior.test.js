@@ -9,6 +9,7 @@ const {
   loadSSH2Shell,
   createHost,
   injectSsh2Client,
+  systemMsg,
 } = require('./helpers/harness');
 const { FakeClient, FakeStream } = require('./helpers/fake-ssh2');
 
@@ -99,7 +100,7 @@ describe('L5 listener lifecycle', () => {
     ssh._removeListeners();
     assert.equal(msgListenerCount(ssh), 1);
 
-    ssh._systemMsg('debug', 'after remove');
+    systemMsg(ssh,'debug', 'after remove');
     assert.ok(
       messages.some(
         (message) =>
@@ -139,7 +140,7 @@ describe('L5 listener lifecycle', () => {
     ssh.sshObj = createHost({ msg: undefined });
     ssh._loadDefaults();
     ssh.debug = true;
-    ssh._systemMsg('debug', 'next host');
+    systemMsg(ssh,'debug', 'next host');
 
     assert.ok(
       messages.some(
@@ -335,19 +336,104 @@ describe('L5 debug and verbose gating', () => {
 
     ssh.debug = false;
     ssh.verbose = false;
-    ssh._systemMsg('debug', 'hidden debug');
-    ssh._systemMsg('verbose', 'hidden verbose');
+    systemMsg(ssh,'debug', 'hidden debug');
+    systemMsg(ssh,'verbose', 'hidden verbose');
     assert.deepEqual(messages, []);
 
     ssh.debug = true;
-    ssh._systemMsg('debug', 'shown debug');
+    systemMsg(ssh,'debug', 'shown debug');
     assert.ok(messages.some((message) => message.includes('shown debug')));
 
     messages.length = 0;
     ssh.debug = false;
     ssh.verbose = true;
-    ssh._systemMsg('verbose', 'shown verbose');
+    systemMsg(ssh,'verbose', 'shown verbose');
     assert.ok(messages.some((message) => message.includes('shown verbose')));
+  });
+
+  it('uses host flags when the instance has no override', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const { ssh } = make({
+      debug: true,
+      verbose: true,
+      msg: (message) => messages.push(String(message)),
+    });
+    messages.length = 0;
+
+    assert.equal(ssh.debug, true);
+    assert.equal(ssh.verbose, true);
+
+    systemMsg(ssh,'debug', 'host debug');
+    systemMsg(ssh,'verbose', 'host verbose');
+    assert.ok(messages.some((message) => message.includes('host debug')));
+    assert.ok(messages.some((message) => message.includes('host verbose')));
+  });
+
+  it('lets an instance true override host flags that are off', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const { ssh } = make({
+      debug: false,
+      verbose: false,
+      msg: (message) => messages.push(String(message)),
+    });
+    messages.length = 0;
+
+    ssh.debug = true;
+    ssh.verbose = true;
+    // The override must survive a host reload, not just affect the getter.
+    ssh._loadDefaults();
+    messages.length = 0;
+
+    assert.equal(ssh.debug, true);
+    assert.equal(ssh.verbose, true);
+
+    systemMsg(ssh,'debug', 'forced debug');
+    systemMsg(ssh,'verbose', 'forced verbose');
+    assert.ok(messages.some((message) => message.includes('forced debug')));
+    assert.ok(messages.some((message) => message.includes('forced verbose')));
+  });
+
+  it('lets an instance false override host flags that are on', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const { ssh } = make({
+      debug: true,
+      verbose: true,
+      msg: (message) => messages.push(String(message)),
+    });
+    messages.length = 0;
+
+    ssh.debug = false;
+    ssh.verbose = false;
+    ssh._loadDefaults();
+    messages.length = 0;
+
+    assert.equal(ssh.debug, false);
+    assert.equal(ssh.verbose, false);
+
+    systemMsg(ssh,'debug', 'suppressed debug');
+    systemMsg(ssh,'verbose', 'suppressed verbose');
+    assert.deepEqual(messages, []);
+  });
+
+  it('applies an instance change immediately without a host reload', () => {
+    if (isBaseline()) return;
+
+    const messages = [];
+    const { ssh } = make({
+      debug: false,
+      msg: (message) => messages.push(String(message)),
+    });
+    messages.length = 0;
+
+    ssh.debug = true;
+    systemMsg(ssh,'debug', 'immediate debug');
+    assert.ok(messages.some((message) => message.includes('immediate debug')));
   });
 });
 
@@ -365,7 +451,7 @@ describe('host prefix in messages', () => {
     });
 
     messages.length = 0;
-    ssh._systemMsg('debug', 'single host');
+    systemMsg(ssh,'debug', 'single host');
     assert.deepEqual(messages, ['single host']);
   });
 
@@ -384,7 +470,7 @@ describe('host prefix in messages', () => {
     ssh._loadDefaults();
 
     messages.length = 0;
-    ssh._systemMsg('debug', 'multiple hosts');
+    systemMsg(ssh,'debug', 'multiple hosts');
     assert.deepEqual(messages, ['first.test: multiple hosts']);
   });
 
@@ -401,7 +487,7 @@ describe('host prefix in messages', () => {
     });
 
     messages.length = 0;
-    ssh._systemMsg('debug', 'nested hosts');
+    systemMsg(ssh,'debug', 'nested hosts');
     assert.deepEqual(messages, ['primary.test: nested hosts']);
   });
 

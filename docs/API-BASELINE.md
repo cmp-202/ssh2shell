@@ -198,9 +198,9 @@ wrong, not because the code changed:
 These changes intentionally differ from the L0 baseline. Each is covered by a
 test that runs against both the current build and the frozen baseline artifact.
 
-- **Debug/verbose gating.** `_systemMsg` emits debug and verbose messages only
-  when the host's `debug` / `verbose` flags are enabled. Normal `msg` output is
-  unchanged.
+- **Debug/verbose gating.** `systemMsg` (called `_systemMsg` in the frozen
+  baseline) emits debug and verbose messages only when the effective `debug` /
+  `verbose` flags are enabled. Normal `msg` output is unchanged.
 - **Listener lifecycle.** Default listeners are installed once; host listeners
   replace defaults; leaving a host detaches both the cached handler and the
   current host handler. Reloading defaults does not attach duplicates.
@@ -241,7 +241,7 @@ are covered by level-aware tests that also run against the frozen baseline.
 
 ## Post-L6.1 behavior changes (signed off)
 
-- **Credential redaction in debug/verbose output.** `_systemMsg` now scrubs the
+- **Credential redaction in debug/verbose output.** `systemMsg` now scrubs the
   configured password and passphrase from every debug/verbose string and masks
   `password` / `passphrase` keys in object dumps (including nested `hosts`
   config). The sudo and nested-SSH credential messages, the verbose
@@ -249,7 +249,7 @@ are covered by level-aware tests that also run against the frozen baseline.
   the plaintext value. The frozen baseline logs the raw credentials.
 - **`exposeCredentials` (default `false`).** A per-host opt-in that restores the
   raw credential output for fault-finding. It is applied in `_loadDefaults` and
-  read by `_systemMsg`; it does not change the connection itself. Test:
+  read by `systemMsg`; it does not change the connection itself. Test:
   `test/unit/credentials.test.js`.
 - **Instance timer base values.** `SSH.idleTime` / `SSH.dataIdleTime` set before
   `connect()` are preserved instead of being replaced by the hard-coded 5000 /
@@ -257,7 +257,7 @@ are covered by level-aware tests that also run against the frozen baseline.
   and leaving a host restores the base. `idleTime` is accepted as a legacy host
   alias for `idleTimeOut`. Test: `test/unit/timers.test.js`.
 - **Message listener continuity.** `_removeListeners` keeps the default `msg`
-  listener attached while a host is being swapped, so `_systemMsg` debug/verbose
+  listener attached while a host is being swapped, so `systemMsg` debug/verbose
   output is not dropped between hosts. `_loadDefaults` swaps in a host `msg`
   handler when one exists and falls back to the default handler otherwise.
   Tests: `test/unit/l5-behavior.test.js` — message-sink and duplicate-listener

@@ -23,14 +23,14 @@ const host = {
     password: kbdPassword,
     tryKeyboard: true,
   },
-  commands: ['whoami'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['whoami']
 };
 
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.on('keyboard-interactive', function (name, instructions, instructionsLang, prompts, finish) {
   // This example assumes only the password is requested.

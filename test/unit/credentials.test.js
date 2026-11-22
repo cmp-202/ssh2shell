@@ -9,6 +9,7 @@ const {
   loadSSH2Shell,
   createHost,
   processSudo,
+  systemMsg,
 } = require('./helpers/harness');
 const { FakeStream } = require('./helpers/fake-ssh2');
 
@@ -103,7 +104,7 @@ describe('credential logging', () => {
     });
     messages.length = 0;
 
-    ssh._systemMsg('verbose', `key: ${privateKey}`);
+    systemMsg(ssh, 'verbose', `key: ${privateKey}`);
 
     const text = textOf(messages);
     assert.ok(text.includes('[REDACTED]'));

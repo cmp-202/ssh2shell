@@ -57,6 +57,8 @@ const defaultTests = [
   'sudo_no_pass',
   'prompt_response',
   'command_timeout',
+  'default_command_timeout',
+  'progress_tty',
   'multiple_primary_hosts',
   'stop_on_failure',
   'close_from_handler',
@@ -121,6 +123,11 @@ const checks = {
   },
   command_timeout: {
     contains: ['answer=y'],
+    allowErrors: ['Command Timeout'],
+  },
+  default_command_timeout: {
+    contains: ['Default timeout prompt'],
+    logContains: ['Command Timeout:'],
     allowErrors: ['Command Timeout'],
   },
   multiple_primary_hosts: {
@@ -207,6 +214,15 @@ const checks = {
   },
   progress: {
     contains: ['progress-demo-', server1, server2].filter(Boolean),
+  },
+  progress_tty: {
+    contains: ['progress-tty-first', 'progress-tty-second'],
+    logContains: [
+      'progress-tty-output:',
+      'progress-tty-ticks:ok',
+      'progress-tty-labels:ok',
+    ],
+    logExcludes: ['progress-tty-ticks:missing', 'progress-tty-labels:missing'],
   },
   chaining: {
     contains: [server1, server2, server3].filter(Boolean),

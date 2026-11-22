@@ -20,9 +20,7 @@ const host1 = {
     if (command.includes('stop-host-one')) {
       SSH.stop('command-failed');
     }
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 const host2 = {
@@ -33,15 +31,15 @@ const host2 = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['echo stop-host-two-marker'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['echo stop-host-two-marker']
 };
 
 const SSH = new SSH2Shell([host1, host2]);
 
 const ends = [];
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('end', () => {
   ends.push(Date.now());
 });

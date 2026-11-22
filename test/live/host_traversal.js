@@ -32,13 +32,10 @@ function nestedServer(host, port, userName) {
   };
 }
 
-function host(label, server, hosts) {
+function host(label, server) {
   return {
     server,
-    commands: [`echo traversal:${label}`],
-    hosts: hosts || [],
-    debug: process.env.DEBUG === 'true',
-    verbose: process.env.VERBOSE === 'true',
+    commands: [`echo traversal:${label}`]
   };
 }
 
@@ -184,10 +181,15 @@ const expectedOrder = [
 const SSH = new SSH2Shell([primary1, primary2, primary3]);
 
 const ends = [];
+
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
+
 SSH.on('error', (err, type) => {
   log(`error-event:${type || ''}:${err && err.message ? err.message : err}`);
 });
+
 SSH.on('end', (sessionText, host) => {
   ends.push(host && host.server ? host.server.host : 'unknown');
   log(`end-event:${host && host.server ? host.server.host : 'unknown'}`);
