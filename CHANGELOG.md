@@ -8,6 +8,18 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-23
+
+### Added
+
+- `debug` and `verbose` can be set once on the `SSH2Shell` instance to override
+  host values for the whole run, including `false` suppressing a host that
+  enables the flag. Reading the instance property reports the effective value.
+- `systemMsg(type, message, object)` is now a public helper for emitting debug
+  and verbose messages from handlers. It gates on the effective flag and applies
+  the standard host prefix and credential redaction. The internal `_systemMsg`
+  name is replaced; the frozen baseline keeps it for comparison tests.
+
 ### Development
 
 - Added live coverage for keyboard-interactive authentication on a nested hop
@@ -19,6 +31,11 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - Live workflow runs with the same ref now queue instead of cancelling each
   other, so a parallel publish or push cannot remove a PR's required
   `Live suite` check.
+- Added a second round of unit tests for transport and state guards, host
+  traversal, shutdown flows, and behaviour hardening, plus two live tests for
+  the default command timeout and the TTY progress indicator. `test/coverage.md`
+  records the local coverage review and full miss-overlap analysis (98.12%
+  combined line coverage).
 
 ## [4.0.4] - 2026-11-18
 
@@ -153,7 +170,8 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...v4.1.0
 [4.0.4]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...v4.0.4
 [4.0.3]: https://github.com/cmp-202/ssh2shell/compare/v4.0.2...v4.0.3
 [4.0.2]: https://github.com/cmp-202/ssh2shell/compare/v4.0.1...v4.0.2

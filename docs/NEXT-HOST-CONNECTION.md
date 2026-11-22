@@ -198,7 +198,7 @@ _nextHost() {
   const parent = this._activeContext();
   this._removeListeners(parent);
   const nextHost = parent.pendingHosts.shift();
-  this._systemMsg('debug', `nextHost: hop to ${nextHost.server.host}`);
+  this.systemMsg('debug', `nextHost: hop to ${nextHost.server.host}`);
 
   this.sshObj = nextHost;
   this.host = nextHost.server.host;
@@ -418,7 +418,7 @@ record shape changes from a host config to `record.host`:
 
 ### Deviation register
 
-Logging is not a deviation. `_systemMsg`, `debug`, `verbose`, `msg` prefixes,
+Logging is not a deviation. `systemMsg`, `debug`, `verbose`, `msg` prefixes,
 progress, sudo prompts, command-response handling, `captureStderr`, and the
 default error listener all read the active aliases and keep their current
 behaviour. Only the following need code changes.
@@ -1479,7 +1479,7 @@ child is active. No handler needs to know whether the host is primary or nested.
 | `onStderrData` | Fires for the active child stream. `captureStderr` still merges into the child response. |
 | `onEnd` | Fires once per visited host, child before parent. |
 | `onError` | Host handler runs for the event's record; the default listener keeps its existing close semantics for the active record. |
-| `onMsg` | Same `_systemMsg` path and `[host]` prefix rules. |
+| `onMsg` | Same `systemMsg` path and `[host]` prefix rules. |
 | `onKeyboardInteractive` | Bound per connection; the instance event fires with that connection's `finish`. |
 | `reconnect` | Follow-up only. Fires with the record's `sshObj` and `{ phase, attempt, maxRetries, delay, expected, reason }`; a reboot reports `expected: true`, a real failure is an `error` with `level: 'Reconnect'`. |
 | `progress` | One heartbeat for the active command; `_progressEnd()` runs before a host switch. |

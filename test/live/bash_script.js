@@ -13,9 +13,7 @@ const host = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: [],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: []
 };
 
 host.commands = [
@@ -34,6 +32,8 @@ host.commands = [
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;

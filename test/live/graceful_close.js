@@ -19,9 +19,7 @@ const jump = {
     privateKey,
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands: ['echo jump-graceful-before'],
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands: ['echo jump-graceful-before']
 };
 
 const nested = {
@@ -40,9 +38,7 @@ const nested = {
     if (command.includes('nested-graceful-before')) {
       SSH.close({ graceful: true });
     }
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 jump.hosts = [nested];
@@ -52,6 +48,8 @@ const SSH = new SSH2Shell(jump);
 
 const ends = [];
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('end', () => {
   ends.push(Date.now());
 });

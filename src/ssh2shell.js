@@ -143,6 +143,13 @@ class SSH2Shell extends Stream {
     // class-body values used to be shared through the prototype until the first
     // host load, which aliased `_stream` between instances.
     this._callback = null;
+    // `debug`/`verbose` are public instance-level overrides. An explicit
+    // boolean wins over every host's setting; `undefined` means "use the host".
+    // `_debug`/`_verbose` are the effective values for the active host.
+    this._debugOverride = undefined;
+    this._verboseOverride = undefined;
+    this._debug = false;
+    this._verbose = false;
     this.command = '';
     this._primaryhostSessionText = '';
     this._stream = {};
@@ -157,7 +164,28 @@ class SSH2Shell extends Stream {
     this.standardPrompt = '';
     this._loadDefaultListeners();
   }
-  
+
+  // Public override fields. Reading returns the effective value for the active
+  // host; assigning a boolean sets a run-wide override that applies to every
+  // host, including when the value is false.
+  get debug() {
+    return this._debug;
+  }
+
+  set debug(value) {
+    this._debugOverride = typeof value === 'boolean' ? value : undefined;
+    this._debug = value === true;
+  }
+
+  get verbose() {
+    return this._verbose;
+  }
+
+  set verbose(value) {
+    this._verboseOverride = typeof value === 'boolean' ? value : undefined;
+    this._verbose = value === true;
+  }
+
   _loadDefaultListeners() {
     if (!this.msg) {
       this.msg = (message) => {
@@ -205,7 +233,7 @@ class SSH2Shell extends Stream {
     if (!this._defaultErrorListener) {
       this._defaultErrorListener = (err, type, close = false, callback, context) => {
         this._progressEnd();
-        this._systemMsg('debug', `Class.error: ${err}, ${type}`);
+        this.systemMsg('debug', `Class.error: ${err}, ${type}`);
 
         if (err instanceof Error) {
           this.emit('msg', `Error: ${err.message}, Level: ${err.level}`);
@@ -408,10 +436,10 @@ class SSH2Shell extends Stream {
       this.textColorFilter = context.textColorFilter;
     }
     if (typeof context.debug === 'boolean') {
-      this.debug = context.debug;
+      this._debug = context.debug;
     }
     if (typeof context.verbose === 'boolean') {
-      this.verbose = context.verbose;
+      this._verbose = context.verbose;
     }
     if (typeof context.progress === 'boolean') {
       this.progress = context.progress;
@@ -667,8 +695,8 @@ class SSH2Shell extends Stream {
   _progressEnabled() {
     return (
       this.progress === true &&
-      this.debug !== true &&
-      this.verbose !== true &&
+      this._debug !== true &&
+      this._verbose !== true &&
       this._progressStream &&
       this._progressStream.isTTY === true
     );
@@ -751,12 +779,12 @@ class SSH2Shell extends Stream {
     this._progressNewline();
   }
 
-  // Emits debug/verbose messages only when the matching host flag is enabled.
+  // Emits debug/verbose messages only when the matching flag is enabled.
   // An optional object payload is emitted as a second message.
-  _systemMsg(type, message, object = null){
+  systemMsg(type, message, object = null){
     const enabled =
-      (type === 'debug' && this.debug) ||
-      (type === 'verbose' && this.verbose);
+      (type === 'debug' && this._debug) ||
+      (type === 'verbose' && this._verbose);
 
     if (!enabled) {
       return;
@@ -807,7 +835,7 @@ class SSH2Shell extends Stream {
       const maxRetries = toNonNegativeInteger(this.sshObj.commandTimeoutRetries);
       const final = attempt > maxRetries;
 
-      this._systemMsg(
+      this.systemMsg(
         'debug',
         `commandTimeout: no prompt detected (${attempt}/${maxRetries})`
       );
@@ -930,19 +958,19 @@ class SSH2Shell extends Stream {
       switch (true) {
         // Check if sudo password is needed.
         case this.command.length > 0 && this.command.indexOf('sudo ') !== -1:
-          this._systemMsg('debug', `onData: Sudo command data`);
+          this.systemMsg('debug', `onData: Sudo command data`);
           
           return this._processSudoPrompt();
         // Check for standard prompt from a command.
         case this.command.length > 0 &&
           this.standardPrompt.test(this._sanitizeResponse()):
-          this._systemMsg('debug', `onData: Normal prompt detected`);
+          this.systemMsg('debug', `onData: Normal prompt detected`);
           
           this.sshObj.pwSent = false;
           return this._commandComplete();
         // Check for no command but first prompt detected.
         case this.command.length < 1 && this.standardPrompt.test(this._buffer):
-          this._systemMsg('debug', `onData: First prompt detected`);
+          this.systemMsg('debug', `onData: First prompt detected`);
 
           // A prompt during a stop means the interrupted command (or the
           // sudo session) returned. Clearing the in-flight flag lets the stop
@@ -956,7 +984,7 @@ class SSH2Shell extends Stream {
           }
           return this._nextCommand();
         default:
-          this._systemMsg('debug', `onData: Reset timeout`);
+          this.systemMsg('debug', `onData: Reset timeout`);
           
           return this._scheduleIdleTimeout(this._buffer);
       }
@@ -1038,9 +1066,9 @@ class SSH2Shell extends Stream {
     const response = this._sanitizeResponse().trim();
     const passwordPrompt = this.passwordPrompt.test(response);
     const standardPrompt = this.standardPrompt.test(response);
-    this._systemMsg('debug', `processSudoPrompt: Password handling`);
+    this.systemMsg('debug', `processSudoPrompt: Password handling`);
     
-    this._systemMsg(
+    this.systemMsg(
         'verbose',
         `processSudoPrompt: Password prompt: ${passwordPrompt}, Standard prompt: ${standardPrompt}, Password previously sent: ${this.sshObj.pwSent}`
       );
@@ -1049,7 +1077,7 @@ class SSH2Shell extends Stream {
     switch (true) {
       // No password.
       case passwordPrompt && !this.sshObj.server.password:
-        this._systemMsg('debug', `processSudoPrompt: No password set`);
+        this.systemMsg('debug', `processSudoPrompt: No password set`);
         this.sshObj.sudoFailed = true;
         this.emit(
           'msg',
@@ -1058,23 +1086,23 @@ class SSH2Shell extends Stream {
         
         return this._resetFromSudoError();
       case passwordPrompt && !this.sshObj.pwSent:
-        this._systemMsg('debug', `processSudoPrompt: Send password`);
+        this.systemMsg('debug', `processSudoPrompt: Send password`);
                       
-        this._systemMsg('verbose',`processSudoPrompt: Password: ${this.sshObj.server.password}`);
+        this.systemMsg('verbose',`processSudoPrompt: Password: ${this.sshObj.server.password}`);
         
         // Send password.
         this.sshObj.pwSent = true;
         return this._runCommand(`${this.sshObj.server.password}`);
       case passwordPrompt && this.sshObj.pwSent:
-        this._systemMsg('debug', `processSudoPrompt: Failed login`);
+        this.systemMsg('debug', `processSudoPrompt: Failed login`);
         
         // A rejected sudo password is visible by default. It is not fatal
         // unless the host opts in with `abortOnSudoFailure: true`.
-        this._systemMsg(
+        this.systemMsg(
           'debug',
           `Password was incorrect for ${this.sshObj.server.userName}`
         );
-        this._systemMsg('verbose',`processSudoPrompt: Failed login: Response: ${response}`);
+        this.systemMsg('verbose',`processSudoPrompt: Failed login: Response: ${response}`);
         this.sshObj.sudoFailed = true;
         this.emit(
           'msg',
@@ -1085,14 +1113,14 @@ class SSH2Shell extends Stream {
         // Add buffer to sessionText so the sudo response can be seen.
         return this._resetFromSudoError();
       case standardPrompt:
-        this._systemMsg('debug', `processSudoPrompt: Password accepted`);
+        this.systemMsg('debug', `processSudoPrompt: Password accepted`);
         
         this.sshObj.pwSent = false;
-        this._systemMsg('verbose',`processSudoPrompt: Successful response: ${response}`);
+        this.systemMsg('verbose',`processSudoPrompt: Successful response: ${response}`);
         
         return this._commandComplete();
       default:
-        this._systemMsg('debug', `processSudoPrompt: Reset timeout`);
+        this.systemMsg('debug', `processSudoPrompt: Reset timeout`);
         
         return this._scheduleIdleTimeout(response);
     }
@@ -1126,21 +1154,21 @@ class SSH2Shell extends Stream {
     // An empty command has nothing to run or report, so skip it and continue
     // with the queue instead of leaving the state machine idle.
     if (!this.command) {
-      this._systemMsg('debug', `processNotifications: Empty command, skip`);
+      this.systemMsg('debug', `processNotifications: Empty command, skip`);
       return this._nextCommand();
     }
 
     // This is a message for the sessionText like an echo command in bash.
     const sessionNote = this.command.match(/^`(.*)`$/);
     if (sessionNote) {
-      this._systemMsg('debug', `processNotifications: sessionText output`);
+      this.systemMsg('debug', `processNotifications: sessionText output`);
 
       if (this._connections.length > 0) {
         this.sshObj.sessionText += `${this.host}: Note: ${sessionNote[1]}${this.sshObj.enter}`;
       } else {
         this.sshObj.sessionText += `Note: ${sessionNote[1]}${this.sshObj.enter}`;
       }
-      this._systemMsg('verbose', sessionNote[1]);
+      this.systemMsg('verbose', sessionNote[1]);
 
       return this._nextCommand();
     }
@@ -1148,13 +1176,13 @@ class SSH2Shell extends Stream {
     // This is a message to output in process.
     const msgNote = this.command.match(/^msg:(.*)$/);
     if (msgNote) {
-      this._systemMsg('debug', `processNotifications: msg to output`);
+      this.systemMsg('debug', `processNotifications: msg to output`);
 
       this.emit('msg', `${this._hostPrefix()}Note: ${msgNote[1]}`);
       return this._nextCommand();
     }
 
-    this._systemMsg('debug', `processNotifications: Normal Command to run`);
+    this.systemMsg('debug', `processNotifications: Normal Command to run`);
 
     return this._checkCommand();
   }
@@ -1173,9 +1201,9 @@ class SSH2Shell extends Stream {
     // `exit` is reported by the shell, not as a command response. It is the
     // literal command that leaves `su` / `sudo -i` or the primary shell.
     if (this.command !== '' && this.command !== 'exit') {
-      this._systemMsg('debug',`commandComplete: Raising commandComplete event`);
+      this.systemMsg('debug',`commandComplete: Raising commandComplete event`);
 
-      this._systemMsg(
+      this.systemMsg(
         'verbose',
         `commandComplete:\nCommand:\n ${this.command}\nResponse: ${response}`
       );
@@ -1268,15 +1296,15 @@ class SSH2Shell extends Stream {
 
     // Process the next command if there are any.
     if (this.sshObj.commands.length > 0) {
-      this._systemMsg('debug',`nextCommand: Setting next command`);      
+      this.systemMsg('debug',`nextCommand: Setting next command`);
       
-      this._systemMsg(
+      this.systemMsg(
         'verbose',
         `nextCommand: Host commands: ${this.sshObj.commands}`
       );
       
       this.command = this.sshObj.commands.shift();
-      this._systemMsg(
+      this.systemMsg(
         'verbose',
           `nextCommand: Next command: ${this.command}`
         );
@@ -1284,7 +1312,7 @@ class SSH2Shell extends Stream {
       return this._processNotifications();
     }
 
-    this._systemMsg('debug',`nextCommand: No commands so exit`);
+    this.systemMsg('debug',`nextCommand: No commands so exit`);
     
     // No more commands so exit.
     return this._runExit();
@@ -1306,7 +1334,7 @@ class SSH2Shell extends Stream {
     }
 
     // No more commands so exit.
-    this._systemMsg('debug',`checkCommand: No command so exit`);
+    this.systemMsg('debug',`checkCommand: No command so exit`);
     
     return this._runExit();
   }
@@ -1329,9 +1357,9 @@ class SSH2Shell extends Stream {
       this._stderrBuffer = '';
     }
 
-    this._systemMsg('debug',`runCommand:`);
+    this.systemMsg('debug',`runCommand:`);
     
-    this._systemMsg('verbose',`runCommand: Command: ${command}`);
+    this.systemMsg('verbose',`runCommand: Command: ${command}`);
     
     this._commandInFlight = Boolean(command);
     const written = this._stream.write(`${command}${this.sshObj.enter}`);
@@ -1421,7 +1449,7 @@ class SSH2Shell extends Stream {
 
     if (!isPrimary) {
       this._mergeNestedText(host);
-      this._systemMsg(
+      this.systemMsg(
         'debug',
         `finalizeHost: end nested host ${this._hostLabel(host)}${reason ? ` (${reason})` : ''}`
       );
@@ -1431,7 +1459,7 @@ class SSH2Shell extends Stream {
 
     this._primaryhostSessionText += `${host.sessionText || ''}\n`;
     this._allSessions += this._primaryhostSessionText;
-    this._systemMsg(
+    this.systemMsg(
       'debug',
       `finalizeHost: end primary host ${this._hostLabel(host)}${reason ? ` (${reason})` : ''}`
     );
@@ -1472,7 +1500,7 @@ class SSH2Shell extends Stream {
     }
 
     const child = this._activeContext();
-    this._systemMsg(
+    this.systemMsg(
       'debug',
       `previousHost: close child connection: ${this.host}`
     );
@@ -1481,7 +1509,7 @@ class SSH2Shell extends Stream {
       // Closing the child removes its handlers and finalizes it exactly once.
       this._closeContext(child, 'previous-host');
       this._popContext();
-      this._systemMsg('debug', `previousHost: previous host loaded: ${this.host}`);
+      this.systemMsg('debug', `previousHost: previous host loaded: ${this.host}`);
     } else if (this._connections.length > 0) {
       // Fallback for callers that built the stack manually. The record form is
       // the supported one.
@@ -1495,7 +1523,7 @@ class SSH2Shell extends Stream {
         this.sshObj = parentHost;
         this.host = this._hostLabel(parentHost);
       }
-      this._systemMsg('debug', `previousHost: previous host loaded: ${this.host}`);
+      this.systemMsg('debug', `previousHost: previous host loaded: ${this.host}`);
     }
 
     return this._runExit();
@@ -1523,7 +1551,7 @@ class SSH2Shell extends Stream {
       return this._runExit();
     }
 
-    this._systemMsg(
+    this.systemMsg(
       'debug',
       `nextHost: hop to ${this._hostLabel(nextHost)} through ${this.host}`
     );
@@ -1542,7 +1570,7 @@ class SSH2Shell extends Stream {
       return this._callFinalCallback();
     }
 
-    this._systemMsg('debug', `nextPrimaryHost: load next host for ssh2 connection`);
+    this.systemMsg('debug', `nextPrimaryHost: load next host for ssh2 connection`);
 
     // Close the current primary and every active hop before resetting the
     // stack, so a new primary never inherits a hop's socket.
@@ -1576,7 +1604,7 @@ class SSH2Shell extends Stream {
     }
 
     this._progressEnd();
-    this._systemMsg('debug',`runExit: Process an exit`);
+    this.systemMsg('debug',`runExit: Process an exit`);
 
     if (this._stopping) {
       return this._beginStopExit();
@@ -1590,14 +1618,14 @@ class SSH2Shell extends Stream {
 
     if (!this._gracefulClosing && pending.length > 0) {
       // More nested hosts to connect to so process the next one.
-      this._systemMsg('debug',`runExit: Load next host`);
+      this.systemMsg('debug',`runExit: Load next host`);
 
       return this._nextHost();
     }
 
     if (this._connections && this._connections.length > 0) {
       // Leaving last host so load previous host.
-      this._systemMsg('debug',`runExit: load previous host`);
+      this.systemMsg('debug',`runExit: load previous host`);
 
       this.emit('msg', `${this._hostPrefix()}${this.sshObj.closedMessage}`);
       return this._previousHost();
@@ -1606,7 +1634,7 @@ class SSH2Shell extends Stream {
     if (!this._gracefulClosing && this.command === 'exit') {
       // The literal `exit` leaves `su` / `sudo -i` or the primary shell. A hop
       // is left by closing its connection, not by an exit command.
-      this._systemMsg('debug',`runExit: run exit command`);
+      this.systemMsg('debug',`runExit: run exit command`);
 
       return this._runCommand('exit');
     }
@@ -1668,7 +1696,7 @@ class SSH2Shell extends Stream {
     }
     this._hosts.length = 0;
 
-    this._systemMsg('debug', `stop: requested (${reason})`);
+    this.systemMsg('debug', `stop: requested (${reason})`);
     this.emit('msg', `${this._hostPrefix()}Stop requested: ${reason}`);
 
     if (this._commandInFlight) {
@@ -1730,7 +1758,7 @@ class SSH2Shell extends Stream {
 
   _forceStop() {
     this._clearStopTimer();
-    this._systemMsg('debug', `stop: idle timeout while stopping`);
+    this.systemMsg('debug', `stop: idle timeout while stopping`);
     return this._finishStop();
   }
 
@@ -1804,7 +1832,7 @@ class SSH2Shell extends Stream {
 
   _forceClose() {
     this._clearCloseTimer();
-    this._systemMsg('debug', `close: idle timeout while closing`);
+    this.systemMsg('debug', `close: idle timeout while closing`);
     return this._closeStreamNow();
   }
 
@@ -1814,7 +1842,7 @@ class SSH2Shell extends Stream {
     this._gracefulClosing = false;
     this._closing = true;
     this._progressEnd();
-    this._systemMsg('debug',`Stream: close`);
+    this.systemMsg('debug',`Stream: close`);
 
     // Close the active record and every ancestor. `_closeContext` finalizes
     // each host once and closes its stream/connection.
@@ -1852,7 +1880,7 @@ class SSH2Shell extends Stream {
     if (graceful && !this._stopping && this._hasLiveStream()) {
       this._gracefulClosing = true;
       this._progressEnd();
-      this._systemMsg('debug',`Stream: graceful close`);
+      this.systemMsg('debug',`Stream: graceful close`);
       this._prepareGracefulClose();
 
       if (this._commandInFlight) {
@@ -1919,7 +1947,7 @@ class SSH2Shell extends Stream {
       return;
     }
 
-    this._systemMsg(
+    this.systemMsg(
       'debug',
       `removeListeners: removing event listeners linked to ${context.host ? this._hostLabel(context.host) : 'host'}`
     );
@@ -2000,14 +2028,14 @@ class SSH2Shell extends Stream {
   _defaultOnCommandProcessing() {}
 
   _defaultOnCommandComplete() {
-    this._systemMsg('debug', `onCommandComplete:`);
+    this.systemMsg('debug', `onCommandComplete:`);
   }
 
   _defaultOnCommandTimeout(command, response, stream, connection, details) {
     // With `commandTimeoutRetries` configured, only the final attempt closes
     // the run. The library re-arms the timer for earlier attempts.
     if (details && details.final === false) {
-      this._systemMsg(
+      this.systemMsg(
         'debug',
         `loadDefaults: Class.commandTimeout retry ${details.attempt}/${details.maxRetries}`
       );
@@ -2015,9 +2043,9 @@ class SSH2Shell extends Stream {
     }
 
     response = response.replace(this.command, '');
-    this._systemMsg('debug', `loadDefaults: Class.commandTimeout`);
+    this.systemMsg('debug', `loadDefaults: Class.commandTimeout`);
 
-    this._systemMsg(
+    this.systemMsg(
       'verbose',
       `loadDefaults: Timeout command: ${command} response: ${response}`
     );
@@ -2054,8 +2082,14 @@ class SSH2Shell extends Stream {
     this.command = '';
     this._buffer = '';
     this._stderrBuffer = '';
-    this.debug = host.debug ?? false;
-    this.verbose = host.verbose ?? false;
+    this._debug =
+      typeof this._debugOverride === 'boolean'
+        ? this._debugOverride
+        : (host.debug ?? false);
+    this._verbose =
+      typeof this._verboseOverride === 'boolean'
+        ? this._verboseOverride
+        : (host.verbose ?? false);
     this.progress = host.progress !== false;
     this.exposeCredentials = host.exposeCredentials ?? false;
 
@@ -2081,7 +2115,7 @@ class SSH2Shell extends Stream {
     } else if (!this.listeners('msg').includes(this.msg)) {
       this.on('msg', this.msg);
     }
-    this._systemMsg('debug',`Load Defaults`);
+    this.systemMsg('debug',`Load Defaults`);
 
     applyHostDefaults(host);
 
@@ -2099,8 +2133,8 @@ class SSH2Shell extends Stream {
     // every load so a later host with different filters/prompts is honoured.
     const ascii = compileAsciiFilter(host.asciiFilter);
     this.asciiFilter = ascii.filter;
-    if (ascii.usedFallback && this.debug) {
-      this._systemMsg(
+    if (ascii.usedFallback && this._debug) {
+      this.systemMsg(
         'debug',
         `loadDefaults: AsciiFilter: incorrect regular expression reverting to default: ${host.asciiFilter}`
       );
@@ -2109,8 +2143,8 @@ class SSH2Shell extends Stream {
     // Compile Text Color Filter with Safe Fallback.
     const color = compileTextColorFilter(host.textColorFilter);
     this.textColorFilter = color.filter;
-    if (color.usedFallback && this.debug) {
-      this._systemMsg(
+    if (color.usedFallback && this._debug) {
+      this.systemMsg(
         'debug',
         `loadDefaults: TextColorFilter: incorrect regular expression reverting to default: ${host.textColorFilter}`
       );
@@ -2122,7 +2156,7 @@ class SSH2Shell extends Stream {
     this.passwordPrompt = prompts.passwordPrompt;
     this.standardPrompt = prompts.standardPrompt;
     if (prompts.standardPromptFallback) {
-      this._systemMsg(
+      this.systemMsg(
         'debug',
         `loadDefaults: StandardPromptRegex: incorrect regular expression reverting to standardPrompt: ${host.standardPromptRegex}`
       );
@@ -2134,8 +2168,8 @@ class SSH2Shell extends Stream {
     record.passwordPrompt = this.passwordPrompt;
     record.asciiFilter = this.asciiFilter;
     record.textColorFilter = this.textColorFilter;
-    record.debug = this.debug;
-    record.verbose = this.verbose;
+    record.debug = this._debug;
+    record.verbose = this._verbose;
     record.progress = this.progress;
     record.exposeCredentials = this.exposeCredentials;
 
@@ -2195,16 +2229,16 @@ class SSH2Shell extends Stream {
         prompts,
         finish
       ) => {
-        this._systemMsg('debug', `keyboard-interactive:`);
+        this.systemMsg('debug', `keyboard-interactive:`);
 
-        this._systemMsg('verbose', `name: ${name}`);
-        this._systemMsg('verbose', `instructions: ${instructions}`);
+        this.systemMsg('verbose', `name: ${name}`);
+        this.systemMsg('verbose', `instructions: ${instructions}`);
 
         const responses = prompts.map((prompt) => {
-          this._systemMsg('verbose', `prompts: ${prompt.prompt}`);
+          this.systemMsg('verbose', `prompts: ${prompt.prompt}`);
           return ''; // Baseline fallback response
         });
-        this._systemMsg('verbose', `Prompts object: ${responses}`);
+        this.systemMsg('verbose', `Prompts object: ${responses}`);
         // The handshake stalls unless finish() receives an array of strings.
         finish(responses);
       };
@@ -2213,9 +2247,9 @@ class SSH2Shell extends Stream {
 
     this._loadDefaultListeners();
 
-    this._systemMsg('debug',`loadDefaults: Host loaded`);
+    this.systemMsg('debug',`loadDefaults: Host loaded`);
 
-    this._systemMsg('verbose', 'loadDefaults: Config:', host);
+    this.systemMsg('verbose', 'loadDefaults: Config:', host);
   }
 
   connect(callback) {
@@ -2273,7 +2307,7 @@ class SSH2Shell extends Stream {
     }
 
     if (context.isPrimary) {
-      this._systemMsg('debug', `Connect: primary`);
+      this.systemMsg('debug', `Connect: primary`);
       return this._openClient(context, server);
     }
 
@@ -2282,7 +2316,7 @@ class SSH2Shell extends Stream {
       this._hopFailed(context, new Error('No parent connection for host hop'));
       return this._stream;
     }
-    this._systemMsg('debug', `Connect: forwardOut`);
+    this.systemMsg('debug', `Connect: forwardOut`);
     parentConnection.forwardOut(
       '127.0.0.1',
       0,
@@ -2384,7 +2418,7 @@ class SSH2Shell extends Stream {
         if (context.closed || context !== this._activeContext()) {
           return;
         }
-        this._systemMsg('debug', `Connection.keyboard-interactive`);
+        this.systemMsg('debug', `Connection.keyboard-interactive`);
 
         this.emit(
           'keyboard-interactive',
@@ -2401,7 +2435,7 @@ class SSH2Shell extends Stream {
       if (context.closed) {
         return;
       }
-      this._systemMsg('debug', `connect: Connection.connect`);
+      this.systemMsg('debug', `connect: Connection.connect`);
       this.emit('msg', context.host.connectedMessage);
     });
 
@@ -2409,7 +2443,7 @@ class SSH2Shell extends Stream {
       if (context.closed || context.failing) {
         return;
       }
-      this._systemMsg('debug', `connect: Connection.ready`);
+      this.systemMsg('debug', `connect: Connection.ready`);
       this.emit('msg', context.host.readyMessage);
       return this._openShell(context);
     });
@@ -2418,7 +2452,7 @@ class SSH2Shell extends Stream {
       if (context.closed || context.failing) {
         return;
       }
-      this._systemMsg('debug', `connect: Connection.error`);
+      this.systemMsg('debug', `connect: Connection.error`);
 
       if (context.isPrimary) {
         // Before the shell opens there is no live stream to close, so report
@@ -2441,7 +2475,7 @@ class SSH2Shell extends Stream {
 
     connection.on('close', (had_error) => {
       this._progressEnd();
-      this._systemMsg('debug', `connect: Connection.close`);
+      this.systemMsg('debug', `connect: Connection.close`);
 
       if (context.closed || context.failing) {
         return;
@@ -2509,7 +2543,7 @@ class SSH2Shell extends Stream {
       }
 
       if (err instanceof Error) {
-        this._systemMsg('debug', `connect: Connection.shell`);
+        this.systemMsg('debug', `connect: Connection.shell`);
 
         // ssh2 can hand back a stream alongside the error. Store it on the
         // record so teardown closes it instead of leaking the shell.
@@ -2538,7 +2572,7 @@ class SSH2Shell extends Stream {
       if (context === this._activeContext()) {
         this._stream = stream;
       }
-      this._systemMsg('debug', `connect: Connection.shell`);
+      this.systemMsg('debug', `connect: Connection.shell`);
 
       stream.setEncoding(host.streamEncoding);
 
@@ -2546,7 +2580,7 @@ class SSH2Shell extends Stream {
         if (context.closed || context.failing) {
           return;
         }
-        this._systemMsg('debug', `connect: Stream.error`);
+        this.systemMsg('debug', `connect: Stream.error`);
 
         if (context.isPrimary) {
           this.emit('error', err, 'Stream', true, null, context);
@@ -2559,7 +2593,7 @@ class SSH2Shell extends Stream {
         if (context.closed || context !== this._activeContext()) {
           return;
         }
-        this._systemMsg('debug', `connect: Stream.stderr.data`);
+        this.systemMsg('debug', `connect: Stream.stderr.data`);
 
         // Opt-in capture happens before the event so a handler can rely on
         // the buffer being current. The event still fires either way.
@@ -2596,7 +2630,7 @@ class SSH2Shell extends Stream {
           return;
         }
         this._progressEnd();
-        this._systemMsg('debug', `connect: Stream.finish`);
+        this.systemMsg('debug', `connect: Stream.finish`);
 
         // Finalize through the same path as close/connection close so the
         // text is appended and `end` fires exactly once per host.
@@ -2605,7 +2639,7 @@ class SSH2Shell extends Stream {
 
       stream.on('close', (code, signal) => {
         this._progressEnd();
-        this._systemMsg('debug', `connect: Stream.close`);
+        this.systemMsg('debug', `connect: Stream.close`);
 
         if (context.closed || context.failing) {
           return;

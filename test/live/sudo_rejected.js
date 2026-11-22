@@ -28,14 +28,14 @@ const host = {
     if (command.includes('sudo-rejected-continued')) {
       log(`sudo-failed:${sshObj.sudoFailed}`);
     }
-  },
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  }
 };
 
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;

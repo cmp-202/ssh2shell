@@ -142,6 +142,8 @@ const SSH = new SSH2Shell([fault1, badPrimary, fault2]);
 const errors = [];
 const ends = [];
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('error', (err, type) => {
   const message = err && err.message ? err.message : String(err);
   errors.push(`${type || ''}:${message}`);

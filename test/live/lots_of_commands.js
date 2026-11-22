@@ -23,14 +23,14 @@ const host = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
   },
-  commands,
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
+  commands
 };
 
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('commandComplete', (command, response, sshObj) => {
   log(`${sshObj.server.host} $ ${command}`);
   log(response.trim());

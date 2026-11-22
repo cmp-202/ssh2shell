@@ -31,21 +31,18 @@ const host = {
   standardPrompt: '$',
   idleTimeOut: 5000,
   FirstPass: false,
-  debug: (process.env.DEBUG === 'true'),
-  verbose: (process.env.VERBOSE === 'true'),
   onCommandTimeout: function (command, response, stream, connection) {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${this.sshObj.server.host}: host.onCommandTimeout`);
-    }
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: host.onCommandTimeout`
+    );
 
     // Answer the first prompt so the run reaches the final unhandled timeout.
     if (response.indexOf('(Y,n)') !== -1 && this.sshObj.FirstPass !== true) {
-      if (this.sshObj.debug) {
-        this.emit(
-          'msg',
-          `${this.sshObj.server.host}: First prompt using correct input: Sending 'y' to the \`(y,n):\` prompt`
-        );
-      }
+      this.systemMsg(
+        'debug',
+        `${this.sshObj.server.host}: First prompt using correct input: Sending 'y' to the \`(y,n):\` prompt`
+      );
       this.sshObj.sessionText += response + this.sshObj.enter;
       this._buffer = '';
       this.sshObj.FirstPass = true;
@@ -53,16 +50,14 @@ const host = {
       return;
     }
 
-    if (this.sshObj.debug) {
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: Final timeout: All attempts completed`
-      );
-      this.emit(
-        'msg',
-        `${this.sshObj.server.host}: Timeout details:${this.sshObj.enter}Command: ${command} ${this.sshObj.enter}Response: ${response}`
-      );
-    }
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: Final timeout: All attempts completed`
+    );
+    this.systemMsg(
+      'debug',
+      `${this.sshObj.server.host}: Timeout details:${this.sshObj.enter}Command: ${command} ${this.sshObj.enter}Response: ${response}`
+    );
 
     // No prompt matched, so record the response and close the connection.
     this.emit(
@@ -75,9 +70,7 @@ const host = {
     this.close();
   },
   onEnd: function (sessionText, sshObj) {
-    if (this.sshObj.debug) {
-      this.emit('msg', `${sshObj.server.host}: host.onEnd`);
-    }
+    this.systemMsg('debug', `${sshObj.server.host}: host.onEnd`);
     this.emit(
       'msg',
       `\nThis is the full session response:\n\n${this.sshObj.sessionText}\n`
@@ -88,6 +81,8 @@ const host = {
 const SSH = new SSH2Shell(host);
 
 SSH.on('msg', log);
+SSH.debug = (process.env.DEBUG === 'true');
+SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.connect((sessionText) => {
   const text = `-----Callback session text:\n${sessionText}\n-----Callback end`;
