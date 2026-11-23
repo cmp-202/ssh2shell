@@ -6,6 +6,11 @@ diagnostic here, not a release gate.
 
 ## Current coverage (Node v26.13.0, measured 2026-11-23)
 
+> **Snapshot note (2026-11-24):** these figures are the published `v4.1.0`
+> baseline. The later test-only `hop_host_key.js` addition brings the live suite
+> to 31 tests; coverage was not remeasured for that change, so the figures and
+> miss-overlap table below are intentionally unchanged.
+
 Measured with Node 26's built-in test coverage reporter against the current
 build. Unit tests run against `lib/`; live tests run against `src/`. The live
 run uses the default environment (`DEBUG` and `VERBOSE` unset), so

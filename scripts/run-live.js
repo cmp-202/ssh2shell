@@ -228,6 +228,18 @@ const checks = {
     contains: [server1, server2, server3].filter(Boolean),
     excludes: ['SSH failed'],
   },
+  // A rejected hop key must not run that host's command or skip its sibling.
+  hop_host_key: {
+    contains: ['pin:primary', 'pin:sibling'],
+    excludes: ['pin:hop-must-not-run'],
+    logContains: [
+      'pin-order:primary,sibling',
+      'pin-error-count:1',
+      'pin-rejections:1',
+      'Host denied (verification failed)',
+    ],
+    allowErrors: ['Hop'],
+  },
   notifications: {
     contains: ['Note: This line is added to sessionText only', '\n/tmp\n'],
     logContains: ['Note: Starting deployment'],
