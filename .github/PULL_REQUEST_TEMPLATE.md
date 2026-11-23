@@ -4,7 +4,7 @@
 
 ## Why
 
-<!-- The problem this solves or the behaviour it changes. -->
+<!-- The problem this solves or the behavior it changes. -->
 
 ## How it was tested
 

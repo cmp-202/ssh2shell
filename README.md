@@ -730,7 +730,7 @@ const host = {
       return;
     }
 
-    // Fall back to the default behaviour: record the response and close.
+    // Fall back to the default behavior: record the response and close.
     this.emit(
       'error',
       `${this.sshObj.server.host}: Command timed out after ${this.idleTime / 1000} seconds`,

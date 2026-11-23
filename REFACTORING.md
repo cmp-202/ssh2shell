@@ -411,9 +411,9 @@ Signed-off-by: user review of the backlog, before further error-handling work.
 ### L6.1 deliverables (approved optimisation and robustness follow-ups)
 
 Signed-off-by: user selection of the optimisation review's "safe set + approved
-behaviour fixes" option.
+behavior fixes" option.
 
-#### Behaviour-neutral cleanups
+#### behavior-neutral cleanups
 
 - `src/ssh2shell.js` — top-of-file and `_systemMsg` comments now describe the
   current build instead of the L1 baseline; removed the orphaned numbered
@@ -434,7 +434,7 @@ behaviour fixes" option.
   `lib/` matches `src/`; `npm test` runs it before the suites, so a stale build
   cannot silently pass.
 
-#### Behaviour fixes (signed off)
+#### behavior fixes (signed off)
 
 - `src/ssh2shell.js` — post-auth `_processSSHPrompt` output that matches no
   prompt now re-arms the idle timer instead of returning with no timer. A silent
@@ -539,7 +539,7 @@ were after L6.1.
   API, advanced usage, troubleshooting, security, and development.
 - Replaced the inline configuration block with per-section tables for `server`,
   commands, prompts/filters, timeouts, messages, and host handlers.
-- Corrected defaults and behaviour: `textColorFilter` is
+- Corrected defaults and behavior: `textColorFilter` is
   `\\x1b\\[[0-9;]*m`; `asciiFilter` is `[^\r\n\x20-\x7e]` and the compiled
   default preserves tabs; `window`/`pty` are `true` and explicit `false`
   survives; `idleTimeOut`/`dataIdleTimeOut` are distinguished.

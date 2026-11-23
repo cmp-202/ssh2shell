@@ -123,15 +123,34 @@ function redactCredentials(value, seen = new WeakSet()) {
     return value;
   }
 
-  // Preserve functions, Buffers, streams, and other class instances. Only
-  // plain objects and arrays are copied so config dumps stay readable.
+  // Preserve functions, Buffers, streams, and other class instances by
+  // identity. A class instance that carries credential-named properties is the
+  // exception: systemMsg is public, so dumping it verbatim would leak secrets.
+  // Its remaining values are redacted recursively, including nested configs.
   const prototype = Object.getPrototypeOf(value);
   if (
     !Array.isArray(value) &&
     prototype !== Object.prototype &&
     prototype !== null
   ) {
-    return value;
+    const keys = Object.keys(value);
+    if (!keys.some((key) => CREDENTIAL_KEY.test(key))) {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return '[Circular]';
+    }
+    seen.add(value);
+    const copy = {};
+    for (const key of keys) {
+      copy[key] =
+        CREDENTIAL_KEY.test(key) && value[key]
+          ? '[REDACTED]'
+          : redactCredentials(value[key], seen);
+    }
+    seen.delete(value);
+    return copy;
   }
 
   if (seen.has(value)) {

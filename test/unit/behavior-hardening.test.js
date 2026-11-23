@@ -187,4 +187,134 @@ describe('behaviour hardening', () => {
       global.clearTimeout = originalClearTimeout;
     }
   });
+
+  newOnly('redacts credential fields on class instances', () => {
+    class SecureConfig {
+      constructor() {
+        this.host = 'secure.test';
+        this.password = 'hunter2';
+        this.nested = { value: 1 };
+      }
+    }
+
+    const copy = redactCredentials(new SecureConfig());
+
+    assert.notEqual(copy.host, undefined);
+    assert.equal(copy.host, 'secure.test');
+    assert.equal(copy.password, '[REDACTED]');
+    assert.deepEqual(copy.nested, { value: 1 });
+  });
+
+  newOnly('reapplies the override when restoring an ancestor', () => {
+    const parentHost = createHost({
+      server: { host: 'parent.test' },
+      debug: true,
+    });
+    const { ssh } = make();
+    const parent = ssh._pushContext(parentHost, null);
+    parent.debug = true;
+    ssh._pushContext(createHost({ server: { host: 'child.test' } }), parent);
+
+    ssh.debug = false;
+    assert.equal(ssh.debug, false);
+    ssh._restoreContext(parent);
+    assert.equal(ssh.debug, false);
+
+    ssh.debug = undefined;
+    ssh._restoreContext(parent);
+    assert.equal(ssh.debug, true);
+  });
+
+  newOnly('restores the active host value when clearing an override', () => {
+    const { ssh } = make({ debug: true, verbose: true });
+
+    ssh.debug = false;
+    ssh.verbose = false;
+    assert.equal(ssh.debug, false);
+    assert.equal(ssh.verbose, false);
+
+    ssh.debug = undefined;
+    ssh.verbose = undefined;
+    assert.equal(ssh.debug, true);
+    assert.equal(ssh.verbose, true);
+  });
+
+  newOnly('clears the close timer when moving to the next primary', () => {
+    const { ssh, host } = make();
+    const originalSetTimeout = global.setTimeout;
+    global.setTimeout = () => ({ unref() {} });
+
+    try {
+      ssh._armCloseTimer();
+      assert.ok(ssh._closeTimer);
+
+      ssh._hosts = [host];
+      ssh._closeAllContexts = () => {};
+      ssh._progressEnd = () => {};
+      const connect = () => 'connected';
+
+      assert.equal(ssh._nextPrimaryHost(connect), 'connected');
+      assert.equal(ssh._closeTimer, null);
+    } finally {
+      global.setTimeout = originalSetTimeout;
+    }
+  });
+
+  newOnly('redacts nested credentials and cycles on class instances', () => {
+    class SecureConfig {
+      constructor() {
+        this.host = 'secure.test';
+        this.password = 'hunter2';
+        this.nested = { password: 'inner-secret' };
+      }
+    }
+
+    const config = new SecureConfig();
+    config.self = config;
+    config.stream = new EventEmitter();
+    config.data = Buffer.from('raw');
+
+    const copy = redactCredentials(config);
+
+    assert.equal(copy.password, '[REDACTED]');
+    assert.equal(copy.nested.password, '[REDACTED]');
+    assert.equal(copy.self, '[Circular]');
+    assert.equal(copy.stream, config.stream);
+    assert.equal(copy.data, config.data);
+  });
+
+  newOnly('uses host config when restoring after an override is cleared', () => {
+    const parentHost = createHost({
+      server: { host: 'parent.test' },
+      debug: true,
+    });
+    const childHost = createHost({
+      server: { host: 'child.test' },
+      debug: false,
+    });
+    const ssh = new SSH2Shell(parentHost);
+    ssh.sshObj = parentHost;
+    ssh.debug = false;
+    ssh._loadDefaults();
+    const parent = ssh._activeContext();
+
+    ssh._pushContext(childHost, parent);
+    ssh.debug = undefined;
+    assert.equal(ssh.debug, false);
+
+    ssh._restoreContext(parent);
+    assert.equal(ssh.debug, true);
+    assert.equal(ssh.verbose, false);
+  });
+
+  newOnly('keeps the configured flag type when an override is cleared', () => {
+    const { ssh } = make({ debug: 'yes', verbose: 'yes' });
+    assert.equal(ssh.debug, 'yes');
+    assert.equal(ssh.verbose, 'yes');
+
+    ssh.debug = undefined;
+    ssh.verbose = undefined;
+    assert.equal(ssh.debug, 'yes');
+    assert.equal(ssh.verbose, 'yes');
+  });
 });

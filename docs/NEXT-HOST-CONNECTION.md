@@ -72,7 +72,7 @@ minor.
 - **No command injection surface.** Nothing is interpolated into a remote shell.
 - **No dependency on the remote `ssh` binary or its configuration.** The hop
   works when the jump host has no `ssh` client, a restricted shell, or a
-  `~/.ssh/config` that changes behaviour.
+  `~/.ssh/config` that changes behavior.
 - **Real host-key verification.** The command path injects
   `StrictHostKeyChecking=no`. The hop can use the same `hostHash` /
   `hostVerifier` contract as the primary connection.
@@ -421,7 +421,7 @@ record shape changes from a host config to `record.host`:
 Logging is not a deviation. `systemMsg`, `debug`, `verbose`, `msg` prefixes,
 progress, sudo prompts, command-response handling, `captureStderr`, and the
 default error listener all read the active aliases and keep their current
-behaviour. Only the following need code changes.
+behavior. Only the following need code changes.
 
 | ID | Deviation | Impact | Resolution |
 | --- | --- | --- | --- |
@@ -659,7 +659,7 @@ handlers must be removed or they keep firing against the parent's events.
 
 ### `stop()`
 
-The queue clearing and Ctrl-C behaviour is unchanged. The difference is the
+The queue clearing and Ctrl-C behavior is unchanged. The difference is the
 final teardown:
 
 1. Clear every `commands` and `hosts` queue, plus `_hosts`.
@@ -747,7 +747,7 @@ but not `bad-deep-child`.
 
 **Decision: a failed primary does not end the run. Each remaining primary is
 attempted once, in order.** This is the current `connection.on('close')`
-behaviour; the change makes it explicit and covers the paths that bypass it.
+behavior; the change makes it explicit and covers the paths that bypass it.
 
 | Outcome | Action |
 | --- | --- |
@@ -827,7 +827,7 @@ The last two are a real improvement, not just tidying. Today a single nested
 command that never returns a prompt takes down the whole primary. With one
 stream per record, a hop failure costs only that hop and its descendants.
 
-The verified primary behaviour is worth recording because it is easy to assume
+The verified primary behavior is worth recording because it is easy to assume
 otherwise:
 
 ```text
@@ -1185,7 +1185,7 @@ Notes that matter for the transport change:
 
 #### The current nested topology is flat, not chained
 
-This is the most important behaviour the transport change fixes, and it is easy
+This is the most important behavior the transport change fixes, and it is easy
 to miss because the traversal order looks correct.
 
 `_processSSHPrompt()` pushes `exit` onto `sshObj.exitCommands` when the nested
@@ -1220,7 +1220,7 @@ This also explains the fault result: a failed `ssh` command returns the parent
 prompt, which `_processSSHPrompt()` accepts as success when `sshAuth` is already
 true, so the failed host's commands run on the parent shell instead of being
 reported as a connection failure. `test/live/host_faults.js` records that
-behaviour and is the acceptance test for the new per-hop transport.
+behavior and is the acceptance test for the new per-hop transport.
 
 The new model opens a child client through `forwardOut` from its immediate
 parent record and keeps every ancestor connection open until the child is closed,
@@ -1470,7 +1470,7 @@ sudo prompts, command responses, stderr capture, and the default error listener
 all read the active host and active aliases, which is still the child while the
 child is active. No handler needs to know whether the host is primary or nested.
 
-| Handler / event | Behaviour on a hop |
+| Handler / event | behavior on a hop |
 | --- | --- |
 | `onCommandProcessing` | Fires for the active child command, same as a primary command. |
 | `onCommandComplete` | Receives the child host's `sshObj` and the same `details` (`rawResponse`, optional `stderr`). |
@@ -1524,7 +1524,7 @@ replacement:
    rejects it. Make the source values internal constants, not host properties.
 5. **Name resolution.** `forwardOut` sends the destination to the jump host, so
    names resolve there. Document this; it matches the current `ssh` command
-   behaviour.
+   behavior.
 6. **Inactive parent data.** A parent shell can emit a late prompt or keepalive
    output while the child runs. Drop it before it reaches the child's `_buffer`.
 7. **`keyboard-interactive` on a child.** Already bound per client by
