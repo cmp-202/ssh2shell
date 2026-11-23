@@ -1,57 +1,178 @@
 # Code coverage
 
-This file records the coverage review, how it was measured, what the numbers
-mean, the follow-up tests added, and where the unit and live suites overlap in
-what they miss. Coverage is a diagnostic here, not a release gate.
+This file records the current coverage measurement, how to read it, how the
+unit and live suites overlap, and how to reproduce the numbers. Coverage is
+diagnostic here, not a release gate.
+
+## Current coverage (Node v26.13.0, measured 2026-11-23)
+
+Measured with Node 26's built-in test coverage reporter against the current
+build. Unit tests run against `lib/`; live tests run against `src/`. The live
+run uses the default environment (`DEBUG` and `VERBOSE` unset), so
+debug/verbose-only branches — including credential redaction — are not
+exercised there; the unit suite covers them.
+
+| Suite | Target | Lines | Branches | Functions |
+| --- | --- | --- | --- | --- |
+| Unit | `lib/ssh2shell.js` | 96.98% | 90.45% | 100% |
+| Unit | `lib/ssh2shell/defaults.js` | 97.96% | 96.97% | 100% |
+| Unit | `lib/ssh2shell/util.js` | 97.91% | 91.18% | 100% |
+| Unit | all files | 97.07% | 90.81% | 100% |
+| Combined (unit ∪ live) | all files | **98.15%** | — | — |
+| Live | `src/ssh2shell.js` | 79.42% | 56.95% | 87.07% |
+| Live | `src/ssh2shell/defaults.js` | 97.96% | 50.00% | 100% |
+| Live | `src/ssh2shell/util.js` | 45.55% | 36.84% | 66.67% |
+| Live | all files | 77.86% | 56.03% | 85.71% |
+
+The `Combined` row is the union of hit lines from the two LCOV reports: 2912 of
+2967 executable lines. Branch and function denominators differ between an
+instrumented unit run and an instrumented live run, so only the line figure is
+meaningful for the union. The current headline residual is **55 lines missed by
+both**, unchanged by the release-candidate review fixes.
+
+## How to read these numbers
+
+### Where each suite is strongest
+
+| Concern | Unit | Live |
+| --- | --- | --- |
+| Speed / determinism | Fast, offline, fake `ssh2` | Slow, needs the VMs |
+| State machine and record stack | Strong | Moderate |
+| Validation and error branches | Strong | Weak by nature |
+| Credential redaction | Strong | Weak with default live environment |
+| Real prompt/sudo/hop handshakes | Weak | Strong |
+| Real stream timing and idle timeouts | Weak | Strong |
+| TTY-gated progress indicator | Strong with a fake TTY sink | Only with an injected sink |
+
+The suites are complementary: neither reaches a high line percentage alone,
+and the union is what matters. New tests therefore go to the suite that can
+prove the behavior most directly, rather than duplicating a case in both.
+
+### Uncovered lines are ranges, not methods
+
+The reporter lists uncovered **line ranges**, not uncovered methods. A method
+can be entered on every test and still show a large uncovered count, because
+that count is the number of lines in branches that were not taken. Grouping
+those lines by enclosing method is a readability aid only: nested callbacks are
+attributed to their enclosing method, and the last method in a file absorbs
+everything after its start line. The percentages themselves are computed by the
+reporter and are unaffected by this grouping.
+
+## Miss overlap — how the suites relate
+
+The useful comparison is not hit-set symmetry. It is which **missed** lines are
+already covered by the other suite, and which remain missed by both. Because
+`lib/ssh2shell.js` and `src/ssh2shell.js` are byte-identical builds (checked
+with `npm run check:build`), line numbers are directly comparable.
+
+| File | Executable lines | Missed by unit | Missed by live | Missed by both | Live covers unit miss | Unit covers live miss |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ssh2shell.js` | 2678 | 81 | 551 | 49 | 32 | 502 |
+| `defaults.js` | 98 | 2 | 2 | 2 | 0 | 0 |
+| `util.js` | 191 | 4 | 104 | 4 | 0 | 100 |
+| all files | 2967 | 87 | 657 | 55 | 32 | 602 |
+
+What this means for test placement:
+
+- **32 unit misses are already covered by live**: `close` 1900–1915,
+  `_appendPartial` 639–645, `_removeListeners` 1989–1991 and 1998–2000, and
+  `_prepareGracefulClose` 1818 and 1829–1830. These are shutdown paths. Adding
+  unit copies would not improve combined coverage.
+- **602 live misses are already covered by unit**, up from 522 before the
+  review fixes. Most of that increase is the 100 redaction lines the default
+  live run no longer hits, not newly added unit tests. The other large groups
+  are `_openShell` (71), `_loadDefaults` (56), `_connect` (45),
+  `_bindConnection` (25), module scope (24), and `_reportMissingParameters`
+  (23). Adding live copies would not improve combined coverage.
+- **55 lines are missed by both** — the residual-risk headline, unchanged by
+  the review fixes and down from 206 before the second pass, 105 before the
+  third, and 71 before the final pass. The combined hit-line union is 2912 of
+  2967 lines (98.15%); the point of the split is to show where the remaining
+  lines sit, not to optimise that percentage.
+
+A few timer-driven unit tests are timing-sensitive, so branch percentages move
+between runs. Observed range across runs, including this one: 90.45–90.71% for
+`ssh2shell.js` and 90.78–90.91% across all files. Line coverage and every
+overlap figure were stable.
+
+### Residual missed-by-both lines (highest test value first)
+
+Earlier passes closed the large defensive blocks in `_openShell`, `_connect`,
+`_bindConnection`, `_previousHost`, `_checkCommand`, `_nextHost`, `_popTo`,
+`_mergeNestedText`, `stop`, and `_beginStopExit`. The final pass closed
+`_failContext`, `_forceClose`, half of `_onData`, and the redaction branches in
+`util.js`. The review fixes shifted line numbers but did not change the
+residual set. What remains is smaller and mostly defensive; coverage test work
+for this round is finished.
+
+Rows are ordered by how worthwhile a test would be, not by line count; the
+`util.js` row has four lines but they are low-value defensive branches.
+
+| Method | Lines missed by both | Best place to target |
+| --- | --- | --- |
+| `_endPrimary`, `_prepareGracefulClose` | 4 each: 602–603, 608–609 and 1808–1809, 1825–1826 | **Unit**, only if a specific behavior is at risk. |
+| `_initiate` | 3: 2010–2011, 2016 | **Unit**: terminal-state guard. |
+| other guards | 2 each across 18 methods and at module scope, plus `_onData` 890–891 | **Unit**, low priority. |
+| `defaults.js` | 2: 43–44 | Low-value defensive branch. |
+| `util.js` | 4: 44–45, 61–62 | Low-value defensive branches. |
+
+These are documented as residual risk, not a queued task list. Adding tests for
+them alone would assert guards and catch blocks without meaningful confidence.
 
 ## Measurement method
 
 The repository has no coverage dependency. Node 26's built-in reporter was used
 directly, so no packages or workflow changes are required to reproduce it.
+Run `npm run build` before the unit command so `lib/` matches `src/`.
 
-Unit tests (run against the built `lib/`):
+Unit tests (against the built `lib/`):
 
 ```sh
 $env:SSH2SHELL_TEST_MODULE = (Resolve-Path 'lib/ssh2shell.js').Path
-$files = Get-ChildItem -Recurse 'test/unit' -Filter '*.test.js' |
+$unitFiles = Get-ChildItem -Recurse 'test/unit' -Filter '*.test.js' |
   ForEach-Object { $_.FullName } | Sort-Object
-node --experimental-test-coverage --test $files
+node --experimental-test-coverage --test `
+  --test-reporter=spec --test-reporter-destination=stdout `
+  --test-reporter=lcov --test-reporter-destination="$env:TEMP\unit.lcov" `
+  $unitFiles
 ```
 
-Live tests (run against `src/`, which is what `scripts/run-live.js` defaults to).
+Live tests (against `src/`, which is what `scripts/run-live.js` defaults to).
 The files must run serially because several use the same hosts/ports:
 
 ```sh
 $env:SSH2SHELL_LIVE_MODULE = (Resolve-Path 'src/ssh2shell.js').Path
-$files = Get-ChildItem 'test/live' -Filter '*.js' |
+$liveFiles = Get-ChildItem 'test/live' -Filter '*.js' |
   ForEach-Object { $_.FullName } | Sort-Object
-node --experimental-test-coverage --test --test-concurrency=1 $files
-```
-
-To compare the suites, ask Node for LCOV as well as the text report:
-
-```sh
-node --experimental-test-coverage --test `
+node --experimental-test-coverage --test --test-concurrency=1 `
   --test-reporter=spec --test-reporter-destination=stdout `
-  --test-reporter=lcov --test-reporter-destination="$env:TEMP\unit.lcov" `
-  $files
+  --test-reporter=lcov --test-reporter-destination="$env:TEMP\live.lcov" `
+  $liveFiles
 ```
 
-Repeat for the live command with `$env:TEMP\live.lcov`. The two LCOV files can
-be parsed for hit lines and misses to produce the overlap analysis below.
-This is deliberately not a script: the live half needs the test hosts, and a
-wrapper would only duplicate the commands above. The summary is written into the
-PR description by hand, and the raw LCOV files stay local unless a reviewer asks
-for them.
+This runs **every** file in `test/live/` — the same live tests run by
+`npm run test:live:all` and the CI `Live suite` workflow. The curated batch from
+`npm run test:live` is a local development shortcut and is **not** used for
+these figures.
+
+The overlap figures come from comparing `DA:` records in the two LCOV files as
+per-file line sets. Paths are normalised to logical names (`ssh2shell.js`,
+`defaults.js`, `util.js`). A compact parser is included at the end of this file
+rather than added under `scripts/`, because the live half still needs the test
+hosts.
 
 Do **not** collect live coverage by setting `NODE_V8_COVERAGE` on
 `npm run test:live:all`. That path slowed timing-sensitive tests enough to fail
-four of them (`chaining`, `close_from_handler`, `command_timeout`, plus one
-other) even though the same tests pass under the standard reporter.
+four of them (including `chaining`, `close_from_handler`, and `command_timeout`)
+even though the same tests pass under the standard reporter.
 
-## First review — baseline numbers
+## History — baseline and follow-up work
 
-Measured on 2026-11-22 with Node v26.13.0, before the follow-up tests below.
+Baseline numbers were measured on 2026-11-22 with Node v26.13.0, before the
+follow-up tests. They are retained for comparison only; the current table at
+the top of this file supersedes them. The baseline live `util.js` figure comes
+from an earlier measurement context and is not directly comparable with the
+current default-environment run.
 
 | Suite | Target | Lines | Branches | Functions |
 | --- | --- | --- | --- | --- |
@@ -64,224 +185,24 @@ Measured on 2026-11-22 with Node v26.13.0, before the follow-up tests below.
 | Live (28 tests) | `src/ssh2shell/util.js` | 83.14% | 68.09% | 100% |
 | Live (28 tests) | all files | 77.77% | 57.99% | 85.27% |
 
-### How to read "uncovered lines"
+Follow-up work added 42 tests in six passes. Line numbers in these historical
+descriptions shift with source edits; the current overlap table above is
+authoritative.
 
-The reporter lists uncovered **line ranges**, not uncovered methods. A method
-can be entered on every test and still show a large count, because the count is
-the number of lines in branches that were not taken. Examples from the first
-review:
+| Pass | Tests | Targets | Where and why |
+| --- | --- | --- | --- |
+| First — `test/unit/coverage-gaps.test.js` | 3 | host `stderrData`/`end` binding, `msg` handler replacement, descendant collection | Unit: fake emitter and record stack assert registration directly. |
+| First — live | 2: `default_command_timeout.js`, `progress_tty.js` | default command timeout, TTY-gated progress | Live: only real stalled commands and a TTY sink prove those paths. Both are registered in `scripts/run-live.js` and run in CI. |
+| Second — `test/unit/coverage-gaps-state.test.js` | 12 | `_openShell`, `_connect`, `_bindConnection`, `_previousHost`, `_checkCommand` | Unit: fake sockets isolate transport and stale-record guards. Skipped against the baseline. |
+| Third — `test/unit/coverage-gaps-flow.test.js` | 13 | `_nextHost`, `_popTo`, `_mergeNestedText`, `stop`, `_beginStopExit` | Unit: deterministic state-flow guards. Skipped against the baseline. |
+| Final — `test/unit/behavior-hardening.test.js` | 5 | redaction safety, stale data, descendant teardown, forced close | Unit: behavior tests, not just line targets. Skipped against the baseline. |
+| Review fixes — `test/unit/behavior-hardening.test.js` | 7 | class-instance redaction, override restore/clear, close-timer transition, cached-value restore, flag type | Unit: lock in the release-candidate findings. Skipped against the baseline. |
 
-- Live `_loadDefaults`: 56 uncovered lines out of roughly 187 in the method.
-  The method runs on every test; the misses are conditional branches — the
-  direct-call context fallback, `msg` listener rebinding, invalid-regex debug
-  warnings, host `onError` / `onData` / `onStderrData` binding, and the default
-  keyboard-interactive handler.
-- Unit `_openShell`: 29 uncovered lines, almost all transport error handling.
-- Unit `_connect`: 23 uncovered lines, mostly the `forwardOut` cancellation
-  path.
-- Unit `_reportMissingParameters`: fully covered by unit tests; the 23 live
-  uncovered lines belong to a branch the live suite never exercises.
-
-Grouping uncovered lines by enclosing method is a readability aid only. Nested
-callbacks are attributed to their enclosing method, and the last method in the
-file absorbs everything after its start line. The percentages themselves are
-computed correctly by the reporter and are not affected by this.
-
-## Where each suite is strongest
-
-| Concern | Unit | Live |
-| --- | --- | --- |
-| Speed / determinism | Fast, offline, fake `ssh2` | Slow, needs the VMs |
-| State machine and record stack | Strong | Moderate |
-| Validation and error branches | Strong | Weak by nature |
-| Credential redaction | Strong | Weak |
-| Real prompt/sudo/hop handshakes | Weak | Strong |
-| Real stream timing and idle timeouts | Weak | Strong |
-| TTY-gated progress indicator | Strong with a fake TTY sink | Only with an injected sink |
-
-The suites are complementary: neither reaches a high line percentage alone, and
-the union is what matters. New tests therefore go to the suite that can prove
-the behaviour most directly, rather than duplicating a case in both.
-
-## Follow-up tests (implemented)
-
-The follow-up work was done in four passes. The first pass added the unit and
-live tests below. The second and third passes added deterministic unit tests
-for the largest blocks still missed by both suites after each preceding pass.
-The final pass added five behaviour-focused tests for genuine failure modes.
-Lower-priority defensive branches are deliberately left alone.
-
-Two candidates from the first review were **not** added: the keyboard-interactive
-fallback is already covered by `l5-behavior.test.js`, and the invalid-regex
-debug warnings are covered by `api-baseline.test.js` and `prompt-regex.test.js`.
-Duplicating them would not improve the overlap.
-
-### First pass — unit: `test/unit/coverage-gaps.test.js`
-
-| Test | Gap addressed | Why unit |
-| --- | --- | --- |
-| binds host `stderrData` and `end` handlers | `_loadDefaults` lines 2206–2207 and 2209–2210 in `src/ssh2shell.js` | The fake emitter can assert listener registration and invocation directly. |
-| replaces a previous host `msg` handler when defaults reload | `_loadDefaults` lines 2107–2109 | Reloading defaults on the same record is deterministic and needs no connection. |
-| collects active and nested descendants, excluding closed records | `_descendantsOf` lines 488–489, 494–495, 499–505 | The record stack is directly constructible; live hops cannot isolate these branches. |
-
-### First pass — live
-
-| Test | Gap addressed | Why live |
-| --- | --- | --- |
-| `default_command_timeout.js` — no host `onCommandTimeout`, real idle timeout | `_defaultOnCommandTimeout`, 29 uncovered lines in the first live review (`src/ssh2shell.js` lines 2034–2063) | Only a real stalled command proves the default error/close path end to end. |
-| `progress_tty.js` — injected TTY-like sink and slow commands on two primary hosts | `_progressStart`, `_progressTick`, `_progressLabel`, `_progressNewline`, `_progressEnd` (`src/ssh2shell.js` lines 695–780) | Progress is TTY-gated and timer-driven; the normal piped runner cannot exercise it. |
-
-Both live tests are registered in `scripts/run-live.js` checks and in the
-curated default batch, so they run under `npm run test:live`,
-`npm run test:live:all`, and CI.
-
-### Second pass — unit: `test/unit/coverage-gaps-state.test.js`
-
-These 12 tests target the five largest blocks that remained missed by both
-suites after the first pass. Each test is skipped against the frozen baseline
-because the record/transport guards do not exist there.
-
-| Coverage area | Lines targeted | Tests |
-| --- | --- | --- |
-| `_openShell` (29 lines) | 2535–2543, 2581–2582, 2589, 2594–2595, 2611–2625 | Stale-context stream close, ignored stale stream error, hop stream error, stale stderr guard, throwing `data` listener on a primary and on a hop. |
-| `_connect` (23 lines) | 2280–2281, 2316–2318, 2331–2332, 2342–2357 | Stopped-run guard, hop without a parent connection, stale `forwardOut` channel close, stop during `forwardOut`. |
-| `_bindConnection` (21 lines) | 2419–2420, 2436–2437, 2444–2445, 2453–2454, 2471–2473, 2507–2509, 2511–2517 | Closed-context keyboard-interactive/connect/ready/error guards, inactive active-context guard, and hop failure containment. |
-| `_previousHost` (16 lines) | 1499–1500, 1514–1527 | Stopped-run guard and manual parent-stack restore. |
-| `_checkCommand` (9 lines) | 1323–1324, 1327–1328, 1335–1339 | Closing, stopping, and no-command exit paths. |
-
-### Third pass — unit: `test/unit/coverage-gaps-flow.test.js`
-
-These 13 tests target the next five rows in the missed-by-both table. Like the
-second pass, they are skipped against the frozen baseline.
-
-| Coverage area | Lines targeted | Tests |
-| --- | --- | --- |
-| `_nextHost` (8 lines) | 1534–1535, 1542–1545, 1551–1552 | Stopping/complete guards, no active record, and no pending hosts. |
-| `_popTo` (7 lines) | 467–468, 472–474, 480–481 | No record, dropping a failed record with descendants, and no parent to restore. |
-| `_mergeNestedText` (7 lines) | 1395–1396, 1398–1399, 1413, 1424–1425 | Missing stack/server, duplicate merge, stacked-host parent lookup, and no distinct parent. |
-| `stop` (7 lines) | 1673–1674, 1683, 1690–1691, 1694–1695 | Clearing active/ancestor queues and the configured host when no record is active. |
-| `_beginStopExit` (5 lines) | 1725–1726, 1731–1733 | Already-complete guard and deferred exit for an in-flight command. |
-
-### Final pass — unit: `test/unit/behavior-hardening.test.js`
-
-These five tests are behaviour tests, not coverage tests: they lock in failure
-modes that matter even if the lines happen to be hit elsewhere. They are skipped
-against the frozen baseline.
-
-| Test | Lines targeted | Why it matters |
-| --- | --- | --- |
-| marks circular references in redacted config dumps | `util.js` 138–139 | A cyclic host config must not crash a verbose dump. |
-| preserves non-plain objects in redacted config dumps | `util.js` 132, 134–135 | Streams and buffers must survive redaction by identity. |
-| ignores data received after close or after the active host changes | 875–876, 931–932 | Late data and stale idle timers must not process a command. |
-| closes descendants before a failed record | 561–563 | An ancestor failure must not leave live descendants behind. |
-| forces a close when the close timer fires | 1826, 1834–1837 | Shutdown fallback when a stream close stalls. |
-
-## Coverage after the follow-up tests
-
-Measured with the same Node and commands as the first review. Counts are shown
-for the unit and live text reports respectively. The `Combined` row is the union
-of hit lines from both LCOV reports (2874 of 2929 executable lines). Branch and
-function denominators differ between an instrumented unit run and an
-instrumented live run, so only a line figure is meaningful for the union.
-
-The live numbers are unchanged from the first pass; the second, third, and
-final passes added only unit tests.
-
-| Suite | Target | Lines | Branches | Functions |
-| --- | --- | --- | --- | --- |
-| Unit (222 tests) | `lib/ssh2shell.js` | 96.95% | 90.71% | 100% |
-| Unit (222 tests) | `lib/ssh2shell/defaults.js` | 97.96% | 96.97% | 100% |
-| Unit (222 tests) | `lib/ssh2shell/util.js` | 97.67% | 89.66% | 100% |
-| Unit (222 tests) | all files | 97.03% | 90.91% | 100% |
-| Combined (unit ∪ live) | all files | **98.12%** | — | — |
-| Live (30 tests) | `src/ssh2shell.js` | 79.47% | 58.64% | 87.07% |
-| Live (30 tests) | `src/ssh2shell/defaults.js` | 97.96% | 50.00% | 100% |
-| Live (30 tests) | `src/ssh2shell/util.js` | 83.14% | 68.09% | 100% |
-| Live (30 tests) | all files | 80.30% | 59.43% | 88.46% |
-
-The targeted gaps closed:
-
-- First-pass unit tests hit lines 2107–2109, 2206–2207, 2209–2210, 488–489,
-  494–495, and 499–505. Line coverage rose from 90.30% to 91.05% and branch
-  coverage from 80.87% to 82.30%.
-- First-pass live tests hit the default timeout and TTY progress paths. Line
-  coverage rose from 76.68% to 79.47%, branch coverage from 57.01% to 58.64%,
-  and function coverage from 83.48% to 87.07%.
-- Second-pass unit tests closed the five largest missed-by-both blocks:
-  `_openShell` (29 lines), `_connect` (23), `_bindConnection` (21),
-  `_previousHost` (16), and `_checkCommand` (9). Unit `ssh2shell.js` line
-  coverage rose from 91.05% to 94.85% and branch coverage from 82.30% to
-  86.33%.
-- Third-pass unit tests closed the next five rows: `_nextHost` (8 lines),
-  `_popTo` (7), `_mergeNestedText` (7), `stop` (7), and `_beginStopExit` (5).
-  Unit `ssh2shell.js` line coverage rose from 94.85% to about 96.1% and branch
-  coverage from 86.33% to about 90%.
-- Final-pass unit tests covered the redaction safety branches and the stale
-  data, descendant-teardown, and forced-close paths. Unit `ssh2shell.js` line
-  coverage rose to 96.95%, `util.js` to 97.67%, and function coverage reached
-  100% across all files. Branch figures vary slightly between runs; see the
-  variance note below.
-
-## Miss overlap — how the suites relate
-
-The useful comparison is not hit-set symmetry. It is which **missed** lines are
-already covered by the other suite, and which lines remain missed by both.
-Because `lib/ssh2shell.js` and `src/ssh2shell.js` are byte-identical builds,
-line numbers are directly comparable.
-
-| File | Executable lines | Missed by unit | Missed by live | Missed by both | Live covers unit miss | Unit covers live miss |
-| --- | --- | --- | --- | --- | --- | --- |
-| `ssh2shell.js` | 2659 | 81 | 546 | 49 | 32 | 497 |
-| `defaults.js` | 98 | 2 | 2 | 2 | 0 | 0 |
-| `util.js` | 172 | 4 | 29 | 4 | 0 | 25 |
-| all files | 2929 | 87 | 577 | 55 | 32 | 522 |
-
-What this means for test placement:
-
-- **32 unit misses are already covered by live**: `close` 1881–1896,
-  `_appendPartial` 624–630, `_removeListeners` 1970–1972 and 1979–1981, and
-  `_prepareGracefulClose` 1799 and 1810–1811. These are shutdown paths. Adding
-  unit copies would not improve combined coverage.
-- **522 live misses are already covered by unit**, up from 371 before the
-  second pass, 472 before the third, and 506 before the final pass. The largest
-  groups are `_openShell` (73), `_loadDefaults` (56), `_connect` (45),
-  `_bindConnection` (25), module scope (24), and `_reportMissingParameters`
-  (23). Adding live copies of these branches would not improve combined
-  coverage.
-- **55 lines are missed by both** — the headline residual figure, down from 206
-  before the second pass, 105 before the third, and 71 before the final pass.
-  That is the residual target set, listed below. The combined hit-line union is
-  2874 of 2929 lines (98.12%); the point of the split is to show where the
-  remaining lines sit, not to optimise that percentage.
-
-A note on variance: a few timer-driven unit tests are timing-sensitive, so
-branch percentages move between runs. Across four repeated runs, line coverage
-and every overlap figure were identical; only branch percentage varied
-(90.56–90.71% for `ssh2shell.js`, 90.78–90.91% across all files). The numbers
-above come from one representative run.
-
-### Missed-by-both lines, highest value first
-
-Line ranges are from `src/ssh2shell.js` and apply to the identical `lib/` build.
-Method attribution is the same rough enclosing-method grouping described
-earlier: nested callbacks are attributed to their enclosing method.
-
-The large blocks from the second and third passes are now closed, and the final
-pass closed `_failContext`, `_forceClose`, half of `_onData`, and the redaction
-branches in `util.js`. What remains is smaller and mostly defensive. Coverage
-test work for this round is finished; no further tests are planned.
-
-| Method | Lines missed by both | Best place to target |
-| --- | --- | --- |
-| `_endPrimary`, `_prepareGracefulClose` | 4 each | **Unit**, only if a specific behaviour is at risk. |
-| `_initiate` | 3: 1991–1992, 1997 | **Unit**: terminal-state guard. |
-| other guards | 2 each across 18 methods and at module scope, plus `_onData` 875–876 | **Unit**, low priority. |
-| `defaults.js` | 2: 43–44 | Low-value defensive branch. |
-| `util.js` | 4: 44–45, 61–62 | Low-value defensive branches. |
-
-These are documented as residual risk, not as a queued task list. Adding tests
-for them alone would assert guards and catch blocks without meaningful
-confidence.
+The file `behavior-hardening.test.js` now holds 12 tests (5 from the final pass
+and 7 from the review fixes). Two candidates from the first review were
+**not** added: the keyboard-interactive fallback is already covered by
+`l5-behavior.test.js`, and the invalid-regex debug warnings are covered by
+`api-baseline.test.js` and `prompt-regex.test.js`.
 
 ## Reporting coverage with a pull request
 
@@ -298,10 +219,10 @@ with the PR:
 
 - Keep CI unchanged: unit checks in `ci.yml`, required live suite in `live.yml`,
   and no coverage collection or coverage gate.
-- Before a release PR, run the two local commands above (unit against `lib/`,
-  live against `src/`) with the LCOV reporters enabled. Use the reporter path
-  described here, not `NODE_V8_COVERAGE` on `npm run test:live:all`, which makes
-  timing-sensitive tests flaky.
+- Before **any PR that changes code or tests**, including a release PR, run the
+  two local commands above with the LCOV reporters enabled. Use the reporter
+  path described here, not `NODE_V8_COVERAGE` on `npm run test:live:all`, which
+  makes timing-sensitive tests flaky.
 - Derive the miss-overlap table and remaining-target list from the two LCOV
   files. Keep the full table: it shows all four relationships between the
   suites, not just the headline.
@@ -320,3 +241,47 @@ sensitive local live run into a required check. The commands in this document
 are the reproducible source of truth; no script has been added because the live
 half cannot run on a generic CI runner, and no publishing-doc change is needed
 because this is PR content, not a release step.
+
+## Appendix: LCOV overlap calculation
+
+```js
+'use strict';
+// node lcov-overlap.js unit.lcov live.lcov
+const fs = require('node:fs');
+
+function read(file) {
+  const files = new Map();
+  let name;
+  for (const raw of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('SF:')) {
+      name = line.slice(3).replace(/\\/g, '/').split('/').pop();
+      files.set(name, { all: new Set(), hit: new Set() });
+    } else if (line.startsWith('DA:')) {
+      const [n, count] = line.slice(3).split(',');
+      files.get(name).all.add(Number(n));
+      if (Number(count) > 0) files.get(name).hit.add(Number(n));
+    } else if (line === 'end_of_record') {
+      name = undefined;
+    }
+  }
+  return files;
+}
+
+const [unit, live] = process.argv.slice(2).map(read);
+for (const name of new Set([...unit.keys(), ...live.keys()])) {
+  const all = unit.get(name)?.all || live.get(name).all;
+  const uh = unit.get(name)?.hit || new Set();
+  const lh = live.get(name)?.hit || new Set();
+  const unitMiss = new Set([...all].filter((n) => !uh.has(n)));
+  const liveMiss = new Set([...all].filter((n) => !lh.has(n)));
+  console.log(name, {
+    executable: all.size,
+    unitMiss: unitMiss.size,
+    liveMiss: liveMiss.size,
+    bothMiss: [...unitMiss].filter((n) => liveMiss.has(n)).length,
+    liveCoversUnitMiss: [...unitMiss].filter((n) => lh.has(n)).length,
+    unitCoversLiveMiss: [...liveMiss].filter((n) => uh.has(n)).length,
+  });
+}
+```

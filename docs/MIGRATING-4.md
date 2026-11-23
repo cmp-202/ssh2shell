@@ -101,7 +101,7 @@ Consequences worth checking:
 - Each hop verifies its own host key. Set `hostHash` / `hostVerifier` on a
   nested host if the primary pins its key.
 
-## Behaviour changes that look like bugs
+## behavior changes that look like bugs
 
 - **A silent command times out.** The idle timer is armed when a command is
   written, not after the first output, and there is no longer an opt-in flag.
@@ -191,5 +191,5 @@ rather than staying on 3.x silently.
   breaking-change list.
 - [Host-to-host connections](./NEXT-HOST-CONNECTION.md) — the hop design and
   the full `server.ssh` mapping.
-- [Error handling](./ERROR-HANDLING.md) — `error` payloads and close behaviour.
+- [Error handling](./ERROR-HANDLING.md) — `error` payloads and close behavior.
 - [README](../README.md) — current host, command, and tunnelling usage.

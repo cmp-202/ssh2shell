@@ -20,6 +20,17 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   the standard host prefix and credential redaction. The internal `_systemMsg`
   name is replaced; the frozen baseline keeps it for comparison tests.
 
+### Fixed
+
+- Applied four fixes from the release-candidate review: a graceful-close timer
+  no longer survives a primary-host transition, debug/verbose overrides are
+  reapplied when an ancestor is restored and when an override is cleared,
+  and class instances with credential-named properties are redacted in verbose
+  config dumps. A follow-up review tightened the latter two: restored flags
+  come from the host config rather than a cached effective value, nested
+  credentials and cycles on class instances are redacted too, and clearing an
+  override preserves the host's configured value.
+
 ### Development
 
 - Added live coverage for keyboard-interactive authentication on a nested hop
@@ -32,10 +43,13 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   other, so a parallel publish or push cannot remove a PR's required
   `Live suite` check.
 - Added a second round of unit tests for transport and state guards, host
-  traversal, shutdown flows, and behaviour hardening, plus two live tests for
+  traversal, shutdown flows, and behavior hardening, plus two live tests for
   the default command timeout and the TTY progress indicator. `test/coverage.md`
-  records the local coverage review and full miss-overlap analysis (98.12%
+  records the local coverage review and full miss-overlap analysis (98.15%
   combined line coverage).
+- Added `docs/AI-ASSISTED-WORKFLOWS.md` with reusable prompts and approval
+  boundaries for AI-assisted session setup, releases, reviews, and coverage
+  refreshes.
 
 ## [4.0.4] - 2026-11-18
 

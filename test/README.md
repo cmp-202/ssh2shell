@@ -216,7 +216,8 @@ The main environment variables are:
 | `EXPECTED_HOST_HASH` | Pinned host fingerprint for the fingerprint test. |
 | `DEBUG`, `VERBOSE` | `ssh2shell` session output. |
 
-[`.env-example`](../.env-example) lists every variable with its default.
+[`.env-example`](../.env-example) lists the variables used by the suite with
+their defaults.
 
 ## CI live tests
 

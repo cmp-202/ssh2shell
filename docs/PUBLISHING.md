@@ -109,7 +109,7 @@ does not start unless the live suite passes. Tags are protected by
 allows the tag to be pushed.
 
 To publish an existing tag manually, open **Actions → Publish to npm → Run
-workflow**, choose `master`, and enter the tag (for example `v3.0.0`).
+workflow**, choose `master`, and enter the tag (for example `vX.Y.Z`).
 
 ### 3. Verify
 
