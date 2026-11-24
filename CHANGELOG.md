@@ -8,6 +8,8 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-25
+
 ### Added
 
 - `index.d.ts` now describes the public API, host and server configuration,
@@ -199,7 +201,8 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...v4.1.0
 [4.0.4]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...v4.0.4
 [4.0.3]: https://github.com/cmp-202/ssh2shell/compare/v4.0.2...v4.0.3

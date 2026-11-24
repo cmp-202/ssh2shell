@@ -1155,6 +1155,29 @@ Pre-release cleanup of the instance and host-config surface. Released in
 - `npm run test:src` — 166/166.
 - `npm run test:baseline` — 158 pass, 8 baseline-skipped.
 
+### L7.26 deliverables (editor type documentation)
+
+Public editor support shipped in `v4.2.0`. Runtime behavior and the JavaScript
+API are unchanged; this level adds metadata, documentation, and examples.
+
+**Docs and declarations**
+
+- Added a hand-maintained `index.d.ts` covering the constructor, public methods,
+  host and server configuration, handlers, events, and runtime state.
+- Added `types` and the declaration file to the published package files, with
+  no TypeScript dependency or CI gate.
+- Added JSDoc typedef aliases and `// @ts-check` in `src/`; `lib/` remains synced
+  through the normal build check.
+- Added a concise README **Editor support** section and annotated the
+  README-linked live tests as consumer-facing examples.
+- Added an AI-assisted workflow prompt for maintaining declarations and JSDoc.
+
+#### Verification
+
+- `tsc` across sources and the annotated live tests — 0 errors.
+- `npm test`, `npm run check:changelog`, `git diff --check`, and
+  `npm pack --dry-run` — passed.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes
