@@ -4,8 +4,10 @@
   "author": "cmp-202",
   "description": "A wrapper class for ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
+  "types": "./index.d.ts",
   "files": [
     "lib",
+    "index.d.ts",
     "CHANGELOG.md"
   ],
   "engines": {
