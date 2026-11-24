@@ -6,6 +6,7 @@ const path = require('node:path');
 
 // Loads the live-test private key. `~` is not expanded by fs, so resolve it
 // against the current user's home directory first.
+/** @returns {any} */
 function readPrivateKey() {
   const configured = process.env.PRIVATE_KEY_PATH || '~/.ssh/id_rsa';
   const resolved = path.resolve(

@@ -1,10 +1,27 @@
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('fingerprint.js');
 
 /** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
+
+/** @type {import('../../index').HostVerifier} */
+const verifyHostKey = function (hashedKey) {
+  const expectedHash = process.env.EXPECTED_HOST_HASH;
+
+  // With no pin recorded, print the hash and accept the first connection.
+  if (!expectedHash) {
+    const message = `Server hash: ${hashedKey}`;
+    log(message);
+    console.log(message);
+    return true;
+  }
+
+  // noinspection JSValidateTypes
+  const hash = /** @type {string} */ (hashedKey);
+  return hash.toLowerCase() === expectedHash.toLowerCase();
+};
 
 /** @type {import('../../index').HostConfig} */
 const host = {
@@ -15,22 +32,7 @@ const host = {
     privateKey: readPrivateKey(),
     passPhrase: process.env.KEY_PASSPHRASE,
     hostHash: 'sha256', // any crypto.getHashes() algorithm
-    hostVerifier: function (hashedKey) {
-      const expectedHash = process.env.EXPECTED_HOST_HASH;
-
-      // With no pin recorded, print the hash and accept the first connection.
-      if (!expectedHash) {
-        const message = `Server hash: ${hashedKey}`;
-        log(message);
-        console.log(message);
-        return true;
-      }
-
-      return (
-        /** @type {string} */ (hashedKey).toLowerCase() ===
-        expectedHash.toLowerCase()
-      );
-    },
+    hostVerifier: verifyHostKey,
   },
   commands: ['whoami']
 };

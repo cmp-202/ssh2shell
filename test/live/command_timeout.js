@@ -1,4 +1,4 @@
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('command_timeout.js');
 
@@ -22,7 +22,7 @@ const host = {
     passPhrase: process.env.KEY_PASSPHRASE,
   },
   commands: [promptCommand],
-  onCommandTimeout: function (command, response, stream, connection) {
+  onCommandTimeout: function (command, response, stream) {
     if (command === promptCommand
         && /** @type {string} */ (response).includes('[Y/n]?')
         && this.sshObj.answeredNode !== true) {

@@ -1,4 +1,4 @@
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -20,7 +20,7 @@ const host = {
     host: process.env.HOST,
     port: process.env.PORT,
     userName: process.env.USER_NAME,
-    privateKey: fs.readFileSync(keyPath),
+    privateKey: /** @type {any} */ (fs.readFileSync(keyPath)),
     passPhrase: process.env.KEY_PASSPHRASE, // omit if the key has no passphrase
   },
   commands: ['whoami']

@@ -14,7 +14,8 @@ function logFile(name) {
     fs.mkdirSync(logDir, { recursive: true });
     fs.writeFileSync(currentLogFile, '', 'utf8');
   } catch (err) {
-    throw new Error(`Failed to write file: ${currentLogFile}`, err);
+    // noinspection JSCheckFunctionSignatures
+    throw new Error(`Failed to write file: ${currentLogFile}`, { cause: err });
   }
 } 
 
@@ -30,7 +31,8 @@ function log(content) {
   try {
     fs.writeFileSync(currentLogFile, `${content}\n`, { encoding: 'utf8', flag: 'a' });
   } catch (err) {
-    throw new Error(`Failed to append to log: ${currentLogFile}`, err);
+    // noinspection JSCheckFunctionSignatures
+    throw new Error(`Failed to append to log: ${currentLogFile}`, { cause: err });
   }  
 }
 

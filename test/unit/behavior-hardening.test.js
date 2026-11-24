@@ -65,7 +65,7 @@ describe('behaviour hardening', () => {
     const timers = [];
     global.setTimeout = (callback) => {
       timers.push(callback);
-      return { unref() {} };
+      return /** @type {any} */ ({ unref() {} });
     };
 
     try {
@@ -96,7 +96,7 @@ describe('behaviour hardening', () => {
       const savedSetTimeout = global.setTimeout;
       global.setTimeout = (callback) => {
         secondTimers.push(callback);
-        return { unref() {} };
+        return /** @type {any} */ ({ unref() {} });
       };
       secondSsh.command = '';
       secondSsh._onData('second data');
@@ -161,7 +161,7 @@ describe('behaviour hardening', () => {
 
     global.setTimeout = (callback) => {
       timerCallback = callback;
-      return { unref() {} };
+      return /** @type {any} */ ({ unref() {} });
     };
     global.clearTimeout = () => {};
 
@@ -242,7 +242,7 @@ describe('behaviour hardening', () => {
   newOnly('clears the close timer when moving to the next primary', () => {
     const { ssh, host } = make();
     const originalSetTimeout = global.setTimeout;
-    global.setTimeout = () => ({ unref() {} });
+    global.setTimeout = /** @type {any} */ (() => ({ unref() {} }));
 
     try {
       ssh._armCloseTimer();

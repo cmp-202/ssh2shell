@@ -33,6 +33,7 @@ class FakeStream extends EventEmitter {
     if (this.closed) return;
     this.closed = true;
     this.emit('finish');
+    // noinspection JSCheckFunctionSignatures
     this.emit('close', 0, null);
   }
 
@@ -114,6 +115,7 @@ class FakeClient extends EventEmitter {
 
   // Completes a pending `forwardOut` request. Used by tests that need to stop
   // or close while the channel request is in flight.
+  // noinspection JSUnusedGlobalSymbols
   completeForwardOut(err = null) {
     if (typeof this.forwardOutCallback !== 'function') {
       return null;
@@ -151,6 +153,7 @@ class FakeClient extends EventEmitter {
   end() {
     if (this.ended) return;
     this.ended = true;
+    // noinspection JSCheckFunctionSignatures
     process.nextTick(() => this.emit('close', false));
   }
 }

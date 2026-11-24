@@ -197,7 +197,7 @@ describe('_loadDefaults baseline', () => {
     }
 
     // pty is forced to true on baseline; current keeps an explicit false.
-    assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
+    assert.equal(ssh.sshObj.pty, isBaseline());
   });
 
   it('ignores the legacy passwordPromt/passphrasePromt aliases', () => {
@@ -234,8 +234,8 @@ describe('_loadDefaults baseline', () => {
   it('keeps explicit window and pty false instead of forcing true', () => {
     const { ssh } = makeLoaded({ window: false, pty: false });
 
-    assert.equal(ssh.sshObj.window, isBaseline() ? true : false);
-    assert.equal(ssh.sshObj.pty, isBaseline() ? true : false);
+    assert.equal(ssh.sshObj.window, isBaseline());
+    assert.equal(ssh.sshObj.pty, isBaseline());
   });
 
   it('compiles the default prompt regexes', () => {

@@ -1,4 +1,4 @@
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('default_command_timeout.js');
 
