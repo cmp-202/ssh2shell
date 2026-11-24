@@ -8,6 +8,25 @@
 // real ssh2 connections opened through the parent connection's forwardOut
 // channel; there is no nested `ssh` command.
 
+// Public type contracts live in index.d.ts. These aliases make the same
+// contracts available to editors and JSDoc-aware tooling without a build step.
+/**
+ * @typedef {import('../index').HostConfig} HostConfig
+ * @typedef {import('../index').ServerConfig} ServerConfig
+ * @typedef {import('../index').CommandCompleteDetails} CommandCompleteDetails
+ * @typedef {import('../index').TimeoutDetails} TimeoutDetails
+ * @typedef {import('../index').ShellStream} ShellStream
+ * @typedef {import('../index').SSHConnection} SSHConnection
+ * @typedef {import('../index').MessageHandler} MessageHandler
+ * @typedef {import('../index').DataHandler} DataHandler
+ * @typedef {import('../index').CommandProcessingHandler} CommandProcessingHandler
+ * @typedef {import('../index').CommandCompleteHandler} CommandCompleteHandler
+ * @typedef {import('../index').CommandTimeoutHandler} CommandTimeoutHandler
+ * @typedef {import('../index').EndHandler} EndHandler
+ * @typedef {import('../index').ErrorHandler} ErrorHandler
+ * @typedef {import('../index').KeyboardInteractiveHandler} KeyboardInteractiveHandler
+ */
+
 const Stream = require('node:stream');
 
 const { applyHostDefaults } = require('./ssh2shell/defaults');
@@ -66,6 +85,9 @@ function stripEchoedCommand(buffer, command) {
 }
 
 class SSH2Shell extends Stream {
+  /**
+   * @param {HostConfig | HostConfig[]} hosts A host config or a non-empty array of them.
+   */
   constructor(hosts) {
     super(hosts);
 
@@ -353,6 +375,10 @@ class SSH2Shell extends Stream {
 
   // Copy the server options so the host config is not mutated. `ssh2` uses
   // `username` / `passphrase`; `userName` / `passPhrase` are the public names.
+  /**
+   * @param {ServerConfig | undefined} server Host server configuration.
+   * @returns {ServerConfig} A copied config with ssh2-native names.
+   */
   _normalizeServer(server) {
     const options = Object.assign({}, server || {});
     delete options.ssh;
@@ -796,6 +822,12 @@ class SSH2Shell extends Stream {
 
   // Emits debug/verbose messages only when the matching flag is enabled.
   // An optional object payload is emitted as a second message.
+  /**
+   * @param {'debug' | 'verbose' | string} type Message channel.
+   * @param {string} message Message text.
+   * @param {unknown} [object] Optional structured payload.
+   * @returns {void}
+   */
   systemMsg(type, message, object = null){
     const enabled =
       (type === 'debug' && this._debug) ||
@@ -1665,6 +1697,10 @@ class SSH2Shell extends Stream {
   // Shutdown
   // ---------------------------------------------------------------------------
 
+  /**
+   * @param {string} [reason] Label reported in the stop message.
+   * @returns {unknown} The active stream placeholder or this instance.
+   */
   stop(reason = 'user') {
     if (this._runComplete || this._stopping) {
       return this;
@@ -1884,6 +1920,10 @@ class SSH2Shell extends Stream {
     return this._callFinalCallback();
   }
 
+  /**
+   * @param {{ graceful?: boolean }} [options] Set `graceful` to back out of nested shells.
+   * @returns {unknown} The result of advancing the host queue, when applicable.
+   */
   close(options = {}) {
     if (this._runComplete || this._closing) {
       return;
@@ -2271,6 +2311,10 @@ class SSH2Shell extends Stream {
     this.systemMsg('verbose', 'loadDefaults: Config:', host);
   }
 
+  /**
+   * @param {(sessionText: string) => void} [callback] Receives the combined session text.
+   * @returns {boolean} The result of raising the internal `newPrimaryHost` event.
+   */
   connect(callback) {
     // An instance owns one run. A second connect() used to drain the empty
     // host queue and call back with '', which looked like an empty session.
