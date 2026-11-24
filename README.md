@@ -23,6 +23,7 @@ one command to decide what to do next.
 - [Why ssh2shell](#why-ssh2shell)
 - [Installation](#installation)
 - [Quick start](#quick-start)
+- [Editor support](#editor-support)
 - [Core concepts](#core-concepts)
 - [Configuration reference](#configuration-reference)
   - [`server`](#server)
@@ -123,6 +124,37 @@ SSH.connect((sessionText) => {
 
 See [`test/live/simple.js`](./test/live/simple.js) for a runnable version that
 appends messages and session text to a log file.
+
+## Editor support
+
+The package includes `index.d.ts`, so TypeScript projects get types without any
+extra install step. The declarations describe the public API, the host object,
+server options, event payloads, and handler signatures.
+
+Plain JavaScript gets the same hover and completion information from JSDoc.
+Annotate the module import and any host objects you want to document:
+
+```javascript
+/** @type {typeof import('ssh2shell')} */
+const SSH2Shell = require('ssh2shell');
+
+/** @type {import('ssh2shell').HostConfig} */
+const host = {
+  server: { host: '192.168.0.10', userName: 'deploy' },
+  commands: ['pwd'],
+};
+```
+
+The `HostConfig` annotation also gives contextual types to inline handlers such
+as `onCommandProcessing`, including their `command`, `response`, `sshObj`, and
+`stream` arguments. This is editor-only metadata; it does not change runtime
+behaviour and does not add a TypeScript dependency to the package.
+
+The README-linked live tests use the same annotations with a relative import
+because they live inside this repository. See
+[`test/live/simple.js`](./test/live/simple.js),
+[`test/live/fingerprint.js`](./test/live/fingerprint.js), and
+[`test/live/tunnel.js`](./test/live/tunnel.js) for examples.
 
 ## Core concepts
 

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { logFile, log } = require('../utils/logging.js');
 logFile('private_key.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 
 // `~` is not expanded by fs.readFileSync(), so resolve it against os.homedir().
@@ -13,6 +14,7 @@ const keyPath = path.resolve(
     .replace(/^~(?=$|[\\/])/, os.homedir())
 );
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.HOST,

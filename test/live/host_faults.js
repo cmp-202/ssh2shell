@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('host_faults.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -38,8 +39,15 @@ const privateKey = readPrivateKey();
 
 // Labels are kept off the host config so they never reach the verbose config
 // dump or the credential redaction walk.
+/** @type {WeakMap<import('../../index').HostConfig, string>} */
 const labels = new WeakMap();
 
+/**
+ * @param {string | undefined} host
+ * @param {number | string | undefined} port
+ * @param {string | undefined} userName
+ * @returns {import('../../index').ServerConfig}
+ */
 function nestedServer(host, port, userName) {
   return {
     host,
@@ -50,6 +58,12 @@ function nestedServer(host, port, userName) {
   };
 }
 
+/**
+ * @param {string} label
+ * @param {import('../../index').ServerConfig} server
+ * @param {import('../../index').HostConfig[]} [hosts]
+ * @returns {import('../../index').HostConfig}
+ */
 function host(label, server, hosts) {
   const config = {
     server,
@@ -145,7 +159,8 @@ SSH.on('msg', log);
 SSH.debug = (process.env.DEBUG === 'true');
 SSH.verbose = (process.env.VERBOSE === 'true');
 SSH.on('error', (err, type) => {
-  const message = err && err.message ? err.message : String(err);
+  const error = /** @type {{message?: string} | null | undefined} */ (err);
+  const message = error && error.message ? error.message : String(err);
   errors.push(`${type || ''}:${message}`);
   log(`error-event:${type || ''}:${message}`);
 });

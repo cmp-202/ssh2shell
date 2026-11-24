@@ -8,6 +8,21 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+### Added
+
+- `index.d.ts` now describes the public API, host and server configuration,
+  handlers, events, and runtime state for TypeScript and JavaScript editors.
+  The package points `types` at the declaration file and includes it in the
+  published files list. Runtime behavior is unchanged.
+- README-linked live tests now carry JSDoc annotations that demonstrate the
+  same editor support, and the README explains the annotation pattern for
+  consumers.
+
+### Development
+
+- Added an AI-assisted workflow prompt for maintaining public declarations and
+  JSDoc annotations.
+
 ## [4.1.0] - 2026-11-23
 
 ### Added
