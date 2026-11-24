@@ -15,9 +15,11 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 - Added a conditional `exports` map so Node 16+/node16/nodenext resolution finds
   `index.d.ts` for the root import while preserving `lib/*` (including
   extensionless deep imports) and `package.json` subpaths.
-- Added a dev-only, pinned TypeScript typecheck script covering sources,
-  repository scripts, annotated live tests, and strict consumer fixtures. It is
-  a required CI check and runs from `prepublishOnly`; runtime dependencies are
+- Added a dev-only, pinned TypeScript typecheck gate that validates static type
+  contracts across annotated sources, repository scripts, live tests, and strict
+  consumer fixtures under `node16` and `nodenext`. This is contract coverage,
+  not line coverage; the line-coverage report remains diagnostic only. It is a
+  required CI check and runs from `prepublishOnly`; runtime dependencies are
   unchanged. A root `tsconfig.json` also gives editors explicit project scope
   for `index.d.ts`.
 

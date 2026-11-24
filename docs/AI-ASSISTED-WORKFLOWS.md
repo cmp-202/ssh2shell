@@ -17,8 +17,9 @@ Apply these whether or not a prompt repeats them:
 - Follow the session modes below. Local commits are allowed in agreed review
   cycles; no push, PR, tag, or publish without explicit user approval.
 - Docs live in git. `README.md` stays concise; detail belongs in `docs/`.
-- Coverage is diagnostic, not a release gate. No coverage dependency and no CI
-  coverage gate.
+- Line coverage is diagnostic, not a release gate. No coverage dependency and
+  no CI line-coverage gate. `npm run typecheck` is a separate static-contract
+  gate; it is not line coverage and produces no coverage percentage.
 - Live tests count in CI. `publish` must not run unless the live suite passes.
 - An external/free review of the release candidate is a release step; resolve
   its actionable findings before tagging, with user sign-off on every change.
@@ -273,8 +274,10 @@ Refresh the coverage evidence for ssh2shell using test/coverage.md as the method
   Keep the full table and use missed by both as the residual-risk headline.
 - Update test/coverage.md and include the summary in the PR description or a
   PR comment. Raw LCOV files stay local.
-- Never add a coverage dependency or a CI coverage gate. Coverage is
-  informational; the gates are CI checks, the live suite, and RC review.
+- Never add a line-coverage dependency or a CI line-coverage gate. Line
+  coverage is informational; the gates are CI checks, the live suite, typecheck,
+  and RC review. `npm run typecheck` validates static contracts, not executed
+  lines.
 ```
 
 ## Hand off a session

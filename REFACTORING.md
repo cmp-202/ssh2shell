@@ -1187,9 +1187,10 @@ Post-4.2.0 hardening of the editor-support work. Runtime behavior and runtime
 dependencies are unchanged.
 
 - Added pinned dev-only `typescript` and `@types/node`.
-- Added `npm run typecheck` with checked-in configs for annotated sources, the
-  README-linked live tests, and strict consumer fixtures under `node16` and
-  `nodenext`.
+- Added `npm run typecheck` with checked-in configs that validate static type
+  contracts across annotated sources, repository scripts, README-linked live
+  tests, and strict consumer fixtures under `node16` and `nodenext`. This is
+  contract coverage, not line coverage; line coverage remains diagnostic only.
 - Added a single-version `Typecheck` CI job and a publish step;
   `prepublishOnly` also runs the gate.
 - Added a conditional `exports` map with `types` first while preserving existing
