@@ -14,8 +14,8 @@ here.
 
 Apply these whether or not a prompt repeats them:
 
-- Local commits are allowed in agreed review cycles; no push, PR, tag, or publish
-  without explicit user approval.
+- Follow the session modes below. Local commits are allowed in agreed review
+  cycles; no push, PR, tag, or publish without explicit user approval.
 - Docs live in git. `README.md` stays concise; detail belongs in `docs/`.
 - Coverage is diagnostic, not a release gate. No coverage dependency and no CI
   coverage gate.
@@ -30,6 +30,27 @@ Apply these whether or not a prompt repeats them:
 - Before a task that depends on remote services, live hosts, or free models,
   run the environmental assessment below first.
 
+## Session modes
+
+Use the narrowest mode that matches the request. A stop for exploration ends
+when the user explicitly asks to create or use a branch and implement changes.
+
+1. **Read-only exploration** — inspect, review, compare, and report findings.
+   Do not edit files, create commits, or change branches. This is the default
+   when the user says “let’s look at this” or asks for a stop on repo activity.
+2. **Branch implementation** — begins when the user asks to create or use a
+   branch and make changes. Normal development applies: edit files, add new
+   files, stage, commit locally in agreed review cycles, run checks, fix
+   findings, and expand the implementation. Push, PR, tag, publish, and release
+   remain blocked.
+3. **Release and remote actions** — push, PR, tag, publish, or release only with
+   explicit user approval. Same-day follow-up releases still follow the critical
+   fix rule unless the user explicitly overrides it.
+
+A read-only limit is not a permanent repository freeze. It protects the
+exploration phase; once implementation on a branch is requested, do not keep
+asking for permission for ordinary local development steps.
+
 ## Start or recover a session
 
 ```text
@@ -39,8 +60,9 @@ You are working in the ssh2shell repository. Start read-only.
    docs/AI-ASSISTED-WORKFLOWS.md.
 2. Report git status --short, the current branch, and the latest commit.
 3. Summarise which document is the source of truth for the requested task.
-4. Do not push, tag, or publish. Commit only in agreed review cycles, and ask
-   before any action that changes remote state or release metadata.
+4. Stay read-only until asked to create or use a branch and implement. Do not
+   push, tag, or publish. Commit only in agreed review cycles, and ask before
+   any action that changes remote state or release metadata.
 ```
 
 ## Set up the environment
