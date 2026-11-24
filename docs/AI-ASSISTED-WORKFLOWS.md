@@ -14,7 +14,8 @@ here.
 
 Apply these whether or not a prompt repeats them:
 
-- No commit, push, PR, tag, or publish without explicit user approval.
+- Local commits are allowed in agreed review cycles; no push, PR, tag, or publish
+  without explicit user approval.
 - Docs live in git. `README.md` stays concise; detail belongs in `docs/`.
 - Coverage is diagnostic, not a release gate. No coverage dependency and no CI
   coverage gate.
@@ -38,8 +39,8 @@ You are working in the ssh2shell repository. Start read-only.
    docs/AI-ASSISTED-WORKFLOWS.md.
 2. Report git status --short, the current branch, and the latest commit.
 3. Summarise which document is the source of truth for the requested task.
-4. Do not commit, push, tag, or publish. Ask before any action that changes
-   the working tree or remote state.
+4. Do not push, tag, or publish. Commit only in agreed review cycles, and ask
+   before any action that changes remote state or release metadata.
 ```
 
 ## Set up the environment
@@ -112,7 +113,8 @@ Run the full pre-PR verification for ssh2shell and report results only.
    the text table, full miss-overlap table, missed by both headline, Node
    version, and commands. Keep raw LCOV files local.
 
-Do not commit, push, or open the PR without explicit approval.
+Commit only in agreed review cycles; do not push or open the PR without
+explicit approval.
 ```
 
 ## Add a live test
@@ -164,7 +166,9 @@ You are adding editor/type support to ssh2shell. Start read-only.
   src/ssh2shell.js, src/ssh2shell/defaults.js, src/ssh2shell/util.js, and the
   README-linked live tests before changing anything.
 - Keep package.json `types` pointing at ./index.d.ts and keep index.d.ts in
-  `files`. Do not add a TypeScript runtime dependency, build step, or CI gate.
+  `files`. Do not add a TypeScript runtime dependency or build step. The
+  dev-only TypeScript toolchain is checked by the `typecheck` script in CI and
+  `prepublishOnly`.
 - Add JSDoc typedef aliases and `// @ts-check` in src/ where they improve the
   public contract. Keep lib/ in sync with src/ through the repository's normal
   build/check process.
@@ -172,11 +176,12 @@ You are adding editor/type support to ssh2shell. Start read-only.
   tests, use import('../../index') for module and HostConfig annotations so they
   resolve locally.
 - Keep JSDoc @type tags immediately above the declaration they describe.
-- Verify with tsc against src/ and the annotated live tests, npm test,
-  git diff --check, and npm pack --dry-run when package metadata changed.
+- Verify with `npm run typecheck`, npm test, git diff --check, and
+  npm pack --dry-run when package metadata changed.
 - Report the declared fields/signatures, docs that changed, and verification
-  results. Do not commit, push, open a PR, tag, publish, or release without
-  explicit approval. Docs/test-only editor support does not trigger a release.
+  results. Commit only in agreed review cycles; do not push, open a PR, tag,
+  publish, or release without explicit approval. Docs/test-only editor support
+  does not trigger a release.
 ```
 
 ## Decide whether a fix needs a release

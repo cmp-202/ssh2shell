@@ -81,7 +81,8 @@ Update the changelog in a fixed order:
    to the link definitions at the bottom.
 3. Point the existing `[Unreleased]` link at `compare/vX.Y.Z...HEAD`.
 4. Run `npm run check:changelog`. It fails if the version, date, bullets, or
-   compare links are missing, and it runs again from `prepublishOnly`.
+   compare links are missing. `prepublishOnly` runs it again alongside
+   `npm run typecheck` and `npm test`.
 
 Then update `REFACTORING.md` and any other affected docs, and push the branch:
 
@@ -144,6 +145,8 @@ left to memory.
       link, and update the `[Unreleased]` link.
 - [ ] Update `REFACTORING.md` and any docs affected by the release.
 - [ ] `npm run check:changelog` passes.
+- [ ] `npm run typecheck` passes (sources, annotated live tests, and strict
+      consumer fixtures under node16 and nodenext).
 - [ ] `npm test` passes (`check:build`, unit, baseline).
 - [ ] Run the live suite locally when the change touches connection or command
       flow: `npm run test:live:all`.
@@ -170,8 +173,7 @@ If trusted publishing is not available, create a granular access token with:
 
 Store it as the `NPM_TOKEN` secret in GitHub Actions and set
 `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` on the publish step. This is a
-stopgap: direct publishing with bypass-2FA tokens is being removed in January
-2027.
+stopgap: direct publishing with bypass-2FA tokens is being removed in January 2027.
 
 ## Do not
 
