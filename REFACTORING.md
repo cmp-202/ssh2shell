@@ -1171,6 +1171,9 @@ API are unchanged; this level adds metadata, documentation, and examples.
 - Added a concise README **Editor support** section and annotated the
   README-linked live tests as consumer-facing examples.
 - Added an AI-assisted workflow prompt for maintaining declarations and JSDoc.
+- A release-candidate review restored the constructor's `Stream`/`EventEmitter`
+  options pass-through and corrected the `hostVerifier` and error-callback
+  declarations before tagging.
 
 #### Verification
 

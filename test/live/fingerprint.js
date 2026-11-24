@@ -26,7 +26,10 @@ const host = {
         return true;
       }
 
-      return hashedKey.toLowerCase() === expectedHash.toLowerCase();
+      return (
+        /** @type {string} */ (hashedKey).toLowerCase() ===
+        expectedHash.toLowerCase()
+      );
     },
   },
   commands: ['whoami']

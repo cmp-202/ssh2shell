@@ -95,7 +95,7 @@ declare namespace SSH2Shell {
     tryKeyboard?: boolean;
     /** Hash algorithm used to verify the server key, for example `sha256`. */
     hostHash?: string;
-    /** Receives the hashed key when `hostHash` is set; use it to pin hosts. */
+    /** Receives a hashed key string when `hostHash` is set, or raw key bytes otherwise; use it to pin hosts. */
     hostVerifier?: HostVerifier;
     /** ssh2 cipher, compression, hmac, kex, and server host key overrides. */
     algorithms?: Record<string, unknown>;
@@ -106,12 +106,13 @@ declare namespace SSH2Shell {
   /** Callback used to accept or reject a server host key. */
   interface HostVerifier {
     /**
-     * @param hashedKey The hashed key produced with `hostHash`.
+     * @param hashedKey Hex digest string when `hostHash` is set; otherwise the
+     * raw server key bytes supplied by ssh2.
      * @param verify Call with `false` to reject, `true` to accept.
      * @returns Returning `false` also rejects the key.
      */
     (
-      hashedKey: string,
+      hashedKey: string | Uint8Array,
       verify: (permitted: boolean) => void
     ): boolean | void;
   }
@@ -224,7 +225,7 @@ declare namespace SSH2Shell {
     error: unknown,
     type: string,
     close?: boolean | null,
-    callback?: ErrorCallback,
+    callback?: ErrorCallback | null,
     context?: unknown
   ) => void;
   /** Answers a keyboard-interactive authentication challenge. */
@@ -261,7 +262,7 @@ declare namespace SSH2Shell {
       unknown,
       string,
       (boolean | null)?,
-      ErrorCallback?,
+      (ErrorCallback | null)?,
       unknown?
     ];
     'keyboard-interactive': [

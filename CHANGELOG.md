@@ -20,6 +20,15 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
   same editor support, and the README explains the annotation pattern for
   consumers.
 
+### Fixed
+
+- Restored the legacy `Stream`/`EventEmitter` options pass-through from the host
+  config so emitter options such as `captureRejections` still apply. The release
+  candidate had dropped it during JSDoc annotation.
+- Corrected editor declarations for `hostVerifier` raw key bytes and nullable
+  error callbacks, and annotated the remaining README-linked
+  `keyboard-interactive` example.
+
 ### Development
 
 - Added an AI-assisted workflow prompt for maintaining public declarations and
