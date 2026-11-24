@@ -24,12 +24,12 @@ if (!/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(version)) {
   errors.push(`package.json has an unsupported version: ${version}`);
 }
 
-if (!/^## \[Unreleased\]\s*$/m.test(changelog)) {
+if (!/^## \[Unreleased]\s*$/m.test(changelog)) {
   errors.push('CHANGELOG.md is missing a "## [Unreleased]" section');
 }
 
 const heading = new RegExp(
-  `^## \\[${escapeRegExp(version)}\\] - (\\d{4}-\\d{2}-\\d{2})\\s*$`,
+  `^## \\[${escapeRegExp(version)}] - (\\d{4}-\\d{2}-\\d{2})\\s*$`,
   'm'
 );
 const match = changelog.match(heading);
@@ -49,7 +49,7 @@ if (!match) {
 }
 
 const versionLink = new RegExp(
-  `^\\[${escapeRegExp(version)}\\]: https://github\\.com/cmp-202/ssh2shell/compare/\\S+`,
+  `^\\[${escapeRegExp(version)}]: https://github\\.com/cmp-202/ssh2shell/compare/\\S+`,
   'm'
 );
 if (!versionLink.test(changelog)) {
@@ -57,7 +57,7 @@ if (!versionLink.test(changelog)) {
 }
 
 const unreleasedLink = new RegExp(
-  `^\\[Unreleased\\]: https://github\\.com/cmp-202/ssh2shell/compare/v${escapeRegExp(
+  `^\\[Unreleased]: https://github\\.com/cmp-202/ssh2shell/compare/v${escapeRegExp(
     version
   )}\\.\\.\\.HEAD\\s*$`,
   'm'

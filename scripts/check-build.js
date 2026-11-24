@@ -31,7 +31,9 @@ for (const file of srcFiles) {
     problems.push(`${file}: missing from lib/`);
     continue;
   }
-  if (!fs.readFileSync(src).equals(fs.readFileSync(lib))) {
+  const srcBuffer = /** @type {Buffer} */ (fs.readFileSync(src));
+  const libBuffer = /** @type {Buffer} */ (fs.readFileSync(lib));
+  if (!srcBuffer.equals(libBuffer)) {
     problems.push(`${file}: out of sync`);
   }
 }

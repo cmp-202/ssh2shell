@@ -33,6 +33,7 @@ function testFiles(dir) {
     .sort();
 }
 
+/** @type {string[]} */
 const files = testFiles(unitDir);
 
 if (files.length === 0) {
@@ -40,13 +41,16 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const child = spawn(process.execPath, ['--test', ...files], {
+/** @type {import('node:child_process').SpawnOptions} */
+const spawnOptions = {
   cwd: repoRoot,
   stdio: 'inherit',
   env: Object.assign({}, process.env, {
     SSH2SHELL_TEST_MODULE: modulePath,
   }),
-});
+};
+
+const child = spawn(process.execPath, ['--test', ...files], spawnOptions);
 
 child.on('error', (error) => {
   console.error(error);

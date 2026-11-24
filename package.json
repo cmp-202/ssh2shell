@@ -1,10 +1,22 @@
 {
   "name": "ssh2shell",
-  "version": "4.2.0",
+  "version": "4.2.1",
   "author": "cmp-202",
   "description": "A wrapper class for ssh2 to run multiple sequential commands in an SSH shell session, handle command responses, and tunnel through to other hosts using nested host objects",
   "main": "./lib/ssh2shell.js",
   "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./lib/ssh2shell.js"
+    },
+    "./package.json": "./package.json",
+    "./index.d.ts": "./index.d.ts",
+    "./lib/ssh2shell": "./lib/ssh2shell.js",
+    "./lib/ssh2shell/util": "./lib/ssh2shell/util.js",
+    "./lib/ssh2shell/defaults": "./lib/ssh2shell/defaults.js",
+    "./lib/*": "./lib/*"
+  },
   "files": [
     "lib",
     "index.d.ts",
@@ -17,12 +29,15 @@
     "ssh2": "^1.4.0"
   },
   "devDependencies": {
-    "dotenv": "^18.0.10"
+    "@types/node": "22.20.5",
+    "dotenv": "^18.0.10",
+    "typescript": "5.9.3"
   },
   "scripts": {
     "build": "node scripts/build.js",
     "check:build": "node scripts/check-build.js",
     "check:changelog": "node scripts/check-changelog.js",
+    "typecheck": "tsc -p tsconfig.typecheck.json && tsc -p tsconfig.consumer.json && tsc -p tsconfig.consumer-nodenext.json",
     "test": "npm run check:build && npm run test:unit && npm run test:baseline",
     "test:unit": "node scripts/run-tests.js lib",
     "test:src": "node scripts/run-tests.js src",
@@ -31,7 +46,7 @@
     "test:live": "node scripts/run-live.js",
     "test:live:all": "node scripts/run-live.js --all",
     "provision": "node test/provision/provision.js",
-    "prepublishOnly": "npm run check:changelog && npm test"
+    "prepublishOnly": "npm run check:changelog && npm run typecheck && npm test"
   },
   "keywords": [
     "SSH",
