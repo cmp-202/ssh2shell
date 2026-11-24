@@ -5,6 +5,9 @@ node_modules
 *.log
 test/logs/
 
+# Local editor project scope; tsconfig.json is the checked-in project file.
+jsconfig.json
+
 # Live-test private keys. Only the matching .pub files are committed.
 test/certs/*_ed25519
 test/certs/*.pem

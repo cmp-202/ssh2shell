@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false
+  },
+  "files": [
+    "src/ssh2shell.js",
+    "src/ssh2shell/defaults.js",
+    "src/ssh2shell/util.js",
+    "scripts/build.js",
+    "scripts/check-build.js",
+    "scripts/check-changelog.js",
+    "scripts/live-instrument.js",
+    "scripts/run-live.js",
+    "scripts/run-tests.js",
+    "test/live/simple.js",
+    "test/live/notifications.js",
+    "test/live/private_key.js",
+    "test/live/fingerprint.js",
+    "test/live/sudo_no_pass.js",
+    "test/live/sudo_su.js",
+    "test/live/prompt_response.js",
+    "test/live/command_timeout.js",
+    "test/live/multiple_primary_hosts.js",
+    "test/live/host_faults.js",
+    "test/live/tunnel.js",
+    "test/live/chaining.js",
+    "test/live/host_traversal.js",
+    "test/live/bash_script.js",
+    "test/live/keyboard-interactive.js"
+  ]
+}

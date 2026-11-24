@@ -4,6 +4,13 @@ const path = require('node:path');
 
 const fakeSsh2 = require('./fake-ssh2');
 
+/**
+ * Host fixture with runtime-only fields shared by the current and baseline
+ * targets. A permissive index signature keeps those characterization asserts
+ * type-aware without pretending the frozen baseline has declarations.
+ * @typedef {import('../../../index').HostConfig & Record<string, any>} TestHost
+ */
+
 const repoRoot = path.join(__dirname, '..', '..', '..');
 const currentModulePath = path.join(repoRoot, 'lib', 'ssh2shell.js');
 const baselineModulePath = path.join(
@@ -37,12 +44,12 @@ function installFakeSsh2(fake = fakeSsh2) {
   const ssh2Path = require.resolve('ssh2');
   const previous = require.cache[ssh2Path];
 
-  require.cache[ssh2Path] = {
+  require.cache[ssh2Path] = /** @type {any} */ ({
     id: ssh2Path,
     filename: ssh2Path,
     loaded: true,
     exports: fake,
-  };
+  });
 
   return function restore() {
     if (previous) {
@@ -67,6 +74,7 @@ function systemMsg(ssh, type, message, object = null) {
     : ssh.systemMsg(type, message, object);
 }
 
+/** @returns {TestHost} */
 function createHost(overrides = {}) {
   const server = Object.assign(
     {

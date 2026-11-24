@@ -1,6 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('pipe.js');
 

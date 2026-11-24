@@ -26,8 +26,8 @@ declare class SSH2Shell {
 
   /** Connect and optionally receive the combined session text at the end. */
   connect(callback?: (sessionText: string) => void): boolean;
-  /** Stop the run early with an optional reason label. */
-  stop(reason?: string): unknown;
+  /** Stop the run early with an optional reason label. Returns this instance for chaining. */
+  stop(reason?: string): this;
   /** Close the active connection; `graceful` backs out of nested shells. */
   close(options?: SSH2Shell.CloseOptions): unknown;
   /** Emit a structured message on the `msg` or `debug`/`verbose` channel. */
@@ -39,10 +39,12 @@ declare class SSH2Shell {
   ): this;
   on(event: string, listener: (...args: any[]) => void): this;
 
+  // noinspection JSUnusedGlobalSymbols
   addListener<E extends keyof SSH2Shell.EventMap>(
     event: E,
     listener: (this: SSH2Shell, ...args: SSH2Shell.EventMap[E]) => void
   ): this;
+  // noinspection JSUnusedGlobalSymbols
   addListener(event: string, listener: (...args: any[]) => void): this;
 
   once<E extends keyof SSH2Shell.EventMap>(
@@ -145,8 +147,8 @@ declare namespace SSH2Shell {
 
   /** Extra values supplied with the `commandComplete` event. */
   interface CommandCompleteDetails {
-    /** Always the unprocessed response buffer. */
-    rawResponse: string | Uint8Array;
+    /** Always a string; the shell stream is decoded before handlers receive it. */
+    rawResponse: string;
     /** Captured stderr when `captureStderr` is enabled. */
     stderr?: string;
     [property: string]: unknown;
@@ -192,7 +194,7 @@ declare namespace SSH2Shell {
   type CommandProcessingHandler = (
     this: SSH2Shell,
     command: string,
-    response: string | Uint8Array,
+    response: string,
     host: HostConfig,
     stream: ShellStream
   ) => void;
@@ -200,7 +202,7 @@ declare namespace SSH2Shell {
   type CommandCompleteHandler = (
     this: SSH2Shell,
     command: string,
-    response: string | Uint8Array,
+    response: string,
     host: HostConfig,
     details: CommandCompleteDetails
   ) => void;
@@ -208,7 +210,7 @@ declare namespace SSH2Shell {
   type CommandTimeoutHandler = (
     this: SSH2Shell,
     command: string,
-    response: string | Uint8Array,
+    response: string,
     stream: ShellStream,
     connection: SSHConnection,
     details: TimeoutDetails
@@ -243,20 +245,9 @@ declare namespace SSH2Shell {
     msg: [unknown];
     data: [string | Uint8Array];
     stderrData: [string | Uint8Array];
-    commandProcessing: [string, string | Uint8Array, HostConfig, ShellStream];
-    commandComplete: [
-      string,
-      string | Uint8Array,
-      HostConfig,
-      CommandCompleteDetails
-    ];
-    commandTimeout: [
-      string,
-      string | Uint8Array,
-      ShellStream,
-      SSHConnection,
-      TimeoutDetails
-    ];
+    commandProcessing: [string, string, HostConfig, ShellStream];
+    commandComplete: [string, string, HostConfig, CommandCompleteDetails];
+    commandTimeout: [string, string, ShellStream, SSHConnection, TimeoutDetails];
     end: [string, HostConfig];
     error: [
       unknown,
@@ -289,7 +280,7 @@ declare namespace SSH2Shell {
    *
    * @see https://github.com/cmp-202/ssh2shell#configuration-reference
    */
-  interface HostConfig {
+  interface HostOptions {
     /** How ssh2shell connects. Passed through to `ssh2.Client.connect()`. */
     server: ServerConfig;
 
@@ -400,6 +391,9 @@ declare namespace SSH2Shell {
     /** Runtime state and forward-compatible host keys. */
     [property: string]: unknown;
   }
+
+  /** Host configuration with `this` typed as the owning SSH2Shell instance. */
+  type HostConfig = HostOptions & ThisType<SSH2Shell>;
 }
 
 export = SSH2Shell;

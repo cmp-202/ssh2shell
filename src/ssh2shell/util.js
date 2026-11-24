@@ -19,7 +19,7 @@ function escapeRegex(str) {
 // sequence while ESC is still present. Covers CSI, OSC (BEL or ST terminated),
 // and two-character escapes.
 const terminalEscapePattern =
-  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-_]/g;
+  /\x1b][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-_]/g;
 
 function stripTerminalEscapes(value) {
   return String(value).replace(terminalEscapePattern, '');
@@ -36,6 +36,8 @@ function compileAsciiFilter(configured) {
 
   // Only allow basic structural character classes/ranges; reject dangerous
   // loops (+, *, ?, nested groups).
+  // Keep the 4.2.0 character set verbatim; the escapes are intentional.
+  // noinspection RegExpDuplicateCharacterInClass,RegExpRedundantEscape
   const safeAsciiPattern = /^\[\^?[a-zA-Z0-9\s\\x00-\\x7f\-\[\]]+\]$/;
   if (safeAsciiPattern.test(configured)) {
     return { filter: new RegExp(configured, 'g'), usedFallback: false };
@@ -84,6 +86,8 @@ function compilePromptRegex(configured) {
   const flags = isRegExp ? configured.flags.replace(/[gym]/g, '') : '';
 
   try {
+    // The group is required when a configured prompt contains alternation.
+    // noinspection RegExpUnnecessaryNonCapturingGroup
     return { regex: new RegExp(`(?:${source})$`, flags), usedFallback: false };
   } catch (error) {
     return { regex: null, usedFallback: true };
@@ -107,7 +111,9 @@ function compilePrompts(sshObj) {
     ),
     standardPrompt:
       custom.regex ||
-      new RegExp(`[${escapeRegex(sshObj.standardPrompt || '>$%#')}]\\s?$`),
+      new RegExp(
+        '[' + escapeRegex(sshObj.standardPrompt || '>$%#') + ']\\s?$'
+      ),
     standardPromptFallback: custom.usedFallback,
   };
 }
@@ -216,6 +222,7 @@ function redactCredentials(value, seen = new WeakSet()) {
 
 module.exports = {
   compileAsciiFilter,
+  // noinspection JSUnusedGlobalSymbols
   compilePromptRegex,
   compilePrompts,
   compileTextColorFilter,

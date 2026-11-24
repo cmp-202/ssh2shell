@@ -1,4 +1,4 @@
-const dotenv = require('dotenv').config();
+require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('timeout.js');
 
@@ -31,7 +31,7 @@ const host = {
   standardPrompt: '$',
   idleTimeOut: 5000,
   FirstPass: false,
-  onCommandTimeout: function (command, response, stream, connection) {
+  onCommandTimeout: function (command, response, stream) {
     this.systemMsg(
       'debug',
       `${this.sshObj.server.host}: host.onCommandTimeout`

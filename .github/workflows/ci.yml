@@ -43,3 +43,22 @@ jobs:
 
       - name: Verify publish contents
         run: npm pack --dry-run
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck declarations and annotated sources
+        run: npm run typecheck

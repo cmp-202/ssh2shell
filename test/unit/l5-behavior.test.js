@@ -69,8 +69,7 @@ describe('L5 listener lifecycle', () => {
 
   it('removes a host handler assigned after the defaults were loaded', () => {
     const { ssh, host } = make();
-    const lateHandler = () => {};
-    host.onCommandComplete = lateHandler;
+    host.onCommandComplete = () => {};
 
     ssh._removeListeners();
 

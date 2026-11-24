@@ -1181,6 +1181,29 @@ API are unchanged; this level adds metadata, documentation, and examples.
 - `npm test`, `npm run check:changelog`, `git diff --check`, and
   `npm pack --dry-run` — passed.
 
+### L7.27 deliverables (declaration typecheck gate)
+
+Post-4.2.0 hardening of the editor-support work. Runtime behavior and runtime
+dependencies are unchanged.
+
+- Added pinned dev-only `typescript` and `@types/node`.
+- Added `npm run typecheck` with checked-in configs that validate static type
+  contracts across annotated sources, repository scripts, README-linked live
+  tests, and strict consumer fixtures under `node16` and `nodenext`. This is
+  contract coverage, not line coverage; line coverage remains diagnostic only.
+- Added a single-version `Typecheck` CI job and a publish step;
+  `prepublishOnly` also runs the gate.
+- Added a conditional `exports` map with `types` first while preserving existing
+  subpaths, including extensionless `lib/*` deep imports.
+- Narrowed command responses to `string`, added `ThisType<SSH2Shell>` to
+  `HostConfig`, typed internal host records, and documented `stop()` as `this`.
+
+#### Verification
+
+- `npm run typecheck` — 0 errors.
+- `npm test`, `npm run check:changelog`, `git diff --check`, and
+  `npm pack --dry-run` — passed.
+
 ## Backlog and future work
 
 Items explicitly deferred until after the mechanical refactor. Each one changes

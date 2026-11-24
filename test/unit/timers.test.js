@@ -85,12 +85,11 @@ describe('instance timer values', () => {
     assert.equal(ssh.idleTime, 123);
     ssh._removeListeners();
 
-    const second = createHost({
+    ssh.sshObj = createHost({
       idleTimeOut: undefined,
       dataIdleTime: undefined,
       dataIdleTimeOut: undefined,
     });
-    ssh.sshObj = second;
     ssh._loadDefaults();
 
     // Baseline reloads its hard-coded defaults for the second host.

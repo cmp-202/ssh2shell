@@ -44,6 +44,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Verify version matches the ref
         shell: bash
         # Pass the ref through the environment. Interpolating it into the

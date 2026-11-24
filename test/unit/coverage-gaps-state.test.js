@@ -28,6 +28,7 @@ function make(overrides = {}) {
   return { ssh, host };
 }
 
+/** @returns {any} */
 function shellConnection(stream) {
   return {
     shell(window, callback) {
@@ -70,10 +71,12 @@ describe('coverage gaps: state and transport guards', () => {
     ssh._openShell(context);
 
     context.closed = true;
+    // noinspection JSCheckFunctionSignatures
     stream.emit('error', new Error('stale stream error'));
     assert.deepEqual(failures, []);
 
     context.closed = false;
+    // noinspection JSCheckFunctionSignatures
     stream.emit('error', new Error('hop stream error'));
     assert.deepEqual(failures, ['hop stream error']);
   });
@@ -107,6 +110,7 @@ describe('coverage gaps: state and transport guards', () => {
       throw new Error('listener boom');
     });
 
+    // noinspection JSCheckFunctionSignatures
     stream.emit('data', 'command output');
 
     const args = errors.find((entry) => entry[1] === 'Stream.read error');
@@ -129,6 +133,7 @@ describe('coverage gaps: state and transport guards', () => {
       throw new Error('listener boom');
     });
 
+    // noinspection JSCheckFunctionSignatures
     stream.emit('data', 'hop output');
 
     assert.equal(failures.length, 1);
@@ -161,11 +166,11 @@ describe('coverage gaps: state and transport guards', () => {
 
     let completeForwardOut;
     const parent = ssh._pushContext(createHost(), null);
-    parent.connection = {
+    parent.connection = /** @type {any} */ ({
       forwardOut(srcIP, srcPort, dstIP, dstPort, callback) {
         completeForwardOut = callback;
       },
-    };
+    });
 
     ssh._connect(parent);
     const child = ssh._activeContext();
@@ -188,11 +193,11 @@ describe('coverage gaps: state and transport guards', () => {
 
     let completeForwardOut;
     const parent = ssh._pushContext(createHost(), null);
-    parent.connection = {
+    parent.connection = /** @type {any} */ ({
       forwardOut(srcIP, srcPort, dstIP, dstPort, callback) {
         completeForwardOut = callback;
       },
-    };
+    });
 
     ssh._connect(parent);
     const child = ssh._activeContext();
@@ -224,7 +229,7 @@ describe('coverage gaps: state and transport guards', () => {
     context.isPrimary = false;
 
     const connection = new EventEmitter();
-    context.connection = connection;
+    context.connection = /** @type {any} */ (connection);
     const failures = [];
     ssh._hopFailed = (failedContext, error) => failures.push(error.message);
     ssh._appendPartial = () => {};

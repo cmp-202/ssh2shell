@@ -14,10 +14,12 @@ here.
 
 Apply these whether or not a prompt repeats them:
 
-- No commit, push, PR, tag, or publish without explicit user approval.
+- Follow the session modes below. Local commits are allowed in agreed review
+  cycles; no push, PR, tag, or publish without explicit user approval.
 - Docs live in git. `README.md` stays concise; detail belongs in `docs/`.
-- Coverage is diagnostic, not a release gate. No coverage dependency and no CI
-  coverage gate.
+- Line coverage is diagnostic, not a release gate. No coverage dependency and
+  no CI line-coverage gate. `npm run typecheck` is a separate static-contract
+  gate; it is not line coverage and produces no coverage percentage.
 - Live tests count in CI. `publish` must not run unless the live suite passes.
 - An external/free review of the release candidate is a release step; resolve
   its actionable findings before tagging, with user sign-off on every change.
@@ -29,6 +31,27 @@ Apply these whether or not a prompt repeats them:
 - Before a task that depends on remote services, live hosts, or free models,
   run the environmental assessment below first.
 
+## Session modes
+
+Use the narrowest mode that matches the request. A stop for exploration ends
+when the user explicitly asks to create or use a branch and implement changes.
+
+1. **Read-only exploration** — inspect, review, compare, and report findings.
+   Do not edit files, create commits, or change branches. This is the default
+   when the user says “let’s look at this” or asks for a stop on repo activity.
+2. **Branch implementation** — begins when the user asks to create or use a
+   branch and make changes. Normal development applies: edit files, add new
+   files, stage, commit locally in agreed review cycles, run checks, fix
+   findings, and expand the implementation. Push, PR, tag, publish, and release
+   remain blocked.
+3. **Release and remote actions** — push, PR, tag, publish, or release only with
+   explicit user approval. Same-day follow-up releases still follow the critical
+   fix rule unless the user explicitly overrides it.
+
+A read-only limit is not a permanent repository freeze. It protects the
+exploration phase; once implementation on a branch is requested, do not keep
+asking for permission for ordinary local development steps.
+
 ## Start or recover a session
 
 ```text
@@ -38,8 +61,9 @@ You are working in the ssh2shell repository. Start read-only.
    docs/AI-ASSISTED-WORKFLOWS.md.
 2. Report git status --short, the current branch, and the latest commit.
 3. Summarise which document is the source of truth for the requested task.
-4. Do not commit, push, tag, or publish. Ask before any action that changes
-   the working tree or remote state.
+4. Stay read-only until asked to create or use a branch and implement. Do not
+   push, tag, or publish. Commit only in agreed review cycles, and ask before
+   any action that changes remote state or release metadata.
 ```
 
 ## Set up the environment
@@ -112,7 +136,8 @@ Run the full pre-PR verification for ssh2shell and report results only.
    the text table, full miss-overlap table, missed by both headline, Node
    version, and commands. Keep raw LCOV files local.
 
-Do not commit, push, or open the PR without explicit approval.
+Commit only in agreed review cycles; do not push or open the PR without
+explicit approval.
 ```
 
 ## Add a live test
@@ -164,7 +189,9 @@ You are adding editor/type support to ssh2shell. Start read-only.
   src/ssh2shell.js, src/ssh2shell/defaults.js, src/ssh2shell/util.js, and the
   README-linked live tests before changing anything.
 - Keep package.json `types` pointing at ./index.d.ts and keep index.d.ts in
-  `files`. Do not add a TypeScript runtime dependency, build step, or CI gate.
+  `files`. Do not add a TypeScript runtime dependency or build step. The
+  dev-only TypeScript toolchain is checked by the `typecheck` script in CI and
+  `prepublishOnly`.
 - Add JSDoc typedef aliases and `// @ts-check` in src/ where they improve the
   public contract. Keep lib/ in sync with src/ through the repository's normal
   build/check process.
@@ -172,11 +199,12 @@ You are adding editor/type support to ssh2shell. Start read-only.
   tests, use import('../../index') for module and HostConfig annotations so they
   resolve locally.
 - Keep JSDoc @type tags immediately above the declaration they describe.
-- Verify with tsc against src/ and the annotated live tests, npm test,
-  git diff --check, and npm pack --dry-run when package metadata changed.
+- Verify with `npm run typecheck`, npm test, git diff --check, and
+  npm pack --dry-run when package metadata changed.
 - Report the declared fields/signatures, docs that changed, and verification
-  results. Do not commit, push, open a PR, tag, publish, or release without
-  explicit approval. Docs/test-only editor support does not trigger a release.
+  results. Commit only in agreed review cycles; do not push, open a PR, tag,
+  publish, or release without explicit approval. Docs/test-only editor support
+  does not trigger a release.
 ```
 
 ## Decide whether a fix needs a release
@@ -246,8 +274,10 @@ Refresh the coverage evidence for ssh2shell using test/coverage.md as the method
   Keep the full table and use missed by both as the residual-risk headline.
 - Update test/coverage.md and include the summary in the PR description or a
   PR comment. Raw LCOV files stay local.
-- Never add a coverage dependency or a CI coverage gate. Coverage is
-  informational; the gates are CI checks, the live suite, and RC review.
+- Never add a line-coverage dependency or a CI line-coverage gate. Line
+  coverage is informational; the gates are CI checks, the live suite, typecheck,
+  and RC review. `npm run typecheck` validates static contracts, not executed
+  lines.
 ```
 
 ## Hand off a session

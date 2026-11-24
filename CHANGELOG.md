@@ -8,6 +8,38 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-11-25
+
+### Added
+
+- Added a conditional `exports` map so Node 16+/node16/nodenext resolution finds
+  `index.d.ts` for the root import while preserving `lib/*` (including
+  extensionless deep imports) and `package.json` subpaths.
+- Added a dev-only, pinned TypeScript typecheck gate that validates static type
+  contracts across annotated sources, repository scripts, live tests, and strict
+  consumer fixtures under `node16` and `nodenext`. This is contract coverage,
+  not line coverage; the line-coverage report remains diagnostic only. It is a
+  required CI check and runs from `prepublishOnly`; runtime dependencies are
+  unchanged. A root `tsconfig.json` also gives editors explicit project scope
+  for `index.d.ts`.
+
+### Changed
+
+- Tightened editor typing: host context records are explicitly typed, command
+  responses are declared as strings, `HostConfig` carries `ThisType<SSH2Shell>`,
+  and `stop()` returns `this`. Runtime behavior is unchanged.
+- Cleaned up WebStorm inspection warnings in `src/ssh2shell.js`,
+  `src/ssh2shell/util.js`, `index.d.ts`, and the `scripts/` helpers: redundant
+  `return`s, unused callback parameters, timer/context JSDoc annotations,
+  redundant regex escapes, and EventEmitter-compatible `addListener` overloads.
+  The internal `compilePromptRegex` deep-import export remains available.
+  Runtime behavior is unchanged.
+- Cleared the same WebStorm inspection categories from the live and unit tests:
+  unused `dotenv` bindings and callback parameters, annotated fixture hosts and
+  fake connections, typed timer stubs, corrected `Error` cause arguments,
+  simplified trivial ternaries, and removed redundant locals. Test behavior is
+  unchanged.
+
 ## [4.2.0] - 2026-11-25
 
 ### Added
@@ -210,7 +242,8 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.2.0...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.2.1...HEAD
+[4.2.1]: https://github.com/cmp-202/ssh2shell/compare/v4.2.0...v4.2.1
 [4.2.0]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...v4.1.0
 [4.0.4]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...v4.0.4
