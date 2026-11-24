@@ -171,6 +171,28 @@ node scripts/run-live.js host_traversal host_faults --timeout 180
 The runner check for `host_faults` encodes the post-change contract and allows
 the expected `ECONNREFUSED` marker and `Connection` error type.
 
+### Host-key pinning on hops
+
+`hop_host_key.js` proves that `hostHash` / `hostVerifier` are enforced on a hop,
+not only on the primary. The nested host rejects every key with
+`hostVerifier: () => false`, and a valid sibling hop follows it:
+
+```text
+primary -> rejected hop (verifier always false) -> valid sibling
+```
+
+The test needs no stored fingerprint, so it works with the throwaway host keys
+generated in CI. It logs `pin-order`, `pin-error-count`, and `pin-rejections`,
+and exits nonzero if the rejected hop's command runs, the sibling is skipped,
+or fewer than one verification failure is recorded. The runner check also
+allows the expected `Hop` error type.
+
+Run it directly with:
+
+```bash
+node scripts/run-live.js hop_host_key
+```
+
 Each test runs in its own process with a 180-second default timeout. The runner
 does not trust the exit code: a failed connection still reaches the connect
 callback with empty session text and exits zero. It checks the callback, the
