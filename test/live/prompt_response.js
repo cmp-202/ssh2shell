@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('prompt_response.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -9,6 +10,7 @@ const { readPrivateKey } = require('../utils/private_key.js');
 const promptCommand =
   'printf "Install nano [Y/n]? "; read answer; echo "answer=$answer"';
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.HOST,
@@ -20,7 +22,7 @@ const host = {
   commands: [promptCommand],
   onCommandProcessing: function (command, response, sshObj, stream) {
     if (command === promptCommand
-        && response.includes('[Y/n]?')
+        && /** @type {string} */ (response).includes('[Y/n]?')
         && sshObj.answeredNano !== true) {
       sshObj.answeredNano = true;
       stream.write('y\n');

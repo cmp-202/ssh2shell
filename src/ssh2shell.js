@@ -1,3 +1,4 @@
+// @ts-check
 // ssh2shell
 // A wrapper class for ssh2 to run multiple sequential commands in an SSH shell
 // session, handle command responses, and tunnel through to other hosts using
@@ -7,6 +8,26 @@
 // compilation, and credential redaction live in ./ssh2shell/*. Host hops are
 // real ssh2 connections opened through the parent connection's forwardOut
 // channel; there is no nested `ssh` command.
+
+// Public type contracts live in index.d.ts. These aliases make the same
+// contracts available to editors and JSDoc-aware tooling without a build step.
+/**
+ * @typedef {import('../index').HostConfig} HostConfig
+ * @typedef {import('../index').ServerConfig} ServerConfig
+ * @typedef {import('../index').CommandCompleteDetails} CommandCompleteDetails
+ * @typedef {import('../index').TimeoutDetails} TimeoutDetails
+ * @typedef {import('../index').ShellStream} ShellStream
+ * @typedef {import('../index').SSHConnection} SSHConnection
+ * @typedef {import('../index').MessageHandler} MessageHandler
+ * @typedef {import('../index').DataHandler} DataHandler
+ * @typedef {import('../index').CommandProcessingHandler} CommandProcessingHandler
+ * @typedef {import('../index').CommandCompleteHandler} CommandCompleteHandler
+ * @typedef {import('../index').CommandTimeoutHandler} CommandTimeoutHandler
+ * @typedef {import('../index').EndHandler} EndHandler
+ * @typedef {import('../index').ErrorHandler} ErrorHandler
+ * @typedef {import('../index').KeyboardInteractiveHandler} KeyboardInteractiveHandler
+ * @typedef {Error & {level?: string, hadError?: boolean}} TaggedError
+ */
 
 const Stream = require('node:stream');
 
@@ -66,8 +87,13 @@ function stripEchoedCommand(buffer, command) {
 }
 
 class SSH2Shell extends Stream {
+  /**
+   * @param {HostConfig | HostConfig[]} hosts A host config or a non-empty array of them.
+   */
   constructor(hosts) {
-    super(hosts);
+    // Preserve the legacy Stream/EventEmitter options pass-through. HostConfig
+    // can carry emitter options such as `captureRejections`.
+    super(/** @type {any} */ (hosts));
 
     // Public entry points keep own bound copies so they can be detached and
     // passed around. `_connect` and `_connectHop` are passed as bare callbacks
@@ -98,7 +124,8 @@ class SSH2Shell extends Stream {
     this._hosts = list.slice();
     this._primaryHostCount = this._hosts.length;
     this._multipleHosts = this._primaryHostCount > 1;
-    this.sshObj = {};
+    /** @type {HostConfig} */
+    this.sshObj = /** @type {any} */ ({});
     // `_connections` holds the ancestors of the active record; `_active` is the
     // active record itself. A primary host has an empty stack.
     this._connections = [];
@@ -158,10 +185,14 @@ class SSH2Shell extends Stream {
     this.dataIdleTime = 500;
     this.idleTimer = null;
     this.dataReceivedTimer = null;
-    this.asciiFilter = '';
-    this.textColorFilter = '';
-    this.passwordPrompt = '';
-    this.standardPrompt = '';
+    /** @type {RegExp} */
+    this.asciiFilter = /** @type {any} */ ('');
+    /** @type {RegExp} */
+    this.textColorFilter = /** @type {any} */ ('');
+    /** @type {RegExp} */
+    this.passwordPrompt = /** @type {any} */ ('');
+    /** @type {RegExp} */
+    this.standardPrompt = /** @type {any} */ ('');
     this._loadDefaultListeners();
   }
 
@@ -244,7 +275,10 @@ class SSH2Shell extends Stream {
         this.systemMsg('debug', `Class.error: ${err}, ${type}`);
 
         if (err instanceof Error) {
-          this.emit('msg', `Error: ${err.message}, Level: ${err.level}`);
+          this.emit(
+            'msg',
+            `Error: ${err.message}, Level: ${/** @type {TaggedError} */ (err).level}`
+          );
         } else {
           this.emit('msg', `${type} error: ${err}`);
         }
@@ -353,6 +387,10 @@ class SSH2Shell extends Stream {
 
   // Copy the server options so the host config is not mutated. `ssh2` uses
   // `username` / `passphrase`; `userName` / `passPhrase` are the public names.
+  /**
+   * @param {ServerConfig | undefined} server Host server configuration.
+   * @returns {ServerConfig} A copied config with ssh2-native names.
+   */
   _normalizeServer(server) {
     const options = Object.assign({}, server || {});
     delete options.ssh;
@@ -796,6 +834,12 @@ class SSH2Shell extends Stream {
 
   // Emits debug/verbose messages only when the matching flag is enabled.
   // An optional object payload is emitted as a second message.
+  /**
+   * @param {'debug' | 'verbose' | string} type Message channel.
+   * @param {string} message Message text.
+   * @param {unknown} [object] Optional structured payload.
+   * @returns {void}
+   */
   systemMsg(type, message, object = null){
     const enabled =
       (type === 'debug' && this._debug) ||
@@ -845,7 +889,10 @@ class SSH2Shell extends Stream {
       }
       this._progressEnd();
 
-      const attempt = (this.sshObj.commandTimeoutAttempt || 0) + 1;
+      const attempt =
+        (/** @type {number | undefined} */ (
+          this.sshObj.commandTimeoutAttempt
+        ) || 0) + 1;
       this.sshObj.commandTimeoutAttempt = attempt;
       const maxRetries = toNonNegativeInteger(this.sshObj.commandTimeoutRetries);
       const final = attempt > maxRetries;
@@ -1665,6 +1712,10 @@ class SSH2Shell extends Stream {
   // Shutdown
   // ---------------------------------------------------------------------------
 
+  /**
+   * @param {string} [reason] Label reported in the stop message.
+   * @returns {unknown} The active stream placeholder or this instance.
+   */
   stop(reason = 'user') {
     if (this._runComplete || this._stopping) {
       return this;
@@ -1884,6 +1935,10 @@ class SSH2Shell extends Stream {
     return this._callFinalCallback();
   }
 
+  /**
+   * @param {{ graceful?: boolean }} [options] Set `graceful` to back out of nested shells.
+   * @returns {unknown} The result of advancing the host queue, when applicable.
+   */
   close(options = {}) {
     if (this._runComplete || this._closing) {
       return;
@@ -1950,7 +2005,7 @@ class SSH2Shell extends Stream {
     this._primaryEnded = false;
     this._stream = {};
     this.connection = null;
-    this.sshObj = {};
+    this.sshObj = /** @type {any} */ ({});
     this.host = 'No host';
     this.command = '';
     this._buffer = '';
@@ -2271,6 +2326,10 @@ class SSH2Shell extends Stream {
     this.systemMsg('verbose', 'loadDefaults: Config:', host);
   }
 
+  /**
+   * @param {(sessionText: string) => void} [callback] Receives the combined session text.
+   * @returns {boolean} The result of raising the internal `newPrimaryHost` event.
+   */
   connect(callback) {
     // An instance owns one run. A second connect() used to drain the empty
     // host queue and call back with '', which looked like an empty session.
@@ -2319,7 +2378,9 @@ class SSH2Shell extends Stream {
           'parameters'
         );
       }
-      const err = new Error('Missing connection parameters');
+      const err = /** @type {TaggedError} */ (
+        new Error('Missing connection parameters')
+      );
       err.level = 'Parameters';
       this._hopFailed(context, err);
       return this._stream;
@@ -2505,7 +2566,9 @@ class SSH2Shell extends Stream {
         this._appendPartial('connection-close', context.host);
 
         if (had_error) {
-          const err = new Error('Connection closed with error');
+          const err = /** @type {TaggedError} */ (
+            new Error('Connection closed with error')
+          );
           err.level = 'Connection close';
           err.hadError = had_error;
           this.emit('error', err, 'Connection close', null, null, context);
@@ -2627,7 +2690,9 @@ class SSH2Shell extends Stream {
         try {
           this.emit('data', data);
         } catch (e) {
-          const readError = new Error(`${e} ${e.stack}`);
+          const readError = /** @type {TaggedError} */ (
+            new Error(`${e} ${e.stack}`)
+          );
           readError.level = 'Data handling';
           if (context.isPrimary) {
             this.emit(

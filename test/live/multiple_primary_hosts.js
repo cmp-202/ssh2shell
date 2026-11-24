@@ -2,9 +2,11 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('multiple_primary_hosts.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
+/** @type {import('../../index').HostConfig} */
 const host1 = {
   server: {
     host: process.env.SERVER1_HOST || process.env.HOST,
@@ -16,6 +18,7 @@ const host1 = {
   commands: ['hostname', 'uptime']
 };
 
+/** @type {import('../../index').HostConfig} */
 const host2 = {
   server: {
     host: process.env.SERVER2_HOST,

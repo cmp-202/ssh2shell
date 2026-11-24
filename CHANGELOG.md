@@ -8,6 +8,32 @@ Releases before `4.0.0` are recorded as git tags and GitHub Releases.
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-25
+
+### Added
+
+- `index.d.ts` now describes the public API, host and server configuration,
+  handlers, events, and runtime state for TypeScript and JavaScript editors.
+  The package points `types` at the declaration file and includes it in the
+  published files list. Runtime behavior is unchanged.
+- README-linked live tests now carry JSDoc annotations that demonstrate the
+  same editor support, and the README explains the annotation pattern for
+  consumers.
+
+### Fixed
+
+- Restored the legacy `Stream`/`EventEmitter` options pass-through from the host
+  config so emitter options such as `captureRejections` still apply. The release
+  candidate had dropped it during JSDoc annotation.
+- Corrected editor declarations for `hostVerifier` raw key bytes and nullable
+  error callbacks, and annotated the remaining README-linked
+  `keyboard-interactive` example.
+
+### Development
+
+- Added an AI-assisted workflow prompt for maintaining public declarations and
+  JSDoc annotations.
+
 ## [4.1.0] - 2026-11-23
 
 ### Added
@@ -184,7 +210,8 @@ See [docs/MIGRATING-4.md](./docs/MIGRATING-4.md) for the symptom-to-fix guide.
   `~/.ssh/id_ed25519` copies that were only needed by nested `ssh -i` hops.
 - `ssh2Client` is now `_ssh2Client` and is documented as an internal test seam.
 
-[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/cmp-202/ssh2shell/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/cmp-202/ssh2shell/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/cmp-202/ssh2shell/compare/v4.0.4...v4.1.0
 [4.0.4]: https://github.com/cmp-202/ssh2shell/compare/v4.0.3...v4.0.4
 [4.0.3]: https://github.com/cmp-202/ssh2shell/compare/v4.0.2...v4.0.3

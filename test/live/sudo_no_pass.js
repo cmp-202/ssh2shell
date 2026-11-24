@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('sudo_no_pass.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -11,6 +12,7 @@ const { readPrivateKey } = require('../utils/private_key.js');
  * would be required, so these commands prove that sudo runs without a prompt
  * and that the normal prompt is still detected so the next command runs.
  */
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.SERVER2_HOST,

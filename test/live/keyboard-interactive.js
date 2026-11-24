@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('keyboard-interactive.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 
 // The keyboard-interactive user has password auth disabled, so the client must
@@ -15,6 +16,7 @@ if (!kbdPassword) {
   process.exit(1);
 }
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.KBD_HOST || process.env.HOST,

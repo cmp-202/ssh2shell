@@ -153,6 +153,32 @@ A change to <behavior> is ready. Keep README.md concise and put detail in docs/.
 - Run npm run check:changelog and report what changed.
 ```
 
+## Add or update TypeScript declarations and JSDoc
+
+```text
+You are adding editor/type support to ssh2shell. Start read-only.
+
+- Treat index.d.ts as a hand-maintained public contract derived from runtime
+  code and documentation, not a generated artifact.
+- Read README.md, docs/API-BASELINE.md, index.d.ts, package.json,
+  src/ssh2shell.js, src/ssh2shell/defaults.js, src/ssh2shell/util.js, and the
+  README-linked live tests before changing anything.
+- Keep package.json `types` pointing at ./index.d.ts and keep index.d.ts in
+  `files`. Do not add a TypeScript runtime dependency, build step, or CI gate.
+- Add JSDoc typedef aliases and `// @ts-check` in src/ where they improve the
+  public contract. Keep lib/ in sync with src/ through the repository's normal
+  build/check process.
+- Use import('ssh2shell') in consumer-facing docs. Inside README-linked live
+  tests, use import('../../index') for module and HostConfig annotations so they
+  resolve locally.
+- Keep JSDoc @type tags immediately above the declaration they describe.
+- Verify with tsc against src/ and the annotated live tests, npm test,
+  git diff --check, and npm pack --dry-run when package metadata changed.
+- Report the declared fields/signatures, docs that changed, and verification
+  results. Do not commit, push, open a PR, tag, publish, or release without
+  explicit approval. Docs/test-only editor support does not trigger a release.
+```
+
 ## Decide whether a fix needs a release
 
 ```text

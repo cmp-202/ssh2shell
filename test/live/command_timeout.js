@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('command_timeout.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -11,6 +12,7 @@ const { readPrivateKey } = require('../utils/private_key.js');
 const promptCommand =
   'printf "Install nodejs [Y/n]? "; read answer; echo "answer=$answer"';
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.HOST,
@@ -22,7 +24,7 @@ const host = {
   commands: [promptCommand],
   onCommandTimeout: function (command, response, stream, connection) {
     if (command === promptCommand
-        && response.includes('[Y/n]?')
+        && /** @type {string} */ (response).includes('[Y/n]?')
         && this.sshObj.answeredNode !== true) {
       this.sshObj.answeredNode = true;
       stream.write('y\n');
@@ -41,7 +43,7 @@ const host = {
       'Command Timeout',
       true,
       () => {
-        this.sshObj.sessionText += response;
+        /** @type {any} */ (this.sshObj).sessionText += response;
       }
     );
   }

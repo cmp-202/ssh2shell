@@ -1,5 +1,6 @@
 pm-debug.log
 node_modules
+.idea
 .env
 *.log
 test/logs/

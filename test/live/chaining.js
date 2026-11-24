@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('chaining.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -9,6 +10,7 @@ const { readPrivateKey } = require('../utils/private_key.js');
 // authenticates with the runner's local key.
 const privateKey = readPrivateKey();
 
+/** @type {import('../../index').HostConfig} */
 const jump = {
   server: {
     host: process.env.HOST,
@@ -20,6 +22,7 @@ const jump = {
   commands: ['hostname']
 };
 
+/** @type {import('../../index').HostConfig} */
 const bastion = {
   server: {
     host: process.env.SERVER2_HOST,
@@ -31,6 +34,7 @@ const bastion = {
   commands: ['hostname']
 };
 
+/** @type {import('../../index').HostConfig} */
 const target = {
   server: {
     host: process.env.SERVER3_HOST,

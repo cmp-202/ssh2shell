@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('host_traversal.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
@@ -22,6 +23,12 @@ const { readPrivateKey } = require('../utils/private_key.js');
 // needed.
 const privateKey = readPrivateKey();
 
+/**
+ * @param {string | undefined} host
+ * @param {number | string | undefined} port
+ * @param {string | undefined} userName
+ * @returns {import('../../index').ServerConfig}
+ */
 function nestedServer(host, port, userName) {
   return {
     host,
@@ -32,6 +39,11 @@ function nestedServer(host, port, userName) {
   };
 }
 
+/**
+ * @param {string} label
+ * @param {import('../../index').ServerConfig} server
+ * @returns {import('../../index').HostConfig}
+ */
 function host(label, server) {
   return {
     server,
@@ -187,7 +199,10 @@ SSH.debug = (process.env.DEBUG === 'true');
 SSH.verbose = (process.env.VERBOSE === 'true');
 
 SSH.on('error', (err, type) => {
-  log(`error-event:${type || ''}:${err && err.message ? err.message : err}`);
+  const error = /** @type {{message?: string} | null | undefined} */ (err);
+  log(
+    `error-event:${type || ''}:${error && error.message ? error.message : err}`
+  );
 });
 
 SSH.on('end', (sessionText, host) => {

@@ -2,9 +2,11 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('fingerprint.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 const { readPrivateKey } = require('../utils/private_key.js');
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.HOST,
@@ -24,7 +26,10 @@ const host = {
         return true;
       }
 
-      return hashedKey.toLowerCase() === expectedHash.toLowerCase();
+      return (
+        /** @type {string} */ (hashedKey).toLowerCase() ===
+        expectedHash.toLowerCase()
+      );
     },
   },
   commands: ['whoami']

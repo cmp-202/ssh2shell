@@ -2,6 +2,7 @@ const dotenv = require('dotenv').config();
 const { logFile, log } = require('../utils/logging.js');
 logFile('sudo_su.js');
 
+/** @type {typeof import('../../index')} */
 const SSH2Shell = require('../utils/module.js');
 
 // `HOST` is server1, which has the `suuser` account used as the `su` target.
@@ -9,6 +10,7 @@ const SSH2Shell = require('../utils/module.js');
 // to answer the `sudo` prompt.
 const secondUser = process.env.SECOND_USER || 'suuser';
 
+/** @type {import('../../index').HostConfig} */
 const host = {
   server: {
     host: process.env.HOST,
@@ -28,7 +30,7 @@ const host = {
   ],
   onCommandProcessing: function (command, response, sshObj, stream) {
     if (command === `su ${secondUser}`
-        && response.includes('Password:')
+        && /** @type {string} */ (response).includes('Password:')
         && sshObj.suPasswordSent !== true) {
       sshObj.suPasswordSent = true;
       stream.write(`${sshObj.server.secondUserPassword}\n`);
